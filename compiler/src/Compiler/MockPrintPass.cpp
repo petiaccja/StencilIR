@@ -37,7 +37,7 @@ public:
         Value formatSpecifierCst = getOrCreateGlobalString(loc,
                                                            rewriter,
                                                            "frmt_spec",
-                                                           StringRef("asd %f\0", 7),
+                                                           StringRef("%f\0", 7),
                                                            module);
 
 

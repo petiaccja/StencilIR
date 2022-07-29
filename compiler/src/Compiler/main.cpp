@@ -1,8 +1,10 @@
+#include "AST/AST.hpp"
+#include "AST/Node.hpp"
 #include "AllToLLVMPass.hpp"
+#include "Compiler/LowerAST.hpp"
 #include "MockPrintPass.hpp"
 #include "MockToArithPass.hpp"
 #include "llvm/ADT/ArrayRef.h"
-
 #include <MockDialect/MockDialect.hpp>
 #include <MockDialect/MockOps.hpp>
 #include <iostream>
@@ -33,29 +35,15 @@
 
 
 
-mlir::ModuleOp TestProgram(mlir::MLIRContext& context) {
-    context.getOrLoadDialect<mock::MockDialect>();
-    context.getOrLoadDialect<mlir::func::FuncDialect>();
-
-    mlir::OpBuilder builder{ &context };
-
-    auto module = builder.create<mlir::ModuleOp>(builder.getUnknownLoc());
-
-    builder.setInsertionPointToEnd(module.getBody());
-
-    auto mainFuncType = mlir::FunctionType::get(&context, llvm::ArrayRef<mlir::Type>{}, llvm::ArrayRef<mlir::Type>{});
-    auto mainFunc = builder.create<mlir::func::FuncOp>(builder.getUnknownLoc(), "main", mainFuncType);
-    auto& mainFuncBlock = mainFunc.getBody().emplaceBlock();
-
-    builder.setInsertionPointToStart(&mainFuncBlock);
-    const mlir::Value c1 = builder.create<mock::ConstantOp>(builder.getUnknownLoc(), builder.getF32Type(), builder.getFloatAttr(builder.getF32Type(), 1.5f));
-    builder.create<mock::PrintOp>(builder.getUnknownLoc(), c1);
-    builder.create<mlir::func::ReturnOp>(builder.getUnknownLoc());
-
-    return module;
+std::shared_ptr<ast::Module> CreateProgram() {
+    auto c1 = std::make_shared<ast::Constant<float>>(1.5f);
+    auto c2 = std::make_shared<ast::Constant<float>>(3.7f);
+    auto add = std::make_shared<ast::Add>(c1, c2);
+    auto print = std::make_shared<ast::Print>(add);
+    return std::make_shared<ast::Module>(ast::StatementList{ print });
 }
 
-mlir::LogicalResult LowerProgram(mlir::MLIRContext& context, mlir::ModuleOp& op) {
+mlir::LogicalResult LowerToLLVM(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     mlir::PassManager passManager(&context);
     passManager.addPass(std::make_unique<MockToArithPass>());
     passManager.addPass(std::make_unique<MockPrintPass>());
@@ -98,12 +86,13 @@ bool ExecuteProgram(mlir::ModuleOp& module) {
 int main() {
     mlir::MLIRContext context;
 
-    mlir::ModuleOp module = TestProgram(context);
+    std::shared_ptr<ast::Module> ast = CreateProgram();
+    mlir::ModuleOp module = LowerAST(context, *ast);
     std::cout << "Mock IR:\n"
               << std::endl;
     module->dump();
 
-    if (LowerProgram(context, module).succeeded()) {
+    if (LowerToLLVM(context, module).succeeded()) {
         std::cout << "\n\nLLVM IR:\n"
                   << std::endl;
         module->dump();

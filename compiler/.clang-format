@@ -53,14 +53,16 @@ DeriveLineEnding: 'true'
 FixNamespaceComments: true
 IncludeBlocks: Regroup
 IncludeCategories:
-  - Regex:           '(dspbb)/'
+  - Regex:           '.*'
+    Priority:        1
+  - Regex:           '(AST|Compiler|MockDialect)/'
     Priority:        2
   - Regex:           '^(<|"(gtest|gmock|isl|json|catch)/)'
     Priority:        3
-  - Regex:           '<[[:alnum:].]+>'
+  - Regex:           '(<|"(llvm|mlir)/)'
     Priority:        4
-  - Regex:           '.*'
-    Priority:        1
+  - Regex:           '<[[:alnum:].]+>'
+    Priority:        5
 IndentCaseBlocks: 'false'
 IndentCaseLabels: 'true'
 IndentExternBlock: 'false'
