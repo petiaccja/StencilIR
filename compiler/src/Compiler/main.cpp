@@ -1,7 +1,9 @@
 #include "AST/AST.hpp"
 #include "AST/Node.hpp"
+#include "AST/Types.hpp"
 #include "AllToLLVMPass.hpp"
 #include "Compiler/LowerAST.hpp"
+#include "KernelToAffinePass.hpp"
 #include "MockPrintPass.hpp"
 #include "MockToArithPass.hpp"
 #include "llvm/ADT/ArrayRef.h"
@@ -40,13 +42,37 @@ std::shared_ptr<ast::Module> CreateProgram() {
     auto c2 = std::make_shared<ast::Constant<float>>(3.7f);
     auto add = std::make_shared<ast::Add>(c1, c2);
     auto print = std::make_shared<ast::Print>(add);
-    return std::make_shared<ast::Module>(ast::StatementList{ print });
+
+    auto kernel = std::make_shared<ast::KernelFunc>("kernel_fun",
+                                                    std::vector<std::pair<std::string, types::Type>>{},
+                                                    std::vector<types::Type>{},
+                                                    std::vector<std::shared_ptr<ast::Statement>>{ print });
+
+    auto gridDimX = std::make_shared<ast::Constant<int64_t>>(12, types::FundamentalType{ types::FundamentalType::SSIZE });
+    auto gridDimY = std::make_shared<ast::Constant<int64_t>>(7, types::FundamentalType{ types::FundamentalType::SSIZE });
+    auto kernelLaunch = std::make_shared<ast::KernelLaunch>("kernel_fun",
+                                                            std::vector<std::shared_ptr<ast::Expression>>{ gridDimX, gridDimY },
+                                                            std::vector<std::shared_ptr<ast::Expression>>{});
+
+    return std::make_shared<ast::Module>(std::vector<std::shared_ptr<ast::Node>>{ kernelLaunch },
+                                         std::vector<std::shared_ptr<ast::KernelFunc>>{ kernel });
+}
+
+mlir::LogicalResult LowerToCPU(mlir::MLIRContext& context, mlir::ModuleOp& op) {
+    mlir::PassManager passManager(&context);
+    passManager.addPass(std::make_unique<MockPrintPass>());
+    passManager.addPass(std::make_unique<KernelToAffinePass>());
+    return passManager.run(op);
+}
+
+mlir::LogicalResult PrepareLoweringToLLVM(mlir::MLIRContext& context, mlir::ModuleOp& op) {
+    mlir::PassManager passManager(&context);
+    passManager.addPass(std::make_unique<PrepareToLLVMPass>());
+    return passManager.run(op);
 }
 
 mlir::LogicalResult LowerToLLVM(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     mlir::PassManager passManager(&context);
-    passManager.addPass(std::make_unique<MockToArithPass>());
-    passManager.addPass(std::make_unique<MockPrintPass>());
     passManager.addPass(std::make_unique<AllToLLVMPass>());
     return passManager.run(op);
 }
@@ -92,12 +118,25 @@ int main() {
               << std::endl;
     module->dump();
 
-    if (LowerToLLVM(context, module).succeeded()) {
-        std::cout << "\n\nLLVM IR:\n"
+    if (LowerToCPU(context, module).succeeded()) {
+        std::cout << "\n\nMixed IR:\n"
                   << std::endl;
         module->dump();
-        if (!ExecuteProgram(module)) {
-            std::cout << "failed to run!" << std::endl;
+
+        if (PrepareLoweringToLLVM(context, module).succeeded()) {
+            std::cout << "\n\nPre-lowered IR:\n"
+                      << std::endl;
+            module->dump();
+
+            if (LowerToLLVM(context, module).succeeded()) {
+                std::cout << "\n\nLLVM IR:\n"
+                          << std::endl;
+                module->dump();
+
+                if (!ExecuteProgram(module)) {
+                    std::cout << "failed to run!" << std::endl;
+                }
+            }
         }
     }
     else {

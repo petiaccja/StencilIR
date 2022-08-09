@@ -18,7 +18,7 @@ struct ConstantOpLowering : public OpRewritePattern<mock::ConstantOp> {
     using OpRewritePattern<mock::ConstantOp>::OpRewritePattern;
 
     LogicalResult matchAndRewrite(mock::ConstantOp op, PatternRewriter& rewriter) const override final {
-        const auto value = op.valueAttr();
+        const auto value = op.getValueAttr();
         Location loc = op->getLoc();
         auto lowered = rewriter.create<arith::ConstantOp>(loc, value);
         rewriter.replaceOp(op, Value(lowered));

@@ -42,7 +42,7 @@ public:
 
 
         auto printOp = cast<mock::PrintOp>(op);
-        Value printArg = printOp.input();
+        Value printArg = printOp.getInput();
         Value castPrintArg = rewriter.create<arith::ExtFOp>(loc, rewriter.getF64Type(), printArg);
         rewriter.create<LLVM::CallOp>(loc,
                                       ArrayRef<Type>(IntegerType::get(getContext(), 32)),

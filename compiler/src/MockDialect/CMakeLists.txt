@@ -30,6 +30,9 @@ target_compile_definitions(MockDialect PUBLIC ${LLVM_DEFINITIONS})
 target_link_libraries(MockDialect
     MLIRIR
     MLIRInferTypeOpInterface
+    MLIRCallInterfaces
+    MLIRSideEffectInterfaces
+    MLIRCastInterfaces
 )
 
 # Dependencies

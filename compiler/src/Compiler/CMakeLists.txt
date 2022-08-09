@@ -20,6 +20,8 @@ target_sources(Compiler
         AllToLLVMPass.cpp
         LowerAST.hpp
         LowerAST.cpp
+        KernelToAffinePass.cpp
+        KernelToAffinePass.hpp
 )
 
 target_include_directories(Compiler INTERFACE ${CMAKE_CURRENT_LIST_DIR}/..)
@@ -31,16 +33,37 @@ target_compile_definitions(Compiler PUBLIC ${LLVM_DEFINITIONS})
 
 target_link_libraries(Compiler MockDialect AST)
 
-get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 target_link_libraries(Compiler
-    ${dialect_libs}
     MLIRAnalysis
-    MLIRCallInterfaces
-    MLIRCastInterfaces
     MLIRIR
     MLIRParser
     MLIRPass
-    MLIRSideEffectInterfaces
     MLIRSupport
     MLIRTransforms
+)
+
+get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
+target_link_libraries(Compiler
+    MLIRSCFDialect
+    MLIRControlFlowDialect
+    MLIRFuncDialect
+    MLIRTensorDialect
+    MLIRLinalgDialect
+    MLIRArithmeticDialect
+    MLIRAffineDialect
+    MLIRLLVMDialect
+    MLIRLLVMIRTransforms
+    MLIRLLVMToLLVMIRTranslation
+    MLIRExecutionEngine
+    MLIRExecutionEngineUtils
+)
+
+target_link_libraries(Compiler
+    MLIRSCFToControlFlow
+    MLIRControlFlowToLLVM
+    MLIRFuncToLLVM
+    MLIRTensorToLinalg
+    MLIRLinalgToLLVM
+    MLIRArithmeticToLLVM
+    MLIRAffineToStandard
 )
