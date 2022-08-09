@@ -9,7 +9,9 @@
 #include "llvm/ADT/ArrayRef.h"
 #include <MockDialect/MockDialect.hpp>
 #include <MockDialect/MockOps.hpp>
+#include <bits/utility.h>
 #include <iostream>
+#include <iterator>
 #include <llvm/ADT/APFloat.h>
 #include <llvm/ADT/StringRef.h>
 #include <llvm/IR/Module.h>
@@ -34,6 +36,7 @@
 #include <mlir/Pass/PassRegistry.h>
 #include <mlir/Support/LogicalResult.h>
 #include <mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h>
+#include <type_traits>
 
 
 
@@ -60,6 +63,7 @@ std::shared_ptr<ast::Module> CreateProgram() {
     std::vector<ast::Parameter> moduleParams = {
         { "a", types::FundamentalType::FLOAT32 },
         { "b", types::FundamentalType::FLOAT32 },
+        { "out", types::FieldType{ types::FundamentalType::FLOAT32 } }
     };
 
     auto c1 = std::make_shared<ast::SymbolRef>("a");
@@ -101,6 +105,38 @@ mlir::LogicalResult LowerToLLVM(mlir::MLIRContext& context, mlir::ModuleOp& op) 
     return passManager.run(op);
 }
 
+
+
+auto ConvertArg(std::floating_point auto& arg) {
+    return std::tuple{ arg };
+}
+
+auto ConvertArg(std::integral auto& arg) {
+    return std::tuple{ arg };
+}
+
+auto ConvertArg(std::ranges::contiguous_range auto& arg) {
+    auto* ptr = std::addressof(*begin(arg));
+    size_t size = std::distance(begin(arg), end(arg));
+    return std::tuple{ ptr, ptr, size_t(0), size, size_t(1) };
+}
+
+template <class... Args>
+auto ConvertArgs(Args&... args) {
+    return std::tuple_cat(ConvertArg(args)...);
+}
+
+template <size_t... Indices, class... Args>
+auto OpaqueArgsHelper(std::index_sequence<Indices...>, std::tuple<Args...>& args) {
+    return std::array{ static_cast<void*>(std::addressof(std::get<Indices>(args)))... };
+}
+
+template <class... Args>
+auto OpaqueArgs(std::tuple<Args...>& args) {
+    return OpaqueArgsHelper(std::make_index_sequence<sizeof...(Args)>(), args);
+}
+
+
 bool ExecuteProgram(mlir::ModuleOp& module, auto&... args) {
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmPrinter();
@@ -124,7 +160,8 @@ bool ExecuteProgram(mlir::ModuleOp& module, auto&... args) {
     auto& engine = maybeEngine.get();
 
     // Invoke the JIT-compiled function.
-    std::array opaqueArgs = { static_cast<void*>(&args)... };
+    auto convertedArgs = ConvertArgs(args...);
+    std::array opaqueArgs = OpaqueArgs(convertedArgs);
     auto invocationResult = engine->invokePacked("main", opaqueArgs);
     if (invocationResult) {
         llvm::errs() << "JIT invocation failed\n";
@@ -145,6 +182,7 @@ int main() {
 
     float a = 3.5;
     float b = 2.6;
+    std::array<float, 12 * 7> out;
 
     if (LowerToCPU(context, module).succeeded()) {
         std::cout << "\n\nMixed IR:\n"
@@ -161,7 +199,7 @@ int main() {
                           << std::endl;
                 module->dump();
 
-                if (!ExecuteProgram(module, a, b)) {
+                if (!ExecuteProgram(module, a, b, out)) {
                     std::cout << "failed to run!" << std::endl;
                 }
             }
