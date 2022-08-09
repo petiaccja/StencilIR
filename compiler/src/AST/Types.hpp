@@ -5,7 +5,7 @@
 namespace types {
 
 struct FundamentalType {
-    enum {
+    enum eType {
         SINT8,
         SINT16,
         SINT32,
@@ -19,7 +19,10 @@ struct FundamentalType {
         FLOAT32,
         FLOAT64,
         BOOL,
-    } type;
+    };
+    FundamentalType() = default;
+    FundamentalType(eType type) : type(type) {}
+    eType type;
 };
 
 struct FieldType {

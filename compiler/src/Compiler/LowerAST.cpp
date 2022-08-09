@@ -3,10 +3,14 @@
 #include "AST/AST.hpp"
 #include "AST/Types.hpp"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/StringRef.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/Block.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/OpImplementation.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
@@ -20,6 +24,8 @@
 #include <concepts>
 #include <cstddef>
 #include <functional>
+#include <list>
+#include <llvm/ADT/ScopedHashTable.h>
 #include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/IR/Builders.h>
@@ -28,7 +34,9 @@
 #include <mlir/IR/MLIRContext.h>
 #include <mlir/IR/Operation.h>
 #include <mlir/Support/LLVM.h>
+#include <optional>
 #include <ranges>
+#include <stack>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -70,7 +78,47 @@ private:
 };
 
 
-using ASTToMLIRTranformer = Transformer<ast::Node, mlir::Operation*>;
+template <class Key, class Value>
+class SymbolTable {
+public:
+    std::unordered_map<Key, Value>& Push() {
+        m_scopes.push_back({});
+        return m_scopes.back();
+    }
+    void Pop() {
+        m_scopes.pop_back();
+    }
+    void Insert(const Key& key, Value value) {
+        assert(!m_scopes.empty());
+        if (m_scopes.back().contains(key)) {
+            throw std::invalid_argument("already defined");
+        }
+        m_scopes.back().insert_or_assign(key, value);
+    }
+    const Value& Lookup(const Key& key) const {
+        return TryLookup(key).value();
+    }
+    bool Contains(const Key& key) const {
+        return TryLookup(key).has_value();
+    }
+
+private:
+    std::optional<std::reference_wrapper<const Value>> TryLookup(const Key& key) const {
+        for (auto scopeIt = m_scopes.rbegin(); scopeIt != m_scopes.rend(); ++scopeIt) {
+            auto recordIt = scopeIt->find(key);
+            if (recordIt != scopeIt->end()) {
+                return { std::ref(recordIt->second) };
+            }
+        }
+        return {};
+    }
+
+private:
+    std::list<std::unordered_map<Key, Value>> m_scopes;
+};
+
+
+using ASTToMLIRTranformer = Transformer<ast::Node, std::vector<mlir::Value>>;
 
 mlir::Location ConvertLocation(mlir::OpBuilder& builder, const std::optional<ast::Location>& location) {
     if (location) {
@@ -112,130 +160,185 @@ mlir::Type ConvertType(mlir::OpBuilder& builder, types::Type type) {
 
 struct ASTToMLIRRules {
     mlir::OpBuilder& builder;
+    SymbolTable<std::string, mlir::Value>& symbolTable;
+    std::optional<mlir::ModuleOp>& moduleOp;
 
-    mlir::ModuleOp operator()(const ASTToMLIRTranformer& tf, const ast::Module& module) const {
+    template <class Func>
+    void InsertInBlock(mlir::Block& block, Func func) const {
+        auto previousInsertionPoint = builder.saveInsertionPoint();
+        builder.setInsertionPointToStart(&block);
+        func();
+        builder.restoreInsertionPoint(previousInsertionPoint);
+    }
+
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::Module& module) const -> std::vector<mlir::Value> {
         auto moduleOp = builder.create<mlir::ModuleOp>(ConvertLocation(builder, module.location));
+        this->moduleOp = moduleOp;
 
         builder.setInsertionPointToEnd(moduleOp.getBody());
 
+        // Render kernels
         for (auto& kernel : module.kernels) {
             tf(*kernel);
         }
 
-        auto mainFuncType = builder.getFunctionType(llvm::ArrayRef<mlir::Type>{}, llvm::ArrayRef<mlir::Type>{});
+        // Create a main function.
+        std::vector<mlir::Type> inputTypes{};
+        for (auto& param : module.parameters) {
+            inputTypes.push_back(ConvertType(builder, param.type));
+        }
+        const auto mainFuncType = builder.getFunctionType(mlir::TypeRange{ inputTypes }, mlir::TypeRange{});
         auto mainFuncOp = builder.create<mlir::func::FuncOp>(builder.getUnknownLoc(), "main", mainFuncType);
-        auto& mainBlock = mainFuncOp.getBody().emplaceBlock();
 
-        builder.setInsertionPointToStart(&mainBlock);
-        for (auto& statement : module.body) {
-            tf(*statement);
+        // Create body.
+        mlir::Block& mainBlock = *mainFuncOp.addEntryBlock();
+        symbolTable.Push();
+        for (size_t i = 0; i < module.parameters.size(); ++i) {
+            symbolTable.Insert(module.parameters[i].name, mainBlock.getArgument(i));
         }
 
-        builder.create<mlir::func::ReturnOp>(builder.getUnknownLoc());
+        InsertInBlock(mainBlock, [&] {
+            for (auto& statement : module.body) {
+                tf(*statement);
+            }
+            builder.create<mlir::func::ReturnOp>(builder.getUnknownLoc());
+        });
 
-        return moduleOp;
+        symbolTable.Pop();
+
+        return {};
+    }
+
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::SymbolRef& symbolRef) const -> std::vector<mlir::Value> {
+        return { symbolTable.Lookup(symbolRef.name) };
     }
 
     template <class T>
-    auto operator()(const ASTToMLIRTranformer& tf, const ast::Constant<T>& constant) const {
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::Constant<T>& constant) const -> std::vector<mlir::Value> {
         if constexpr (std::is_floating_point_v<T>) {
             const auto type = std::is_same_v<T, float> ? builder.getF32Type() : builder.getF64Type();
-            return builder.create<mlir::arith::ConstantFloatOp>(ConvertLocation(builder, constant.location),
-                                                                mlir::APFloat(constant.value),
-                                                                type);
+            auto op = builder.create<mlir::arith::ConstantFloatOp>(ConvertLocation(builder, constant.location),
+                                                                   mlir::APFloat(constant.value),
+                                                                   type);
+            return { op->getResult(0) };
         }
         else if constexpr (std::is_integral_v<T>) {
             constexpr int numBits = sizeof(T) * 8;
             const auto type = constant.type ? ConvertType(builder, constant.type.value()) : mlir::Type(builder.getIntegerType(numBits));
             using Unsigned = std::make_unsigned_t<decltype(constant.value)>;
             const uint64_t unsignedValue = std::bit_cast<Unsigned>(constant.value);
-            return builder.create<mlir::arith::ConstantOp>(ConvertLocation(builder, constant.location),
-                                                           builder.getIntegerAttr(type, std::bit_cast<int64_t>(unsignedValue)),
-                                                           type);
+            auto op = builder.create<mlir::arith::ConstantOp>(ConvertLocation(builder, constant.location),
+                                                              builder.getIntegerAttr(type, std::bit_cast<int64_t>(unsignedValue)),
+                                                              type);
+            return { op->getResult(0) };
         }
         throw std::invalid_argument("Cannot lower this constant type.");
     }
 
-    auto operator()(const ASTToMLIRTranformer& tf, const ast::Print& print) const {
-        mlir::Value arg = tf(*print.argument)->getResult(0);
-        return builder.create<mock::PrintOp>(ConvertLocation(builder, print.location),
-                                             arg);
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::Print& print) const -> std::vector<mlir::Value> {
+        mlir::Value arg = tf(*print.argument).front();
+        builder.create<mock::PrintOp>(ConvertLocation(builder, print.location),
+                                      arg);
+        return {};
     }
 
-    auto operator()(const ASTToMLIRTranformer& tf, const ast::Add& add) const {
-        mlir::Value lhs = tf(*add.lhs)->getResult(0);
-        mlir::Value rhs = tf(*add.rhs)->getResult(0);
-        return builder.create<mlir::arith::AddFOp>(ConvertLocation(builder, add.location),
-                                                   lhs,
-                                                   rhs);
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::Add& add) const -> std::vector<mlir::Value> {
+        mlir::Value lhs = tf(*add.lhs).front();
+        mlir::Value rhs = tf(*add.rhs).front();
+        auto op = builder.create<mlir::arith::AddFOp>(ConvertLocation(builder, add.location),
+                                                      lhs,
+                                                      rhs);
+        return { op->getResult(0) };
     }
 
-    auto operator()(const ASTToMLIRTranformer& tf, const ast::KernelFunc& kernelFunc) const {
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::KernelFunc& kernelFunc) const -> std::vector<mlir::Value> {
+        // Create operation
         const auto symName = builder.getStringAttr(kernelFunc.name);
-        mlir::ArrayRef<mlir::Type> inputTypes{};
+        std::vector<mlir::Type> inputTypes{};
         for (auto& param : kernelFunc.parameters) {
-            inputTypes.vec().push_back(ConvertType(builder, param.second));
+            inputTypes.push_back(ConvertType(builder, param.type));
         }
-        mlir::ArrayRef<mlir::Type> resultTypes{};
+        std::vector<mlir::Type> resultTypes{};
         for (auto& result : kernelFunc.results) {
-            inputTypes.vec().push_back(ConvertType(builder, result));
+            inputTypes.push_back(ConvertType(builder, result));
         }
         const auto functionType = builder.getFunctionType(mlir::TypeRange{ inputTypes }, mlir::TypeRange{ resultTypes });
         const auto loc = ConvertLocation(builder, kernelFunc.location);
         auto kernelFuncOp = builder.create<mock::KernelFuncOp>(loc,
                                                                symName,
                                                                functionType);
-        const auto previousBlock = builder.getBlock();
-        const auto previousInsertionPoint = builder.getInsertionPoint();
-        auto& kernelFuncBody = kernelFuncOp.getBody();
-        auto& kernelFuncBlock = kernelFuncBody.emplaceBlock();
-        builder.setInsertionPointToStart(&kernelFuncBlock);
 
-        for (auto& statement : kernelFunc.body) {
-            tf(*statement);
+        // Create function body
+        auto& kernelFuncBlock = *kernelFuncOp.addEntryBlock();
+
+        symbolTable.Push();
+        for (size_t i = 0; i < kernelFunc.parameters.size(); ++i) {
+            symbolTable.Insert(kernelFunc.parameters[i].name, kernelFuncBlock.getArgument(i));
         }
-        builder.create<mock::KernelReturnOp>(loc);
 
-        builder.setInsertionPoint(previousBlock, previousInsertionPoint);
+        InsertInBlock(kernelFuncBlock, [&] {
+            for (auto& statement : kernelFunc.body) {
+                tf(*statement);
+            }
+        });
 
-        return kernelFuncOp;
+        symbolTable.Pop();
+
+        return {};
     }
 
-    auto operator()(const ASTToMLIRTranformer& tf, const ast::KernelLaunch& kernelLaunch) const {
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::KernelReturn& kernelReturn) const -> std::vector<mlir::Value> {
+        const auto loc = ConvertLocation(builder, kernelReturn.location);
+        std::vector<mlir::Value> values;
+        for (const auto& value : kernelReturn.values) {
+            for (auto& item : tf(*value)) {
+                values.push_back(item);
+            }
+        }
+        builder.create<mock::KernelReturnOp>(loc, values);
+        return {};
+    }
+
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::KernelLaunch& kernelLaunch) const -> std::vector<mlir::Value> {
         const auto callee = mlir::StringRef(kernelLaunch.callee);
 
         std::vector<mlir::Value> gridDim;
         for (auto& gridAxis : kernelLaunch.gridDim) {
-            const auto op = tf(*gridAxis);
-            gridDim.push_back(op->getResult(0));
+            gridDim.push_back(tf(*gridAxis).front());
         }
 
         std::vector<mlir::Value> targets = {};
 
         std::vector<mlir::Value> operands;
         for (auto& operand : kernelLaunch.arguments) {
-            const auto op = tf(*operand);
-            operands.push_back(op->getResult(0));
+            operands.push_back(tf(*operand).front());
         }
 
-        return builder.create<mock::KernelCallOp>(ConvertLocation(builder, kernelLaunch.location),
-                                                  callee,
-                                                  mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ gridDim } },
-                                                  mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ targets } },
-                                                  mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ operands } });
+        builder.create<mock::KernelCallOp>(ConvertLocation(builder, kernelLaunch.location),
+                                           callee,
+                                           mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ gridDim } },
+                                           mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ targets } },
+                                           mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ operands } });
+
+        return {};
     }
 };
 
-mlir::ModuleOp LowerAST(mlir::MLIRContext& context, ast::Module& node) {
+mlir::ModuleOp LowerAST(mlir::MLIRContext& context, const ast::Module& node) {
     mlir::OpBuilder builder{ &context };
+    SymbolTable<std::string, mlir::Value> symbolTable;
+    std::optional<mlir::ModuleOp> moduleOp;
     ASTToMLIRTranformer transformer;
-    ASTToMLIRRules rules{ builder };
+    ASTToMLIRRules rules{ builder, symbolTable, moduleOp };
 
-    transformer.AddNodeTransformer<ast::Module>(rules);
     transformer.AddNodeTransformer<ast::Print>(rules);
     transformer.AddNodeTransformer<ast::Add>(rules);
+
+    transformer.AddNodeTransformer<ast::Module>(rules);
     transformer.AddNodeTransformer<ast::KernelFunc>(rules);
+    transformer.AddNodeTransformer<ast::KernelReturn>(rules);
     transformer.AddNodeTransformer<ast::KernelLaunch>(rules);
+    transformer.AddNodeTransformer<ast::SymbolRef>(rules);
 
     transformer.AddNodeTransformer<ast::Constant<float>>(rules);
     transformer.AddNodeTransformer<ast::Constant<double>>(rules);
@@ -252,6 +355,6 @@ mlir::ModuleOp LowerAST(mlir::MLIRContext& context, ast::Module& node) {
     context.getOrLoadDialect<mlir::arith::ArithmeticDialect>();
     context.getOrLoadDialect<mock::MockDialect>();
 
-    auto moduleOp = transformer(node);
-    return mlir::cast<mlir::ModuleOp>(moduleOp);
+    transformer(node);
+    return moduleOp.value();
 }

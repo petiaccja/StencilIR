@@ -41,8 +41,8 @@ struct KernelFuncLowering : public OpRewritePattern<mock::KernelFuncOp> {
 
         auto funcOp = rewriter.create<func::FuncOp>(loc, op.getSymName(), functionType);
         rewriter.inlineRegionBefore(op.getRegion(), funcOp.getBody(), funcOp.end());
-        auto& funcRegion = *funcOp.getCallableRegion();
-        funcRegion.addArgument(indexType, loc);
+        Block& block = funcOp.getBody().front();
+        block.insertArgument(block.args_begin(), indexType, loc);
 
         rewriter.eraseOp(op);
         return success();

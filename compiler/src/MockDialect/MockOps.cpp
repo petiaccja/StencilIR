@@ -18,6 +18,25 @@ using namespace mlir;
 using namespace mock;
 
 //------------------------------------------------------------------------------
+// KernelFuncOp
+//------------------------------------------------------------------------------
+
+ParseResult KernelFuncOp::parse(OpAsmParser &parser, OperationState &result) {
+  auto buildFuncType =
+      [](Builder &builder, ArrayRef<Type> argTypes, ArrayRef<Type> results,
+         function_interface_impl::VariadicFlag,
+         std::string &) { return builder.getFunctionType(argTypes, results); };
+
+  return function_interface_impl::parseFunctionOp(
+      parser, result, /*allowVariadic=*/false, buildFuncType);
+}
+
+void KernelFuncOp::print(OpAsmPrinter &p) {
+  function_interface_impl::printFunctionOp(p, *this, /*isVariadic=*/false);
+}
+
+
+//------------------------------------------------------------------------------
 // KernelCallOp
 //------------------------------------------------------------------------------
 
@@ -41,10 +60,10 @@ LogicalResult KernelCallOp::verifySymbolUses(SymbolTableCollection& symbolTable)
     }
 
     for (unsigned i = 0, e = fnType.getNumInputs(); i != e; ++i)
-        if (getOperand(i).getType() != fnType.getInput(i))
+        if (getArguments()[i].getType() != fnType.getInput(i))
             return emitOpError("operand type mismatch: expected operand type ")
                    << fnType.getInput(i) << ", but provided "
-                   << getOperand(i).getType() << " for operand number " << i;
+                   << getArguments()[i].getType() << " for operand number " << i;
 
     if (fnType.getNumResults() != getTargets().size())
         return emitOpError("incorrect number of results for callee");

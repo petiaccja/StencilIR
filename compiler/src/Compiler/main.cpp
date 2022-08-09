@@ -38,24 +38,48 @@
 
 
 std::shared_ptr<ast::Module> CreateProgram() {
-    auto c1 = std::make_shared<ast::Constant<float>>(1.5f);
-    auto c2 = std::make_shared<ast::Constant<float>>(3.7f);
-    auto add = std::make_shared<ast::Add>(c1, c2);
+    // Kernel logic
+    auto a = std::make_shared<ast::SymbolRef>("a");
+    auto b = std::make_shared<ast::SymbolRef>("b");
+    auto add = std::make_shared<ast::Add>(a, b);
     auto print = std::make_shared<ast::Print>(add);
+    auto ret = std::make_shared<ast::KernelReturn>();
 
+    std::vector<ast::Parameter> kernelParams = {
+        { "a", types::FundamentalType::FLOAT32 },
+        { "b", types::FundamentalType::FLOAT32 },
+    };
+    std::vector<types::Type> kernelReturns = {};
+    std::vector<std::shared_ptr<ast::Statement>> kernelBody{ print, ret };
     auto kernel = std::make_shared<ast::KernelFunc>("kernel_fun",
-                                                    std::vector<std::pair<std::string, types::Type>>{},
-                                                    std::vector<types::Type>{},
-                                                    std::vector<std::shared_ptr<ast::Statement>>{ print });
+                                                    kernelParams,
+                                                    kernelReturns,
+                                                    kernelBody);
 
-    auto gridDimX = std::make_shared<ast::Constant<int64_t>>(12, types::FundamentalType{ types::FundamentalType::SSIZE });
-    auto gridDimY = std::make_shared<ast::Constant<int64_t>>(7, types::FundamentalType{ types::FundamentalType::SSIZE });
+    // Main function logic
+    std::vector<ast::Parameter> moduleParams = {
+        { "a", types::FundamentalType::FLOAT32 },
+        { "b", types::FundamentalType::FLOAT32 },
+    };
+
+    auto c1 = std::make_shared<ast::SymbolRef>("a");
+    auto c2 = std::make_shared<ast::SymbolRef>("b");
+
+    std::vector<std::shared_ptr<ast::Expression>> gridDim = {
+        std::make_shared<ast::Constant<int64_t>>(12, types::FundamentalType{ types::FundamentalType::SSIZE }),
+        std::make_shared<ast::Constant<int64_t>>(7, types::FundamentalType{ types::FundamentalType::SSIZE })
+    };
+    std::vector<std::shared_ptr<ast::Expression>> kernelArgs{
+        c1,
+        c2
+    };
     auto kernelLaunch = std::make_shared<ast::KernelLaunch>("kernel_fun",
-                                                            std::vector<std::shared_ptr<ast::Expression>>{ gridDimX, gridDimY },
-                                                            std::vector<std::shared_ptr<ast::Expression>>{});
+                                                            gridDim,
+                                                            kernelArgs);
 
     return std::make_shared<ast::Module>(std::vector<std::shared_ptr<ast::Node>>{ kernelLaunch },
-                                         std::vector<std::shared_ptr<ast::KernelFunc>>{ kernel });
+                                         std::vector<std::shared_ptr<ast::KernelFunc>>{ kernel },
+                                         moduleParams);
 }
 
 mlir::LogicalResult LowerToCPU(mlir::MLIRContext& context, mlir::ModuleOp& op) {
@@ -77,7 +101,7 @@ mlir::LogicalResult LowerToLLVM(mlir::MLIRContext& context, mlir::ModuleOp& op) 
     return passManager.run(op);
 }
 
-bool ExecuteProgram(mlir::ModuleOp& module) {
+bool ExecuteProgram(mlir::ModuleOp& module, auto&... args) {
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmPrinter();
 
@@ -100,7 +124,8 @@ bool ExecuteProgram(mlir::ModuleOp& module) {
     auto& engine = maybeEngine.get();
 
     // Invoke the JIT-compiled function.
-    auto invocationResult = engine->invokePacked("main");
+    std::array opaqueArgs = { static_cast<void*>(&args)... };
+    auto invocationResult = engine->invokePacked("main", opaqueArgs);
     if (invocationResult) {
         llvm::errs() << "JIT invocation failed\n";
         return false;
@@ -118,6 +143,9 @@ int main() {
               << std::endl;
     module->dump();
 
+    float a = 3.5;
+    float b = 2.6;
+
     if (LowerToCPU(context, module).succeeded()) {
         std::cout << "\n\nMixed IR:\n"
                   << std::endl;
@@ -133,7 +161,7 @@ int main() {
                           << std::endl;
                 module->dump();
 
-                if (!ExecuteProgram(module)) {
+                if (!ExecuteProgram(module, a, b)) {
                     std::cout << "failed to run!" << std::endl;
                 }
             }

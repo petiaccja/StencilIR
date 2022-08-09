@@ -103,6 +103,7 @@ def KernelFuncOp : Mock_Op<"kernel", [
 
     bool isDeclaration() { return isExternal(); }
   }];
+  let hasCustomAssemblyFormat = 1;
 }
 
 

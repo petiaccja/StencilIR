@@ -7,4 +7,4 @@
 #include <mlir/IR/BuiltinOps.h>
 
 
-mlir::ModuleOp LowerAST(mlir::MLIRContext& context, ast::Module& node);
+mlir::ModuleOp LowerAST(mlir::MLIRContext& context, const ast::Module& node);
