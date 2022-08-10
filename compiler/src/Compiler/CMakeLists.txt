@@ -12,8 +12,6 @@ add_executable(Compiler)
 target_sources(Compiler
     PRIVATE
         main.cpp
-        MockToArithPass.hpp
-        MockToArithPass.cpp
         MockPrintPass.hpp
         MockPrintPass.cpp
         AllToLLVMPass.hpp

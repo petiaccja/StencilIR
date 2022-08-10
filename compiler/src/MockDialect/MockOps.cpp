@@ -37,10 +37,10 @@ void KernelFuncOp::print(OpAsmPrinter& p) {
 
 
 //------------------------------------------------------------------------------
-// KernelCallOp
+// KernelLaunchOp
 //------------------------------------------------------------------------------
 
-LogicalResult KernelCallOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
+LogicalResult KernelLaunchOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
     // Check that the callee attribute was specified.
     auto fnAttr = (*this)->getAttrOfType<FlatSymbolRefAttr>("callee");
     if (!fnAttr) {
@@ -92,11 +92,11 @@ LogicalResult KernelCallOp::verifySymbolUses(SymbolTableCollection& symbolTable)
     return success();
 }
 
-FunctionType KernelCallOp::getCalleeType() {
+FunctionType KernelLaunchOp::getCalleeType() {
     return FunctionType::get(getContext(), getOperandTypes(), getTargetTypes());
 }
 
-mlir::TypeRange KernelCallOp::getTargetTypes() {
+mlir::TypeRange KernelLaunchOp::getTargetTypes() {
     llvm::ArrayRef<mlir::Type> targetTypes;
     for (const auto& target : getTargets()) {
         const auto targetType = target.getType();

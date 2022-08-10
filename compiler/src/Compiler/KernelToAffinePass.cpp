@@ -107,10 +107,10 @@ struct KernelReturnLowering : public OpRewritePattern<mock::KernelReturnOp> {
     }
 };
 
-struct KernelCallLowering : public OpRewritePattern<mock::KernelCallOp> {
-    using OpRewritePattern<mock::KernelCallOp>::OpRewritePattern;
+struct KernelCallLowering : public OpRewritePattern<mock::KernelLaunchOp> {
+    using OpRewritePattern<mock::KernelLaunchOp>::OpRewritePattern;
 
-    LogicalResult matchAndRewrite(mock::KernelCallOp op, PatternRewriter& rewriter) const override final {
+    LogicalResult matchAndRewrite(mock::KernelLaunchOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
 
         std::vector<Value> lbValues;
@@ -170,7 +170,7 @@ void KernelToAffinePass::runOnOperation() {
     target.addLegalDialect<arith::ArithmeticDialect>();
     target.addLegalDialect<func::FuncDialect>();
     target.addLegalDialect<memref::MemRefDialect>();
-    target.addIllegalOp<mock::KernelCallOp>();
+    target.addIllegalOp<mock::KernelLaunchOp>();
     target.addIllegalOp<mock::KernelReturnOp>();
     target.addIllegalOp<mock::KernelFuncOp>();
 

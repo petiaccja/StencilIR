@@ -322,7 +322,7 @@ struct ASTToMLIRRules {
             operands.push_back(tf(*argument).front());
         }
 
-        builder.create<mock::KernelCallOp>(ConvertLocation(builder, node.location),
+        builder.create<mock::KernelLaunchOp>(ConvertLocation(builder, node.location),
                                            callee,
                                            mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ gridDim } },
                                            mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ targets } },

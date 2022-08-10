@@ -5,8 +5,9 @@
 #include "Compiler/LowerAST.hpp"
 #include "KernelToAffinePass.hpp"
 #include "MockPrintPass.hpp"
-#include "MockToArithPass.hpp"
 #include "llvm/ADT/ArrayRef.h"
+#include "mlir/Pass/Pass.h"
+#include "mlir/Transforms/LocationSnapshot.h"
 #include <MockDialect/MockDialect.hpp>
 #include <MockDialect/MockOps.hpp>
 #include <bits/utility.h>
@@ -37,24 +38,16 @@
 #include <mlir/Pass/PassRegistry.h>
 #include <mlir/Support/LogicalResult.h>
 #include <mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h>
+#include <mlir/Transforms/Passes.h>
 #include <type_traits>
-
-
-constexpr int locOffset = 3;
-const ast::Location locAdd{ __FILE__, __LINE__ + locOffset, 0 };
-const ast::Location locRet{ __FILE__, __LINE__ + locOffset, 0 };
-/*
-KERNEL ADD
-KERNEL RET
-*/
 
 
 std::shared_ptr<ast::Module> CreateProgram() {
     // Kernel logic
     auto a = std::make_shared<ast::SymbolRef>("a");
     auto b = std::make_shared<ast::SymbolRef>("b");
-    auto add = std::make_shared<ast::Add>(a, b, locAdd);
-    auto ret = std::make_shared<ast::KernelReturn>(std::vector<std::shared_ptr<ast::Expression>>{ add }, locRet);
+    auto add = std::make_shared<ast::Add>(a, b);
+    auto ret = std::make_shared<ast::KernelReturn>(std::vector<std::shared_ptr<ast::Expression>>{ add });
 
     std::vector<ast::Parameter> kernelParams = {
         { "a", types::FundamentalType::FLOAT32 },
@@ -141,7 +134,13 @@ mlir::LogicalResult LowerToLLVM(mlir::MLIRContext& context, mlir::ModuleOp& op) 
     return passManager.run(op);
 }
 
-
+mlir::LogicalResult TidyModule(mlir::MLIRContext& context, mlir::ModuleOp& op) {
+    mlir::PassManager passManager(&context);
+    passManager.addPass(mlir::createCSEPass());
+    passManager.addPass(mlir::createCanonicalizerPass());
+    passManager.addPass(mlir::createTopologicalSortPass());
+    return passManager.run(op);
+}
 
 auto ConvertArg(std::floating_point auto& arg) {
     return std::tuple{ arg };
@@ -223,17 +222,17 @@ int main() {
     std::array<float, sizeX * sizeY * 25> out;
     std::ranges::fill(out, 0);
 
-    if (LowerToCPU(context, module).succeeded()) {
+    if (LowerToCPU(context, module).succeeded() && TidyModule(context, module).succeeded()) {
         std::cout << "\n\nMixed IR:\n"
                   << std::endl;
         module->dump();
 
-        if (PrepareLoweringToLLVM(context, module).succeeded()) {
+        if (PrepareLoweringToLLVM(context, module).succeeded() && TidyModule(context, module).succeeded()) {
             std::cout << "\n\nPre-lowered IR:\n"
                       << std::endl;
             module->dump();
 
-            if (LowerToLLVM(context, module).succeeded()) {
+            if (LowerToLLVM(context, module).succeeded() && TidyModule(context, module).succeeded()) {
                 std::cout << "\n\nLLVM IR:\n"
                           << std::endl;
                 module->dump();

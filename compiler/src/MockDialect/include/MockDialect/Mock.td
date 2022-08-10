@@ -20,20 +20,13 @@ class Mock_Op<string mnemonic, list<Trait> traits = []> :
     Op<Mock_Dialect, mnemonic, traits>;
 
 
-def ConstantOp : Mock_Op<"constant", [NoSideEffect]> {
-  let summary = "constant";
-  let arguments = (ins F32Attr:$value);
-  let results = (outs F32:$output);
-}
-
-
 def PrintOp : Mock_Op<"print", [NoSideEffect]> {
   let arguments = (ins F32:$input);
   let assemblyFormat = "$input attr-dict `:` type($input)";
 }
 
 
-def KernelFuncOp : Mock_Op<"kernel", [
+def KernelFuncOp : Mock_Op<"kernel_func", [
   AffineScope, AutomaticAllocationScope, CallableOpInterface,
   FunctionOpInterface, IsolatedFromAbove, OpAsmOpInterface, Symbol
 ]> {
@@ -107,7 +100,7 @@ def KernelFuncOp : Mock_Op<"kernel", [
 }
 
 
-def KernelCallOp : Mock_Op<"kernel_call", [
+def KernelLaunchOp : Mock_Op<"kernel_launch", [
   CallOpInterface, MemRefsNormalizable, AttrSizedOperandSegments,
   DeclareOpInterfaceMethods<SymbolUserOpInterface>
 ]> {
@@ -146,4 +139,6 @@ def KernelReturnOp : Mock_Op<"kernel_return", [
   let builders = [OpBuilder<(ins), [{
     build($_builder, $_state, llvm::None);
   }]>];
+  let hasCustomAssemblyFormat = 1;
+  let assemblyFormat = "attr-dict ($arguments^ `:` type($arguments))?";
 }
