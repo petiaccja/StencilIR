@@ -34,10 +34,11 @@ public:
         auto module = op->getParentOfType<ModuleOp>();
         auto printfRef = getOrInsertPrintf(rewriter, module);
 
+        constexpr char fmt[] = "%f \0";
         Value formatSpecifierCst = getOrCreateGlobalString(loc,
                                                            rewriter,
                                                            "frmt_spec",
-                                                           StringRef("%f\0", 7),
+                                                           StringRef(fmt, strlen(fmt) + 1),
                                                            module);
 
 

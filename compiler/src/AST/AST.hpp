@@ -60,12 +60,14 @@ struct KernelReturn : Statement {
 struct KernelLaunch : Statement {
     explicit KernelLaunch(std::string callee,
                           std::vector<std::shared_ptr<Expression>> gridDim,
-                          std::vector<std::shared_ptr<Expression>> arguments,
+                          std::vector<std::shared_ptr<Expression>> arguments = {},
+                          std::vector<std::shared_ptr<Expression>> targets = {},
                           std::optional<Location> loc = {})
-        : Statement(loc), callee(callee), gridDim(gridDim), arguments(arguments) {}
+        : Statement(loc), callee(callee), gridDim(gridDim), arguments(arguments), targets(targets) {}
     std::string callee;
     std::vector<std::shared_ptr<Expression>> gridDim;
     std::vector<std::shared_ptr<Expression>> arguments;
+    std::vector<std::shared_ptr<Expression>> targets;
 };
 
 struct Module : Node {

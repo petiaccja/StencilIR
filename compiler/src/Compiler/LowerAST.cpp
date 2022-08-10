@@ -6,8 +6,11 @@
 #include "llvm/ADT/StringRef.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/IR/AffineExpr.h"
+#include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Block.h"
+#include "mlir/IR/BuiltinAttributeInterfaces.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/OpImplementation.h"
@@ -262,7 +265,7 @@ struct ASTToMLIRRules {
         }
         std::vector<mlir::Type> resultTypes{};
         for (auto& result : node.results) {
-            inputTypes.push_back(ConvertType(builder, result));
+            resultTypes.push_back(ConvertType(builder, result));
         }
         const auto functionType = builder.getFunctionType(mlir::TypeRange{ inputTypes }, mlir::TypeRange{ resultTypes });
         const auto loc = ConvertLocation(builder, node.location);
@@ -309,11 +312,14 @@ struct ASTToMLIRRules {
             gridDim.push_back(tf(*gridAxis).front());
         }
 
-        std::vector<mlir::Value> targets = {};
+        std::vector<mlir::Value> targets;
+        for (auto& target : node.targets) {
+            targets.push_back(tf(*target).front());
+        }
 
         std::vector<mlir::Value> operands;
-        for (auto& operand : node.arguments) {
-            operands.push_back(tf(*operand).front());
+        for (auto& argument : node.arguments) {
+            operands.push_back(tf(*argument).front());
         }
 
         builder.create<mock::KernelCallOp>(ConvertLocation(builder, node.location),
@@ -330,8 +336,12 @@ struct ASTToMLIRRules {
 
         mlir::Value source = tf(*node.field).front();
         mlir::MemRefType sourceType = source.getType().dyn_cast<mlir::MemRefType>();
+        
         std::vector<int64_t> shapeType(node.shape.size(), mlir::ShapedType::kDynamicSize);
-        mlir::MemRefType type = mlir::MemRefType::get(shapeType, sourceType.getElementType());
+        std::vector<int64_t> stridesType(node.shape.size(), mlir::ShapedType::kDynamicStrideOrOffset);
+        auto strideMap = mlir::makeStridedLinearLayoutMap(stridesType, 0, builder.getContext());
+
+        mlir::MemRefType type = mlir::MemRefType::get(shapeType, sourceType.getElementType(), strideMap);
         mlir::Value offset = builder.create<mlir::arith::ConstantIndexOp>(loc, 0);
         std::vector<mlir::Value> shape;
         std::vector<mlir::Value> strides;

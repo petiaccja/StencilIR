@@ -5,6 +5,7 @@
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
+#include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
@@ -12,7 +13,11 @@
 #include "mlir/Support/LLVM.h"
 #include <MockDialect/MockDialect.hpp>
 #include <MockDialect/MockOps.hpp>
+#include <algorithm>
+#include <iostream>
+#include <iterator>
 #include <llvm/ADT/APFloat.h>
+#include <memory>
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/IR/BuiltinAttributes.h>
@@ -32,17 +37,32 @@ struct KernelFuncLowering : public OpRewritePattern<mock::KernelFuncOp> {
         Location loc = op->getLoc();
 
         std::vector<mlir::Type> functionParamTypes;
+        std::vector<mlir::Type> targetParamTypes;
         const auto indexType = MemRefType::get({ 3 }, rewriter.getIndexType());
         functionParamTypes.push_back(indexType);
-        for (auto& param : op.getArgumentTypes()) {
-            functionParamTypes.push_back(param);
+        for (auto& argument : op.getArgumentTypes()) {
+            functionParamTypes.push_back(argument);
         }
+        for (auto& result : op.getResultTypes()) {
+            std::vector<int64_t> shape(2, ShapedType::kDynamicSize);
+            std::vector<int64_t> strides(2, mlir::ShapedType::kDynamicStrideOrOffset);
+            auto strideMap = mlir::makeStridedLinearLayoutMap(strides, 0, rewriter.getContext());
+            Type type = MemRefType::get(shape, result, strideMap);
+            targetParamTypes.push_back(type);
+        }
+        std::copy(targetParamTypes.begin(), targetParamTypes.end(), std::back_inserter(functionParamTypes));
         auto functionType = rewriter.getFunctionType(functionParamTypes, {});
 
         auto funcOp = rewriter.create<func::FuncOp>(loc, op.getSymName(), functionType);
         rewriter.inlineRegionBefore(op.getRegion(), funcOp.getBody(), funcOp.end());
         Block& block = funcOp.getBody().front();
-        block.insertArgument(block.args_begin(), indexType, loc);
+
+        // insertArgument seems buggy with empty list.
+        block.getNumArguments() == 0 ? block.addArgument(indexType, loc)
+                                     : block.insertArgument(block.args_begin(), indexType, loc);
+        for (auto& targetType : targetParamTypes) {
+            block.addArgument(targetType, loc);
+        }
 
         rewriter.eraseOp(op);
         return success();
@@ -52,13 +72,38 @@ struct KernelFuncLowering : public OpRewritePattern<mock::KernelFuncOp> {
 struct KernelReturnLowering : public OpRewritePattern<mock::KernelReturnOp> {
     using OpRewritePattern<mock::KernelReturnOp>::OpRewritePattern;
 
-    LogicalResult matchAndRewrite(mock::KernelReturnOp op, PatternRewriter& rewriter) const override final {
+    LogicalResult match(mock::KernelReturnOp op) const override {
+        auto parent = op->getParentOfType<func::FuncOp>();
+        if (parent) {
+            return success();
+        }
+        return failure();
+    }
+
+    void rewrite(mock::KernelReturnOp op, PatternRewriter& rewriter) const override {
         Location loc = op->getLoc();
+        auto parent = op->getParentOfType<func::FuncOp>();
+        assert(parent);
+
+        const auto& blockArgs = parent.getBody().front().getArguments();
+        const mlir::Value index = blockArgs.front();
+        std::vector<mlir::Value> targets;
+        std::copy_n(blockArgs.rbegin(), op->getNumOperands(), std::back_inserter(targets));
+        std::reverse(targets.begin(), targets.end());
+
+        std::vector<mlir::Value> indices;
+        for (size_t dimIdx = 0; dimIdx < 2; ++dimIdx) {
+            mlir::Value indexElement = rewriter.create<arith::ConstantIndexOp>(loc, dimIdx);
+            indices.push_back(rewriter.create<memref::LoadOp>(loc, index, indexElement));
+        }
+        for (size_t targetIdx = 0; targetIdx < targets.size(); ++targetIdx) {
+            auto target = targets[targetIdx];
+            auto value = op->getOperand(targetIdx);
+            rewriter.create<memref::StoreOp>(loc, value, target, indices);
+        }
 
         rewriter.create<func::ReturnOp>(loc);
-
         rewriter.eraseOp(op);
-        return success();
     }
 };
 
@@ -92,7 +137,6 @@ struct KernelCallLowering : public OpRewritePattern<mock::KernelCallOp> {
             while (loopVarsExtended.size() < 3) {
                 loopVarsExtended.push_back(indexPadding);
             }
-            // const Value index = builder.create<tensor::FromElementsOp>(loc, loopVarsExtended);
 
             auto index = builder.create<memref::AllocaOp>(loc, MemRefType::get({ 3 }, builder.getIndexType()));
             for (size_t i = 0; i < 3; ++i) {
@@ -100,8 +144,11 @@ struct KernelCallLowering : public OpRewritePattern<mock::KernelCallOp> {
             }
 
             operands.push_back(index);
-            for (const auto& arg : op.getArguments()) {
-                operands.push_back(arg);
+            for (const auto& argument : op.getArguments()) {
+                operands.push_back(argument);
+            }
+            for (const auto& target : op.getTargets()) {
+                operands.push_back(target);
             }
             builder.create<func::CallOp>(loc, op.getCallee(), TypeRange{}, operands);
         });

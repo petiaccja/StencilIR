@@ -40,21 +40,28 @@
 #include <type_traits>
 
 
+constexpr int locOffset = 3;
+const ast::Location locAdd{ __FILE__, __LINE__ + locOffset, 0 };
+const ast::Location locRet{ __FILE__, __LINE__ + locOffset, 0 };
+/*
+KERNEL ADD
+KERNEL RET
+*/
+
 
 std::shared_ptr<ast::Module> CreateProgram() {
     // Kernel logic
     auto a = std::make_shared<ast::SymbolRef>("a");
     auto b = std::make_shared<ast::SymbolRef>("b");
-    auto add = std::make_shared<ast::Add>(a, b);
-    auto print = std::make_shared<ast::Print>(add);
-    auto ret = std::make_shared<ast::KernelReturn>();
+    auto add = std::make_shared<ast::Add>(a, b, locAdd);
+    auto ret = std::make_shared<ast::KernelReturn>(std::vector<std::shared_ptr<ast::Expression>>{ add }, locRet);
 
     std::vector<ast::Parameter> kernelParams = {
         { "a", types::FundamentalType::FLOAT32 },
         { "b", types::FundamentalType::FLOAT32 },
     };
-    std::vector<types::Type> kernelReturns = {};
-    std::vector<std::shared_ptr<ast::Statement>> kernelBody{ print, ret };
+    std::vector<types::Type> kernelReturns = { types::FundamentalType::FLOAT32 };
+    std::vector<std::shared_ptr<ast::Statement>> kernelBody{ ret };
     auto kernel = std::make_shared<ast::KernelFunc>("kernel_fun",
                                                     kernelParams,
                                                     kernelReturns,
@@ -67,8 +74,14 @@ std::shared_ptr<ast::Module> CreateProgram() {
     auto sizeX = std::make_shared<ast::SymbolRef>("sizeX");
     auto sizeY = std::make_shared<ast::SymbolRef>("sizeY");
 
-    auto shape = std::vector<std::shared_ptr<ast::Expression>>{ sizeX, sizeY };
-    auto strides = std::vector<std::shared_ptr<ast::Expression>>{ std::make_shared<ast::Constant<int64_t>>(1, types::FundamentalType::SSIZE), sizeX };
+    auto shape = std::vector<std::shared_ptr<ast::Expression>>{
+        sizeX,
+        sizeY,
+    };
+    auto strides = std::vector<std::shared_ptr<ast::Expression>>{
+        std::make_shared<ast::Constant<int64_t>>(1, types::FundamentalType::SSIZE),
+        sizeX,
+    };
     auto reshapedOutput = std::make_shared<ast::ReshapeField>(output, shape, strides);
 
     std::vector<std::shared_ptr<ast::Expression>> gridDim = {
@@ -79,9 +92,13 @@ std::shared_ptr<ast::Module> CreateProgram() {
         inputA,
         inputB,
     };
+    std::vector<std::shared_ptr<ast::Expression>> kernelTargets{
+        reshapedOutput,
+    };
     auto kernelLaunch = std::make_shared<ast::KernelLaunch>("kernel_fun",
                                                             gridDim,
-                                                            kernelArgs);
+                                                            kernelArgs,
+                                                            kernelTargets);
 
     // Module
     auto moduleParams = std::vector<ast::Parameter>{
@@ -92,7 +109,7 @@ std::shared_ptr<ast::Module> CreateProgram() {
         { "sizeY", types::FundamentalType::SSIZE },
     };
 
-    auto moduleBody = std::vector<std::shared_ptr<ast::Node>>{ reshapedOutput, kernelLaunch };
+    auto moduleBody = std::vector<std::shared_ptr<ast::Node>>{ kernelLaunch };
     auto moduleKernels = std::vector<std::shared_ptr<ast::KernelFunc>>{ kernel };
 
     return std::make_shared<ast::Module>(moduleBody,
@@ -102,9 +119,14 @@ std::shared_ptr<ast::Module> CreateProgram() {
 
 mlir::LogicalResult LowerToCPU(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     mlir::PassManager passManager(&context);
-    passManager.addPass(std::make_unique<MockPrintPass>());
     passManager.addPass(std::make_unique<KernelToAffinePass>());
-    return passManager.run(op);
+    auto p1 = passManager.run(op);
+    if (failed(p1)) {
+        return p1;
+    }
+    mlir::PassManager passManager2(&context);
+    passManager2.addPass(std::make_unique<MockPrintPass>());
+    return passManager2.run(op);
 }
 
 mlir::LogicalResult PrepareLoweringToLLVM(mlir::MLIRContext& context, mlir::ModuleOp& op) {
@@ -196,9 +218,10 @@ int main() {
 
     float a = 3.5;
     float b = 2.6;
-    constexpr ptrdiff_t sizeX = 12;
-    constexpr ptrdiff_t sizeY = 7;
-    std::array<float, sizeX * sizeY> out;
+    constexpr ptrdiff_t sizeX = 13;
+    constexpr ptrdiff_t sizeY = 9;
+    std::array<float, sizeX * sizeY * 25> out;
+    std::ranges::fill(out, 0);
 
     if (LowerToCPU(context, module).succeeded()) {
         std::cout << "\n\nMixed IR:\n"
@@ -215,7 +238,15 @@ int main() {
                           << std::endl;
                 module->dump();
 
-                if (!ExecuteProgram(module, a, b, out, sizeX, sizeY)) {
+                if (ExecuteProgram(module, a, b, out, sizeX, sizeY)) {
+                    for (size_t y = 0; y < sizeY; ++y) {
+                        for (size_t x = 0; x < sizeX; ++x) {
+                            std::cout << out[y * sizeX + x] << " ";
+                        }
+                        std::cout << std::endl;
+                    }
+                }
+                else {
                     std::cout << "failed to run!" << std::endl;
                 }
             }
