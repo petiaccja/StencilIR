@@ -12,6 +12,7 @@
 #include <MockDialect/MockOps.hpp>
 #include <bits/utility.h>
 #include <cstddef>
+#include <filesystem>
 #include <iostream>
 #include <iterator>
 #include <llvm/ADT/APFloat.h>
@@ -142,6 +143,16 @@ mlir::LogicalResult TidyModule(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     return passManager.run(op);
 }
 
+mlir::LogicalResult SnapshotIR(mlir::MLIRContext& context, mlir::ModuleOp& op) {
+    const auto tempPath = std::filesystem::temp_directory_path();
+    const auto tempFile = tempPath / "mock.mlir";
+    const auto fileName = tempFile.string();
+
+    mlir::PassManager passManager(&context);
+    passManager.addPass(mlir::createLocationSnapshotPass({}, fileName));
+    return passManager.run(op);
+}
+
 auto ConvertArg(std::floating_point auto& arg) {
     return std::tuple{ arg };
 }
@@ -211,6 +222,10 @@ int main() {
 
     std::shared_ptr<ast::Module> ast = CreateProgram();
     mlir::ModuleOp module = LowerAST(context, *ast);
+    if (failed(SnapshotIR(context, module))) {
+        std::cout << "Snapshotting failed\n"
+                  << std::endl;
+    }
     std::cout << "Mock IR:\n"
               << std::endl;
     module->dump();
