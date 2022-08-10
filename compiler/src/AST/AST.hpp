@@ -101,6 +101,16 @@ struct Add : Expression {
     std::shared_ptr<Expression> rhs;
 };
 
+struct ReshapeField : Expression {
+    explicit ReshapeField(std::shared_ptr<Expression> field,
+                          std::vector<std::shared_ptr<Expression>> shape,
+                          std::vector<std::shared_ptr<Expression>> strides,
+                          Location loc = {})
+        : Expression(loc), field(field), shape(shape), strides(strides) {}
+    std::shared_ptr<Expression> field;
+    std::vector<std::shared_ptr<Expression>> shape;
+    std::vector<std::shared_ptr<Expression>> strides;
+};
 
 //------------------------------------------------------------------------------
 // Misc

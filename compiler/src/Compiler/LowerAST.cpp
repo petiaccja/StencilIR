@@ -5,6 +5,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -28,6 +29,7 @@
 #include <llvm/ADT/ScopedHashTable.h>
 #include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
+#include <mlir/Dialect/MemRef/IR/MemRef.h>
 #include <mlir/IR/Builders.h>
 #include <mlir/IR/BuiltinOps.h>
 #include <mlir/IR/Location.h>
@@ -151,7 +153,7 @@ mlir::Type ConvertType(mlir::OpBuilder& builder, types::Type type) {
         }
         mlir::Type operator()(const types::FieldType& type) const {
             const mlir::Type elementType = (*this)(type.elementType);
-            const auto shape = llvm::ArrayRef<int64_t>{ 0 };
+            const auto shape = std::array<int64_t, 1>{ mlir::ShapedType::kDynamicSize };
             return mlir::MemRefType::get(shape, elementType);
         }
     } visitor{ builder };
@@ -171,20 +173,20 @@ struct ASTToMLIRRules {
         builder.restoreInsertionPoint(previousInsertionPoint);
     }
 
-    auto operator()(const ASTToMLIRTranformer& tf, const ast::Module& module) const -> std::vector<mlir::Value> {
-        auto moduleOp = builder.create<mlir::ModuleOp>(ConvertLocation(builder, module.location));
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::Module& node) const -> std::vector<mlir::Value> {
+        auto moduleOp = builder.create<mlir::ModuleOp>(ConvertLocation(builder, node.location));
         this->moduleOp = moduleOp;
 
         builder.setInsertionPointToEnd(moduleOp.getBody());
 
         // Render kernels
-        for (auto& kernel : module.kernels) {
+        for (auto& kernel : node.kernels) {
             tf(*kernel);
         }
 
         // Create a main function.
         std::vector<mlir::Type> inputTypes{};
-        for (auto& param : module.parameters) {
+        for (auto& param : node.parameters) {
             inputTypes.push_back(ConvertType(builder, param.type));
         }
         const auto mainFuncType = builder.getFunctionType(mlir::TypeRange{ inputTypes }, mlir::TypeRange{});
@@ -193,12 +195,12 @@ struct ASTToMLIRRules {
         // Create body.
         mlir::Block& mainBlock = *mainFuncOp.addEntryBlock();
         symbolTable.Push();
-        for (size_t i = 0; i < module.parameters.size(); ++i) {
-            symbolTable.Insert(module.parameters[i].name, mainBlock.getArgument(i));
+        for (size_t i = 0; i < node.parameters.size(); ++i) {
+            symbolTable.Insert(node.parameters[i].name, mainBlock.getArgument(i));
         }
 
         InsertInBlock(mainBlock, [&] {
-            for (auto& statement : module.body) {
+            for (auto& statement : node.body) {
                 tf(*statement);
             }
             builder.create<mlir::func::ReturnOp>(builder.getUnknownLoc());
@@ -209,25 +211,25 @@ struct ASTToMLIRRules {
         return {};
     }
 
-    auto operator()(const ASTToMLIRTranformer& tf, const ast::SymbolRef& symbolRef) const -> std::vector<mlir::Value> {
-        return { symbolTable.Lookup(symbolRef.name) };
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::SymbolRef& node) const -> std::vector<mlir::Value> {
+        return { symbolTable.Lookup(node.name) };
     }
 
     template <class T>
-    auto operator()(const ASTToMLIRTranformer& tf, const ast::Constant<T>& constant) const -> std::vector<mlir::Value> {
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::Constant<T>& node) const -> std::vector<mlir::Value> {
         if constexpr (std::is_floating_point_v<T>) {
             const auto type = std::is_same_v<T, float> ? builder.getF32Type() : builder.getF64Type();
-            auto op = builder.create<mlir::arith::ConstantFloatOp>(ConvertLocation(builder, constant.location),
-                                                                   mlir::APFloat(constant.value),
+            auto op = builder.create<mlir::arith::ConstantFloatOp>(ConvertLocation(builder, node.location),
+                                                                   mlir::APFloat(node.value),
                                                                    type);
             return { op->getResult(0) };
         }
         else if constexpr (std::is_integral_v<T>) {
             constexpr int numBits = sizeof(T) * 8;
-            const auto type = constant.type ? ConvertType(builder, constant.type.value()) : mlir::Type(builder.getIntegerType(numBits));
-            using Unsigned = std::make_unsigned_t<decltype(constant.value)>;
-            const uint64_t unsignedValue = std::bit_cast<Unsigned>(constant.value);
-            auto op = builder.create<mlir::arith::ConstantOp>(ConvertLocation(builder, constant.location),
+            const auto type = node.type ? ConvertType(builder, node.type.value()) : mlir::Type(builder.getIntegerType(numBits));
+            using Unsigned = std::make_unsigned_t<decltype(node.value)>;
+            const uint64_t unsignedValue = std::bit_cast<Unsigned>(node.value);
+            auto op = builder.create<mlir::arith::ConstantOp>(ConvertLocation(builder, node.location),
                                                               builder.getIntegerAttr(type, std::bit_cast<int64_t>(unsignedValue)),
                                                               type);
             return { op->getResult(0) };
@@ -235,35 +237,35 @@ struct ASTToMLIRRules {
         throw std::invalid_argument("Cannot lower this constant type.");
     }
 
-    auto operator()(const ASTToMLIRTranformer& tf, const ast::Print& print) const -> std::vector<mlir::Value> {
-        mlir::Value arg = tf(*print.argument).front();
-        builder.create<mock::PrintOp>(ConvertLocation(builder, print.location),
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::Print& node) const -> std::vector<mlir::Value> {
+        mlir::Value arg = tf(*node.argument).front();
+        builder.create<mock::PrintOp>(ConvertLocation(builder, node.location),
                                       arg);
         return {};
     }
 
-    auto operator()(const ASTToMLIRTranformer& tf, const ast::Add& add) const -> std::vector<mlir::Value> {
-        mlir::Value lhs = tf(*add.lhs).front();
-        mlir::Value rhs = tf(*add.rhs).front();
-        auto op = builder.create<mlir::arith::AddFOp>(ConvertLocation(builder, add.location),
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::Add& node) const -> std::vector<mlir::Value> {
+        mlir::Value lhs = tf(*node.lhs).front();
+        mlir::Value rhs = tf(*node.rhs).front();
+        auto op = builder.create<mlir::arith::AddFOp>(ConvertLocation(builder, node.location),
                                                       lhs,
                                                       rhs);
         return { op->getResult(0) };
     }
 
-    auto operator()(const ASTToMLIRTranformer& tf, const ast::KernelFunc& kernelFunc) const -> std::vector<mlir::Value> {
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::KernelFunc& node) const -> std::vector<mlir::Value> {
         // Create operation
-        const auto symName = builder.getStringAttr(kernelFunc.name);
+        const auto symName = builder.getStringAttr(node.name);
         std::vector<mlir::Type> inputTypes{};
-        for (auto& param : kernelFunc.parameters) {
+        for (auto& param : node.parameters) {
             inputTypes.push_back(ConvertType(builder, param.type));
         }
         std::vector<mlir::Type> resultTypes{};
-        for (auto& result : kernelFunc.results) {
+        for (auto& result : node.results) {
             inputTypes.push_back(ConvertType(builder, result));
         }
         const auto functionType = builder.getFunctionType(mlir::TypeRange{ inputTypes }, mlir::TypeRange{ resultTypes });
-        const auto loc = ConvertLocation(builder, kernelFunc.location);
+        const auto loc = ConvertLocation(builder, node.location);
         auto kernelFuncOp = builder.create<mock::KernelFuncOp>(loc,
                                                                symName,
                                                                functionType);
@@ -272,12 +274,12 @@ struct ASTToMLIRRules {
         auto& kernelFuncBlock = *kernelFuncOp.addEntryBlock();
 
         symbolTable.Push();
-        for (size_t i = 0; i < kernelFunc.parameters.size(); ++i) {
-            symbolTable.Insert(kernelFunc.parameters[i].name, kernelFuncBlock.getArgument(i));
+        for (size_t i = 0; i < node.parameters.size(); ++i) {
+            symbolTable.Insert(node.parameters[i].name, kernelFuncBlock.getArgument(i));
         }
 
         InsertInBlock(kernelFuncBlock, [&] {
-            for (auto& statement : kernelFunc.body) {
+            for (auto& statement : node.body) {
                 tf(*statement);
             }
         });
@@ -287,10 +289,10 @@ struct ASTToMLIRRules {
         return {};
     }
 
-    auto operator()(const ASTToMLIRTranformer& tf, const ast::KernelReturn& kernelReturn) const -> std::vector<mlir::Value> {
-        const auto loc = ConvertLocation(builder, kernelReturn.location);
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::KernelReturn& node) const -> std::vector<mlir::Value> {
+        const auto loc = ConvertLocation(builder, node.location);
         std::vector<mlir::Value> values;
-        for (const auto& value : kernelReturn.values) {
+        for (const auto& value : node.values) {
             for (auto& item : tf(*value)) {
                 values.push_back(item);
             }
@@ -299,28 +301,51 @@ struct ASTToMLIRRules {
         return {};
     }
 
-    auto operator()(const ASTToMLIRTranformer& tf, const ast::KernelLaunch& kernelLaunch) const -> std::vector<mlir::Value> {
-        const auto callee = mlir::StringRef(kernelLaunch.callee);
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::KernelLaunch& node) const -> std::vector<mlir::Value> {
+        const auto callee = mlir::StringRef(node.callee);
 
         std::vector<mlir::Value> gridDim;
-        for (auto& gridAxis : kernelLaunch.gridDim) {
+        for (auto& gridAxis : node.gridDim) {
             gridDim.push_back(tf(*gridAxis).front());
         }
 
         std::vector<mlir::Value> targets = {};
 
         std::vector<mlir::Value> operands;
-        for (auto& operand : kernelLaunch.arguments) {
+        for (auto& operand : node.arguments) {
             operands.push_back(tf(*operand).front());
         }
 
-        builder.create<mock::KernelCallOp>(ConvertLocation(builder, kernelLaunch.location),
+        builder.create<mock::KernelCallOp>(ConvertLocation(builder, node.location),
                                            callee,
                                            mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ gridDim } },
                                            mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ targets } },
                                            mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ operands } });
 
         return {};
+    }
+
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::ReshapeField& node) const -> std::vector<mlir::Value> {
+        auto loc = ConvertLocation(builder, node.location);
+
+        mlir::Value source = tf(*node.field).front();
+        mlir::MemRefType sourceType = source.getType().dyn_cast<mlir::MemRefType>();
+        std::vector<int64_t> shapeType(node.shape.size(), mlir::ShapedType::kDynamicSize);
+        mlir::MemRefType type = mlir::MemRefType::get(shapeType, sourceType.getElementType());
+        mlir::Value offset = builder.create<mlir::arith::ConstantIndexOp>(loc, 0);
+        std::vector<mlir::Value> shape;
+        std::vector<mlir::Value> strides;
+
+        for (auto& shapeExpr : node.shape) {
+            shape.push_back(tf(*shapeExpr).front());
+        }
+
+        for (auto& strideExpr : node.strides) {
+            strides.push_back(tf(*strideExpr).front());
+        }
+
+        mlir::Value result = builder.create<mlir::memref::ReinterpretCastOp>(loc, type, source, offset, shape, strides);
+        return { result };
     }
 };
 
@@ -333,6 +358,7 @@ mlir::ModuleOp LowerAST(mlir::MLIRContext& context, const ast::Module& node) {
 
     transformer.AddNodeTransformer<ast::Print>(rules);
     transformer.AddNodeTransformer<ast::Add>(rules);
+    transformer.AddNodeTransformer<ast::ReshapeField>(rules);
 
     transformer.AddNodeTransformer<ast::Module>(rules);
     transformer.AddNodeTransformer<ast::KernelFunc>(rules);
@@ -353,6 +379,7 @@ mlir::ModuleOp LowerAST(mlir::MLIRContext& context, const ast::Module& node) {
 
     context.getOrLoadDialect<mlir::func::FuncDialect>();
     context.getOrLoadDialect<mlir::arith::ArithmeticDialect>();
+    context.getOrLoadDialect<mlir::memref::MemRefDialect>();
     context.getOrLoadDialect<mock::MockDialect>();
 
     transformer(node);

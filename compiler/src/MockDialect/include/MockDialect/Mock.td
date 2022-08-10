@@ -134,7 +134,7 @@ def KernelCallOp : Mock_Op<"kernel_call", [
 
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = [{
-    $callee `<` $grid_dim `>` `(` $arguments `->` $targets `)` attr-dict `:` functional-type($arguments, $targets)
+    $callee `<` $grid_dim `>` `(` `(` $arguments `)` `->` `(` $targets `)` `)` attr-dict `:` functional-type($arguments, $targets)
   }];
 }
 

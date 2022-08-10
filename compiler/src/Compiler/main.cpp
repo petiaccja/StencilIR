@@ -10,6 +10,7 @@
 #include <MockDialect/MockDialect.hpp>
 #include <MockDialect/MockOps.hpp>
 #include <bits/utility.h>
+#include <cstddef>
 #include <iostream>
 #include <iterator>
 #include <llvm/ADT/APFloat.h>
@@ -60,29 +61,42 @@ std::shared_ptr<ast::Module> CreateProgram() {
                                                     kernelBody);
 
     // Main function logic
-    std::vector<ast::Parameter> moduleParams = {
-        { "a", types::FundamentalType::FLOAT32 },
-        { "b", types::FundamentalType::FLOAT32 },
-        { "out", types::FieldType{ types::FundamentalType::FLOAT32 } }
-    };
+    auto inputA = std::make_shared<ast::SymbolRef>("a");
+    auto inputB = std::make_shared<ast::SymbolRef>("b");
+    auto output = std::make_shared<ast::SymbolRef>("out");
+    auto sizeX = std::make_shared<ast::SymbolRef>("sizeX");
+    auto sizeY = std::make_shared<ast::SymbolRef>("sizeY");
 
-    auto c1 = std::make_shared<ast::SymbolRef>("a");
-    auto c2 = std::make_shared<ast::SymbolRef>("b");
+    auto shape = std::vector<std::shared_ptr<ast::Expression>>{ sizeX, sizeY };
+    auto strides = std::vector<std::shared_ptr<ast::Expression>>{ std::make_shared<ast::Constant<int64_t>>(1, types::FundamentalType::SSIZE), sizeX };
+    auto reshapedOutput = std::make_shared<ast::ReshapeField>(output, shape, strides);
 
     std::vector<std::shared_ptr<ast::Expression>> gridDim = {
-        std::make_shared<ast::Constant<int64_t>>(12, types::FundamentalType{ types::FundamentalType::SSIZE }),
-        std::make_shared<ast::Constant<int64_t>>(7, types::FundamentalType{ types::FundamentalType::SSIZE })
+        sizeX,
+        sizeY,
     };
     std::vector<std::shared_ptr<ast::Expression>> kernelArgs{
-        c1,
-        c2
+        inputA,
+        inputB,
     };
     auto kernelLaunch = std::make_shared<ast::KernelLaunch>("kernel_fun",
                                                             gridDim,
                                                             kernelArgs);
 
-    return std::make_shared<ast::Module>(std::vector<std::shared_ptr<ast::Node>>{ kernelLaunch },
-                                         std::vector<std::shared_ptr<ast::KernelFunc>>{ kernel },
+    // Module
+    auto moduleParams = std::vector<ast::Parameter>{
+        { "a", types::FundamentalType::FLOAT32 },
+        { "b", types::FundamentalType::FLOAT32 },
+        { "out", types::FieldType{ types::FundamentalType::FLOAT32 } },
+        { "sizeX", types::FundamentalType::SSIZE },
+        { "sizeY", types::FundamentalType::SSIZE },
+    };
+
+    auto moduleBody = std::vector<std::shared_ptr<ast::Node>>{ reshapedOutput, kernelLaunch };
+    auto moduleKernels = std::vector<std::shared_ptr<ast::KernelFunc>>{ kernel };
+
+    return std::make_shared<ast::Module>(moduleBody,
+                                         moduleKernels,
                                          moduleParams);
 }
 
@@ -182,7 +196,9 @@ int main() {
 
     float a = 3.5;
     float b = 2.6;
-    std::array<float, 12 * 7> out;
+    constexpr ptrdiff_t sizeX = 12;
+    constexpr ptrdiff_t sizeY = 7;
+    std::array<float, sizeX * sizeY> out;
 
     if (LowerToCPU(context, module).succeeded()) {
         std::cout << "\n\nMixed IR:\n"
@@ -199,7 +215,7 @@ int main() {
                           << std::endl;
                 module->dump();
 
-                if (!ExecuteProgram(module, a, b, out)) {
+                if (!ExecuteProgram(module, a, b, out, sizeX, sizeY)) {
                     std::cout << "failed to run!" << std::endl;
                 }
             }
