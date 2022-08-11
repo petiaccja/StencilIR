@@ -14,8 +14,8 @@ target_sources(Compiler
         main.cpp
         MockPrintPass.hpp
         MockPrintPass.cpp
-        AllToLLVMPass.hpp
-        AllToLLVMPass.cpp
+        LoweringPasses.hpp
+        LoweringPasses.cpp
         LowerAST.hpp
         LowerAST.cpp
         KernelToAffinePass.cpp
@@ -64,4 +64,5 @@ target_link_libraries(Compiler
     MLIRLinalgToLLVM
     MLIRArithmeticToLLVM
     MLIRAffineToStandard
+    MLIRAffineTransforms
 )

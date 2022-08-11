@@ -1,4 +1,4 @@
-#include "AllToLLVMPass.hpp"
+#include "LoweringPasses.hpp"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -40,48 +40,61 @@
 
 using namespace mlir;
 
-void PrepareToLLVMPass::getDependentDialects(DialectRegistry& registry) const {
-    registry.insert<arith::ArithmeticDialect,
-                    func::FuncDialect,
-                    tensor::TensorDialect,
-                    AffineDialect,
-                    linalg::LinalgDialect,
+void AffineToScfPass::getDependentDialects(DialectRegistry& registry) const {
+    registry.insert<AffineDialect,
                     scf::SCFDialect,
-                    cf::ControlFlowDialect,
-                    LLVM::LLVMDialect>();
+                    arith::ArithmeticDialect,
+                    cf::ControlFlowDialect>();
 }
 
-void PrepareToLLVMPass::runOnOperation() {
+void AffineToScfPass::runOnOperation() {
     ConversionTarget target(getContext());
+    target.addLegalDialect<scf::SCFDialect>();
     target.addLegalDialect<arith::ArithmeticDialect>();
-    target.addLegalDialect<func::FuncDialect>();
-    target.addLegalDialect<linalg::LinalgDialect>();
     target.addLegalDialect<cf::ControlFlowDialect>();
+    target.addIllegalDialect<AffineDialect>();
 
     RewritePatternSet patterns(&getContext());
-    populateTensorToLinalgPatterns(patterns);
     populateAffineToStdConversionPatterns(patterns);
-    populateSCFToControlFlowConversionPatterns(patterns);
-
 
     if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {
         signalPassFailure();
     }
 }
 
-void AllToLLVMPass::getDependentDialects(DialectRegistry& registry) const {
+
+void ScfToCfPass::getDependentDialects(DialectRegistry& registry) const {
+    registry.insert<scf::SCFDialect,
+                    arith::ArithmeticDialect,
+                    func::FuncDialect,
+                    cf::ControlFlowDialect>();
+}
+
+void ScfToCfPass::runOnOperation() {
+    ConversionTarget target(getContext());
+    target.addLegalDialect<cf::ControlFlowDialect>();
+    target.addLegalDialect<arith::ArithmeticDialect>();
+    target.addLegalDialect<func::FuncDialect>();
+    target.addIllegalDialect<scf::SCFDialect>();
+
+    RewritePatternSet patterns(&getContext());
+    populateSCFToControlFlowConversionPatterns(patterns);
+
+    if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {
+        signalPassFailure();
+    }
+}
+
+
+void StdToLLVMPass::getDependentDialects(DialectRegistry& registry) const {
     registry.insert<arith::ArithmeticDialect,
                     func::FuncDialect,
-                    tensor::TensorDialect,
-                    AffineDialect,
-                    linalg::LinalgDialect,
-                    scf::SCFDialect,
                     cf::ControlFlowDialect,
                     memref::MemRefDialect,
                     LLVM::LLVMDialect>();
 }
 
-void AllToLLVMPass::runOnOperation() {
+void StdToLLVMPass::runOnOperation() {
     LLVMConversionTarget target(getContext());
     target.addLegalOp<ModuleOp>();
 
@@ -89,7 +102,6 @@ void AllToLLVMPass::runOnOperation() {
 
     RewritePatternSet patterns(&getContext());
     populateMemRefToLLVMConversionPatterns(typeConverter, patterns);
-    populateLinalgToLLVMConversionPatterns(typeConverter, patterns);
     arith::populateArithmeticToLLVMConversionPatterns(typeConverter, patterns);
     cf::populateControlFlowToLLVMConversionPatterns(typeConverter, patterns);
     populateFuncToLLVMConversionPatterns(typeConverter, patterns);

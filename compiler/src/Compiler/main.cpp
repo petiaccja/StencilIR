@@ -1,9 +1,9 @@
 #include "AST/AST.hpp"
 #include "AST/Node.hpp"
 #include "AST/Types.hpp"
-#include "AllToLLVMPass.hpp"
 #include "Compiler/LowerAST.hpp"
 #include "KernelToAffinePass.hpp"
+#include "LoweringPasses.hpp"
 #include "MockPrintPass.hpp"
 #include "llvm/ADT/ArrayRef.h"
 #include "mlir/Pass/Pass.h"
@@ -12,6 +12,7 @@
 #include <MockDialect/MockOps.hpp>
 #include <bits/utility.h>
 #include <cstddef>
+#include <exception>
 #include <filesystem>
 #include <iostream>
 #include <iterator>
@@ -40,7 +41,9 @@
 #include <mlir/Support/LogicalResult.h>
 #include <mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h>
 #include <mlir/Transforms/Passes.h>
+#include <stdexcept>
 #include <type_traits>
+#include <mlir/Dialect/Affine/Passes.h>
 
 
 std::shared_ptr<ast::Module> CreateProgram() {
@@ -111,46 +114,57 @@ std::shared_ptr<ast::Module> CreateProgram() {
                                          moduleParams);
 }
 
-mlir::LogicalResult LowerToCPU(mlir::MLIRContext& context, mlir::ModuleOp& op) {
+void ThrowIfFailed(mlir::LogicalResult result, std::string msg) {
+    if (failed(result)) {
+        throw std::runtime_error(std::move(msg));
+    }
+}
+
+void ApplyLowerToAffine(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     mlir::PassManager passManager(&context);
     passManager.addPass(std::make_unique<KernelToAffinePass>());
-    auto p1 = passManager.run(op);
-    if (failed(p1)) {
-        return p1;
-    }
-    mlir::PassManager passManager2(&context);
-    passManager2.addPass(std::make_unique<MockPrintPass>());
-    return passManager2.run(op);
+    passManager.addPass(std::make_unique<MockPrintPass>());
+    ThrowIfFailed(passManager.run(op), "Failed to lower to Affine.");
+    
+    passManager.clear();
+    passManager.addNestedPass<mlir::func::FuncOp>(mlir::createAffineParallelizePass());
+    ThrowIfFailed(passManager.run(op), "Failed to parallelize Affine.");
 }
 
-mlir::LogicalResult PrepareLoweringToLLVM(mlir::MLIRContext& context, mlir::ModuleOp& op) {
+void ApplyLowerToScf(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     mlir::PassManager passManager(&context);
-    passManager.addPass(std::make_unique<PrepareToLLVMPass>());
-    return passManager.run(op);
+    passManager.addPass(std::make_unique<AffineToScfPass>());
+    ThrowIfFailed(passManager.run(op), "Failed to lower to SCF.");
 }
 
-mlir::LogicalResult LowerToLLVM(mlir::MLIRContext& context, mlir::ModuleOp& op) {
+void ApplyLowerToCf(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     mlir::PassManager passManager(&context);
-    passManager.addPass(std::make_unique<AllToLLVMPass>());
-    return passManager.run(op);
+    passManager.addPass(std::make_unique<ScfToCfPass>());
+    ThrowIfFailed(passManager.run(op), "Failed to lower to ControlFlow.");
 }
 
-mlir::LogicalResult TidyModule(mlir::MLIRContext& context, mlir::ModuleOp& op) {
+void ApplyLowerToLLVM(mlir::MLIRContext& context, mlir::ModuleOp& op) {
+    mlir::PassManager passManager(&context);
+    passManager.addPass(std::make_unique<StdToLLVMPass>());
+    ThrowIfFailed(passManager.run(op), "Failed to lower to LLVM IR.");
+}
+
+void ApplyCleanupPasses(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     mlir::PassManager passManager(&context);
     passManager.addPass(mlir::createCSEPass());
     passManager.addPass(mlir::createCanonicalizerPass());
     passManager.addPass(mlir::createTopologicalSortPass());
-    return passManager.run(op);
+    ThrowIfFailed(passManager.run(op), "Failed to clean up.");
 }
 
-mlir::LogicalResult SnapshotIR(mlir::MLIRContext& context, mlir::ModuleOp& op) {
+void ApplyLocationSnapshot(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     const auto tempPath = std::filesystem::temp_directory_path();
     const auto tempFile = tempPath / "mock.mlir";
     const auto fileName = tempFile.string();
 
     mlir::PassManager passManager(&context);
     passManager.addPass(mlir::createLocationSnapshotPass({}, fileName));
-    return passManager.run(op);
+    ThrowIfFailed(passManager.run(op), "Failed to snapshot locations.");
 }
 
 auto ConvertArg(std::floating_point auto& arg) {
@@ -183,7 +197,7 @@ auto OpaqueArgs(std::tuple<Args...>& args) {
 }
 
 
-bool ExecuteProgram(mlir::ModuleOp& module, auto&... args) {
+void ExecuteProgram(mlir::ModuleOp& module, auto&... args) {
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmPrinter();
 
@@ -202,7 +216,9 @@ bool ExecuteProgram(mlir::ModuleOp& module, auto&... args) {
     mlir::ExecutionEngineOptions engineOptions;
     engineOptions.transformer = optPipeline;
     auto maybeEngine = mlir::ExecutionEngine::create(module, engineOptions);
-    assert(maybeEngine && "failed to construct an execution engine");
+    if (!maybeEngine) {
+        throw std::runtime_error("failed to construct an execution engine");
+    }
     auto& engine = maybeEngine.get();
 
     // Invoke the JIT-compiled function.
@@ -210,63 +226,61 @@ bool ExecuteProgram(mlir::ModuleOp& module, auto&... args) {
     std::array opaqueArgs = OpaqueArgs(convertedArgs);
     auto invocationResult = engine->invokePacked("main", opaqueArgs);
     if (invocationResult) {
-        llvm::errs() << "JIT invocation failed\n";
-        return false;
+        throw std::runtime_error("Invoking JIT-ed function failed.");
     }
-
-    return true;
 }
 
 int main() {
     mlir::MLIRContext context;
 
     std::shared_ptr<ast::Module> ast = CreateProgram();
-    mlir::ModuleOp module = LowerAST(context, *ast);
-    if (failed(SnapshotIR(context, module))) {
-        std::cout << "Snapshotting failed\n"
-                  << std::endl;
-    }
-    std::cout << "Mock IR:\n"
-              << std::endl;
-    module->dump();
+    try {
+        // Generate module from AST
+        mlir::ModuleOp module = LowerAST(context, *ast);
+        ApplyLocationSnapshot(context, module);
+        std::cout << "Mock IR:\n\n";
+        module.dump();
 
-    float a = 3.5;
-    float b = 2.6;
-    constexpr ptrdiff_t sizeX = 13;
-    constexpr ptrdiff_t sizeY = 9;
-    std::array<float, sizeX * sizeY * 25> out;
-    std::ranges::fill(out, 0);
+        // Lower module to LLVM IR
+        ApplyLowerToAffine(context, module);
+        ApplyCleanupPasses(context, module);
+        std::cout << "\n\nAffine IR:\n\n";
+        module.dump();
 
-    if (LowerToCPU(context, module).succeeded() && TidyModule(context, module).succeeded()) {
-        std::cout << "\n\nMixed IR:\n"
-                  << std::endl;
-        module->dump();
+        ApplyLowerToScf(context, module);
+        ApplyCleanupPasses(context, module);
+        std::cout << "\n\nSFC IR:\n\n";
+        module.dump();
 
-        if (PrepareLoweringToLLVM(context, module).succeeded() && TidyModule(context, module).succeeded()) {
-            std::cout << "\n\nPre-lowered IR:\n"
-                      << std::endl;
-            module->dump();
+        ApplyLowerToCf(context, module);
+        ApplyCleanupPasses(context, module);
+        std::cout << "\n\nControlFLow IR:\n\n";
+        module.dump();
 
-            if (LowerToLLVM(context, module).succeeded() && TidyModule(context, module).succeeded()) {
-                std::cout << "\n\nLLVM IR:\n"
-                          << std::endl;
-                module->dump();
+        ApplyLowerToLLVM(context, module);
+        ApplyCleanupPasses(context, module);
+        std::cout << "\n\nLLVM IR:\n\n";
+        module.dump();
 
-                if (ExecuteProgram(module, a, b, out, sizeX, sizeY)) {
-                    for (size_t y = 0; y < sizeY; ++y) {
-                        for (size_t x = 0; x < sizeX; ++x) {
-                            std::cout << out[y * sizeX + x] << " ";
-                        }
-                        std::cout << std::endl;
-                    }
-                }
-                else {
-                    std::cout << "failed to run!" << std::endl;
-                }
+
+        // Execute JIT-ed module.
+        float a = 3.5;
+        float b = 2.6;
+        constexpr ptrdiff_t sizeX = 13;
+        constexpr ptrdiff_t sizeY = 9;
+        std::array<float, sizeX * sizeY * 25> out;
+        std::ranges::fill(out, 0);
+
+        ExecuteProgram(module, a, b, out, sizeX, sizeY);
+
+        for (size_t y = 0; y < sizeY; ++y) {
+            for (size_t x = 0; x < sizeX; ++x) {
+                std::cout << out[y * sizeX + x] << " ";
             }
+            std::cout << std::endl;
         }
     }
-    else {
-        std::cout << "failed to lower!" << std::endl;
+    catch (std::exception& ex) {
+        std::cout << ex.what() << std::endl;
     }
 }
