@@ -65,4 +65,5 @@ target_link_libraries(Compiler
     MLIRArithmeticToLLVM
     MLIRAffineToStandard
     MLIRAffineTransforms
+    MLIRLinalgToStandard
 )

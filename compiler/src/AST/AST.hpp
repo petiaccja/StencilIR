@@ -83,6 +83,32 @@ struct Module : Node {
     std::vector<Parameter> parameters;
 };
 
+//------------------------------------------------------------------------------
+// Kernel intrinsics
+//------------------------------------------------------------------------------
+
+struct Index : Expression {
+    explicit Index(std::optional<Location> loc = {}) : Expression(loc) {}
+};
+
+struct Offset : Expression {
+    explicit Offset(std::shared_ptr<Expression> index,
+                    std::vector<int64_t> offset,
+                    std::optional<Location> loc = {})
+        : Expression(loc), index(index), offset(offset) {}
+    std::shared_ptr<Expression> index;
+    std::vector<int64_t> offset;
+};
+
+struct Sample : Expression {
+    explicit Sample(std::shared_ptr<Expression> field,
+                    std::shared_ptr<Expression> index,
+                    std::optional<Location> loc = {})
+        : Expression(loc), field(field), index(index) {}
+    std::shared_ptr<Expression> field;
+    std::shared_ptr<Expression> index;
+};
+
 
 //------------------------------------------------------------------------------
 // Arithmetic-logic
@@ -100,6 +126,13 @@ struct Constant : Expression {
 
 struct Add : Expression {
     Add(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {})
+        : Expression(loc), lhs(lhs), rhs(rhs) {}
+    std::shared_ptr<Expression> lhs;
+    std::shared_ptr<Expression> rhs;
+};
+
+struct Mul : Expression {
+    Mul(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {})
         : Expression(loc), lhs(lhs), rhs(rhs) {}
     std::shared_ptr<Expression> lhs;
     std::shared_ptr<Expression> rhs;

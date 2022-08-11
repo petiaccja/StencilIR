@@ -13,6 +13,7 @@
 #include <mlir/Conversion/LLVMCommon/ConversionTarget.h>
 #include <mlir/Conversion/LLVMCommon/TypeConverter.h>
 #include <mlir/Conversion/LinalgToLLVM/LinalgToLLVM.h>
+#include <mlir/Conversion/LinalgToStandard/LinalgToStandard.h>
 #include <mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h>
 #include <mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h>
 #include <mlir/Conversion/TensorToLinalg/TensorToLinalg.h>
@@ -44,7 +45,8 @@ void AffineToScfPass::getDependentDialects(DialectRegistry& registry) const {
     registry.insert<AffineDialect,
                     scf::SCFDialect,
                     arith::ArithmeticDialect,
-                    cf::ControlFlowDialect>();
+                    cf::ControlFlowDialect,
+                    linalg::LinalgDialect>();
 }
 
 void AffineToScfPass::runOnOperation() {
@@ -53,9 +55,11 @@ void AffineToScfPass::runOnOperation() {
     target.addLegalDialect<arith::ArithmeticDialect>();
     target.addLegalDialect<cf::ControlFlowDialect>();
     target.addIllegalDialect<AffineDialect>();
+    target.addIllegalDialect<linalg::LinalgDialect>();
 
     RewritePatternSet patterns(&getContext());
     populateAffineToStdConversionPatterns(patterns);
+    linalg::populateLinalgToStandardConversionPatterns(patterns);
 
     if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {
         signalPassFailure();

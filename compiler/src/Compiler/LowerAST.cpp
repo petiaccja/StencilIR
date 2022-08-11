@@ -30,6 +30,7 @@
 #include <functional>
 #include <list>
 #include <llvm/ADT/ScopedHashTable.h>
+#include <memory>
 #include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/Dialect/MemRef/IR/MemRef.h>
@@ -122,7 +123,6 @@ private:
     std::list<std::unordered_map<Key, Value>> m_scopes;
 };
 
-
 using ASTToMLIRTranformer = Transformer<ast::Node, std::vector<mlir::Value>>;
 
 mlir::Location ConvertLocation(mlir::OpBuilder& builder, const std::optional<ast::Location>& location) {
@@ -172,6 +172,7 @@ struct ASTToMLIRRules {
     mlir::OpBuilder& builder;
     SymbolTable<std::string, mlir::Value>& symbolTable;
     std::optional<mlir::ModuleOp>& moduleOp;
+    std::shared_ptr<const ast::KernelFunc>& currentFunc;
 
     template <class Func>
     void InsertInBlock(mlir::Block& block, Func func) const {
@@ -181,47 +182,9 @@ struct ASTToMLIRRules {
         builder.restoreInsertionPoint(previousInsertionPoint);
     }
 
-    auto operator()(const ASTToMLIRTranformer& tf, const ast::Module& node) const -> std::vector<mlir::Value> {
-        auto moduleOp = builder.create<mlir::ModuleOp>(ConvertLocation(builder, node.location));
-        this->moduleOp = moduleOp;
-
-        builder.setInsertionPointToEnd(moduleOp.getBody());
-
-        // Render kernels
-        for (auto& kernel : node.kernels) {
-            tf(*kernel);
-        }
-
-        // Create a main function.
-        std::vector<mlir::Type> inputTypes{};
-        for (auto& param : node.parameters) {
-            inputTypes.push_back(ConvertType(builder, param.type));
-        }
-        const auto mainFuncType = builder.getFunctionType(mlir::TypeRange{ inputTypes }, mlir::TypeRange{});
-        auto mainFuncOp = builder.create<mlir::func::FuncOp>(builder.getUnknownLoc(), "main", mainFuncType);
-
-        // Create body.
-        mlir::Block& mainBlock = *mainFuncOp.addEntryBlock();
-        symbolTable.Push();
-        for (size_t i = 0; i < node.parameters.size(); ++i) {
-            symbolTable.Insert(node.parameters[i].name, mainBlock.getArgument(i));
-        }
-
-        InsertInBlock(mainBlock, [&] {
-            for (auto& statement : node.body) {
-                tf(*statement);
-            }
-            builder.create<mlir::func::ReturnOp>(builder.getUnknownLoc());
-        });
-
-        symbolTable.Pop();
-
-        return {};
-    }
-
-    auto operator()(const ASTToMLIRTranformer& tf, const ast::SymbolRef& node) const -> std::vector<mlir::Value> {
-        return { symbolTable.Lookup(node.name) };
-    }
+    //--------------------------------------------------------------------------
+    // Arithmetic and misc
+    //--------------------------------------------------------------------------
 
     template <class T>
     auto operator()(const ASTToMLIRTranformer& tf, const ast::Constant<T>& node) const -> std::vector<mlir::Value> {
@@ -261,7 +224,50 @@ struct ASTToMLIRRules {
         return { op->getResult(0) };
     }
 
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::Mul& node) const -> std::vector<mlir::Value> {
+        mlir::Value lhs = tf(*node.lhs).front();
+        mlir::Value rhs = tf(*node.rhs).front();
+        auto op = builder.create<mlir::arith::MulFOp>(ConvertLocation(builder, node.location),
+                                                      lhs,
+                                                      rhs);
+        return { op->getResult(0) };
+    }
+
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::ReshapeField& node) const -> std::vector<mlir::Value> {
+        auto loc = ConvertLocation(builder, node.location);
+
+        mlir::Value source = tf(*node.field).front();
+        mlir::MemRefType sourceType = source.getType().dyn_cast<mlir::MemRefType>();
+
+        constexpr auto offsetType = mlir::ShapedType::kDynamicStrideOrOffset;
+        std::vector<int64_t> shapeType(node.shape.size(), mlir::ShapedType::kDynamicSize);
+        std::vector<int64_t> stridesType(node.shape.size(), mlir::ShapedType::kDynamicStrideOrOffset);
+        auto strideMap = mlir::makeStridedLinearLayoutMap(stridesType, offsetType, builder.getContext());
+
+        mlir::MemRefType type = mlir::MemRefType::get(shapeType, sourceType.getElementType(), strideMap);
+        mlir::Value offset = builder.create<mlir::arith::ConstantIndexOp>(loc, 0);
+        std::vector<mlir::Value> shape;
+        std::vector<mlir::Value> strides;
+
+        for (auto& shapeExpr : node.shape) {
+            shape.push_back(tf(*shapeExpr).front());
+        }
+
+        for (auto& strideExpr : node.strides) {
+            strides.push_back(tf(*strideExpr).front());
+        }
+
+        mlir::Value result = builder.create<mlir::memref::ReinterpretCastOp>(loc, type, source, offset, shape, strides);
+        return { result };
+    }
+
+    //--------------------------------------------------------------------------
+    // Structure
+    //--------------------------------------------------------------------------
+
     auto operator()(const ASTToMLIRTranformer& tf, const ast::KernelFunc& node) const -> std::vector<mlir::Value> {
+        currentFunc = std::dynamic_pointer_cast<const ast::KernelFunc>(node.shared_from_this());
+
         // Create operation
         std::vector<mlir::Type> inputTypes{};
         for (auto& param : node.parameters) {
@@ -336,32 +342,83 @@ struct ASTToMLIRRules {
         return {};
     }
 
-    auto operator()(const ASTToMLIRTranformer& tf, const ast::ReshapeField& node) const -> std::vector<mlir::Value> {
-        auto loc = ConvertLocation(builder, node.location);
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::Module& node) const -> std::vector<mlir::Value> {
+        auto moduleOp = builder.create<mlir::ModuleOp>(ConvertLocation(builder, node.location));
+        this->moduleOp = moduleOp;
 
-        mlir::Value source = tf(*node.field).front();
-        mlir::MemRefType sourceType = source.getType().dyn_cast<mlir::MemRefType>();
+        builder.setInsertionPointToEnd(moduleOp.getBody());
 
-        constexpr auto offsetType = mlir::ShapedType::kDynamicStrideOrOffset;
-        std::vector<int64_t> shapeType(node.shape.size(), mlir::ShapedType::kDynamicSize);
-        std::vector<int64_t> stridesType(node.shape.size(), mlir::ShapedType::kDynamicStrideOrOffset);
-        auto strideMap = mlir::makeStridedLinearLayoutMap(stridesType, offsetType, builder.getContext());
-
-        mlir::MemRefType type = mlir::MemRefType::get(shapeType, sourceType.getElementType(), strideMap);
-        mlir::Value offset = builder.create<mlir::arith::ConstantIndexOp>(loc, 0);
-        std::vector<mlir::Value> shape;
-        std::vector<mlir::Value> strides;
-
-        for (auto& shapeExpr : node.shape) {
-            shape.push_back(tf(*shapeExpr).front());
+        // Render kernels
+        for (auto& kernel : node.kernels) {
+            tf(*kernel);
         }
 
-        for (auto& strideExpr : node.strides) {
-            strides.push_back(tf(*strideExpr).front());
+        // Create a main function.
+        std::vector<mlir::Type> inputTypes{};
+        for (auto& param : node.parameters) {
+            inputTypes.push_back(ConvertType(builder, param.type));
+        }
+        const auto mainFuncType = builder.getFunctionType(mlir::TypeRange{ inputTypes }, mlir::TypeRange{});
+        auto mainFuncOp = builder.create<mlir::func::FuncOp>(builder.getUnknownLoc(), "main", mainFuncType);
+
+        // Create body.
+        mlir::Block& mainBlock = *mainFuncOp.addEntryBlock();
+        symbolTable.Push();
+        for (size_t i = 0; i < node.parameters.size(); ++i) {
+            symbolTable.Insert(node.parameters[i].name, mainBlock.getArgument(i));
         }
 
-        mlir::Value result = builder.create<mlir::memref::ReinterpretCastOp>(loc, type, source, offset, shape, strides);
-        return { result };
+        InsertInBlock(mainBlock, [&] {
+            for (auto& statement : node.body) {
+                tf(*statement);
+            }
+            builder.create<mlir::func::ReturnOp>(builder.getUnknownLoc());
+        });
+
+        symbolTable.Pop();
+
+        return {};
+    }
+
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::SymbolRef& node) const -> std::vector<mlir::Value> {
+        return { symbolTable.Lookup(node.name) };
+    }
+
+    //--------------------------------------------------------------------------
+    // Kernel intrinsics
+    //--------------------------------------------------------------------------
+
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::Index& node) const -> std::vector<mlir::Value> {
+        const auto loc = ConvertLocation(builder, node.location);
+
+        const int64_t numDims = currentFunc->numDimensions;
+        const auto indexType = mlir::MemRefType::get({ numDims }, builder.getIndexType());
+
+        auto op = builder.create<mock::IndexOp>(loc, indexType);
+        return { op.getIndex() };
+    }
+
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::Offset& node) const -> std::vector<mlir::Value> {
+        const auto loc = ConvertLocation(builder, node.location);
+        const auto index = tf(*node.index).front();
+        const auto offset = builder.getI64ArrayAttr(node.offset);
+        auto op = builder.create<mock::OffsetOp>(loc, index.getType(), index, offset);
+        return { op.getOffsetedIndex() };
+    }
+
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::Sample& node) const -> std::vector<mlir::Value> {
+        const auto loc = ConvertLocation(builder, node.location);
+        const auto field = tf(*node.field).front();
+        const auto index = tf(*node.index).front();
+
+        auto fieldType = field.getType();
+        if (!fieldType.isa<mlir::MemRefType>()) {
+            throw std::invalid_argument("SampleOp must be used to sample fields.");
+        }
+        auto elementType = fieldType.dyn_cast<mlir::MemRefType>().getElementType();
+
+        auto op = builder.create<mock::SampleOp>(loc, elementType, field, index);
+        return { op.getSampledValue() };
     }
 };
 
@@ -369,11 +426,13 @@ mlir::ModuleOp LowerAST(mlir::MLIRContext& context, const ast::Module& node) {
     mlir::OpBuilder builder{ &context };
     SymbolTable<std::string, mlir::Value> symbolTable;
     std::optional<mlir::ModuleOp> moduleOp;
+    std::shared_ptr<const ast::KernelFunc> currentFunc;
     ASTToMLIRTranformer transformer;
-    ASTToMLIRRules rules{ builder, symbolTable, moduleOp };
+    ASTToMLIRRules rules{ builder, symbolTable, moduleOp, currentFunc };
 
     transformer.AddNodeTransformer<ast::Print>(rules);
     transformer.AddNodeTransformer<ast::Add>(rules);
+    transformer.AddNodeTransformer<ast::Mul>(rules);
     transformer.AddNodeTransformer<ast::ReshapeField>(rules);
 
     transformer.AddNodeTransformer<ast::Module>(rules);
@@ -381,6 +440,10 @@ mlir::ModuleOp LowerAST(mlir::MLIRContext& context, const ast::Module& node) {
     transformer.AddNodeTransformer<ast::KernelReturn>(rules);
     transformer.AddNodeTransformer<ast::KernelLaunch>(rules);
     transformer.AddNodeTransformer<ast::SymbolRef>(rules);
+
+    transformer.AddNodeTransformer<ast::Index>(rules);
+    transformer.AddNodeTransformer<ast::Offset>(rules);
+    transformer.AddNodeTransformer<ast::Sample>(rules);
 
     transformer.AddNodeTransformer<ast::Constant<float>>(rules);
     transformer.AddNodeTransformer<ast::Constant<double>>(rules);

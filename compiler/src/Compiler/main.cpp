@@ -50,12 +50,52 @@ std::shared_ptr<ast::Module> CreateProgram() {
     // Kernel logic
     auto a = std::make_shared<ast::SymbolRef>("a");
     auto b = std::make_shared<ast::SymbolRef>("b");
-    auto add = std::make_shared<ast::Add>(a, b);
-    auto ret = std::make_shared<ast::KernelReturn>(std::vector<std::shared_ptr<ast::Expression>>{ add });
+    auto field = std::make_shared<ast::SymbolRef>("field");
+    auto sum = std::make_shared<ast::Add>(a, b);
+
+    auto index = std::make_shared<ast::Index>();
+
+    std::array<std::shared_ptr<ast::Expression>, 5> offsetIndices = {
+        index,
+        std::make_shared<ast::Offset>(index, std::vector<int64_t>{ 0, 1 }),
+        std::make_shared<ast::Offset>(index, std::vector<int64_t>{ 1, 0 }),
+        std::make_shared<ast::Offset>(index, std::vector<int64_t>{ 0, -1 }),
+        std::make_shared<ast::Offset>(index, std::vector<int64_t>{ -1, 0 }),
+    };
+    std::array<std::shared_ptr<ast::Expression>, 5> samples = {
+        std::make_shared<ast::Sample>(field, offsetIndices[0]),
+        std::make_shared<ast::Sample>(field, offsetIndices[1]),
+        std::make_shared<ast::Sample>(field, offsetIndices[2]),
+        std::make_shared<ast::Sample>(field, offsetIndices[3]),
+        std::make_shared<ast::Sample>(field, offsetIndices[4]),
+    };
+    std::array<std::shared_ptr<ast::Expression>, 5> weights = {
+        std::make_shared<ast::Constant<float>>(4.0f),
+        std::make_shared<ast::Constant<float>>(-1.0f),
+        std::make_shared<ast::Constant<float>>(-1.0f),
+        std::make_shared<ast::Constant<float>>(-1.0f),
+        std::make_shared<ast::Constant<float>>(-1.0f),
+    };
+    std::array<std::shared_ptr<ast::Expression>, 5> products = {
+        std::make_shared<ast::Mul>(samples[0], weights[0]),
+        std::make_shared<ast::Mul>(samples[1], weights[1]),
+        std::make_shared<ast::Mul>(samples[2], weights[2]),
+        std::make_shared<ast::Mul>(samples[3], weights[3]),
+        std::make_shared<ast::Mul>(samples[4], weights[4]),
+    };
+
+    sum = std::make_shared<ast::Add>(sum, products[0]);
+    sum = std::make_shared<ast::Add>(sum, products[1]);
+    sum = std::make_shared<ast::Add>(sum, products[2]);
+    sum = std::make_shared<ast::Add>(sum, products[3]);
+    sum = std::make_shared<ast::Add>(sum, products[4]);
+
+    auto ret = std::make_shared<ast::KernelReturn>(std::vector<std::shared_ptr<ast::Expression>>{ sum });
 
     std::vector<ast::Parameter> kernelParams = {
         { "a", types::FundamentalType::FLOAT32 },
         { "b", types::FundamentalType::FLOAT32 },
+        { "field", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
     };
     std::vector<types::Type> kernelReturns = { types::FundamentalType::FLOAT32 };
     std::vector<std::shared_ptr<ast::Statement>> kernelBody{ ret };
@@ -68,6 +108,7 @@ std::shared_ptr<ast::Module> CreateProgram() {
     // Main function logic
     auto inputA = std::make_shared<ast::SymbolRef>("a");
     auto inputB = std::make_shared<ast::SymbolRef>("b");
+    auto inputField = std::make_shared<ast::SymbolRef>("input");
     auto output = std::make_shared<ast::SymbolRef>("out");
     auto sizeX = std::make_shared<ast::SymbolRef>("sizeX");
     auto sizeY = std::make_shared<ast::SymbolRef>("sizeY");
@@ -79,6 +120,7 @@ std::shared_ptr<ast::Module> CreateProgram() {
     std::vector<std::shared_ptr<ast::Expression>> kernelArgs{
         inputA,
         inputB,
+        inputField,
     };
     std::vector<std::shared_ptr<ast::Expression>> kernelTargets{
         output,
@@ -92,6 +134,7 @@ std::shared_ptr<ast::Module> CreateProgram() {
     auto moduleParams = std::vector<ast::Parameter>{
         { "a", types::FundamentalType::FLOAT32 },
         { "b", types::FundamentalType::FLOAT32 },
+        { "input", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
         { "out", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
         { "sizeX", types::FundamentalType::SSIZE },
         { "sizeY", types::FundamentalType::SSIZE },
@@ -249,7 +292,11 @@ int main() {
         // Generate module from AST
         mlir::ModuleOp module = LowerAST(context, *ast);
         ApplyLocationSnapshot(context, module);
-        std::cout << "Mock IR:\n\n";
+        std::cout << "Mock raw IR:\n\n";
+        module.dump();
+
+        ApplyCleanupPasses(context, module);
+        std::cout << "Mock cleaned IR:\n\n";
         module.dump();
 
         // Lower module to LLVM IR
@@ -275,21 +322,37 @@ int main() {
 
 
         // Execute JIT-ed module.
-        float a = 3.5;
-        float b = 2.6;
+        float a = 0.01f;
+        float b = 0.02f;
         constexpr ptrdiff_t inputSizeX = 9;
         constexpr ptrdiff_t inputSizeY = 7;
         constexpr ptrdiff_t domainSizeX = inputSizeX - 2;
         constexpr ptrdiff_t domainSizeY = inputSizeY - 2;
         std::array<float, inputSizeX * inputSizeY> outputBuffer;
+        std::array<float, inputSizeX * inputSizeY> inputBuffer;
         MemRef<float, 2> output{ outputBuffer.data(), outputBuffer.data(), inputSizeX + 1, { domainSizeX, domainSizeY }, { 1, inputSizeX } };
+        MemRef<float, 2> input{ inputBuffer.data(), inputBuffer.data(), inputSizeX + 1, { domainSizeX, domainSizeY }, { 1, inputSizeX } };
         std::ranges::fill(outputBuffer, 0);
-
-        ExecuteProgram(module, a, b, output, domainSizeX, domainSizeY);
-
+        
         for (size_t y = 0; y < inputSizeY; ++y) {
             for (size_t x = 0; x < inputSizeX; ++x) {
-                std::cout << outputBuffer[y * inputSizeX + x] << " ";
+                inputBuffer[y * inputSizeX + x] = (x*x*x + y*y) * 0.1f;
+            }
+        }
+
+        ExecuteProgram(module, a, b, input, output, domainSizeX, domainSizeY);
+
+        std::cout << "Input:" << std::endl;
+        for (size_t y = 0; y < inputSizeY; ++y) {
+            for (size_t x = 0; x < inputSizeX; ++x) {
+                std::cout << inputBuffer[y * inputSizeX + x] << "\t";
+            }
+            std::cout << std::endl;
+        }
+        std::cout << "\nOutput:" << std::endl;
+        for (size_t y = 0; y < inputSizeY; ++y) {
+            for (size_t x = 0; x < inputSizeX; ++x) {
+                std::cout << outputBuffer[y * inputSizeX + x] << "\t";
             }
             std::cout << std::endl;
         }

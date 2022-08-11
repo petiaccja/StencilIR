@@ -21,6 +21,7 @@
 #include <memory>
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
+#include <mlir/Dialect/Linalg/IR/Linalg.h>
 #include <mlir/IR/BuiltinAttributes.h>
 #include <mlir/IR/Location.h>
 #include <mlir/IR/PatternMatch.h>
@@ -158,9 +159,87 @@ struct KernelCallLowering : public OpRewritePattern<mock::KernelLaunchOp> {
     }
 };
 
+struct IndexLowering : public OpRewritePattern<mock::IndexOp> {
+    using OpRewritePattern<mock::IndexOp>::OpRewritePattern;
+
+    LogicalResult match(mock::IndexOp op) const override {
+        auto parent = op->getParentOfType<func::FuncOp>();
+        if (parent) {
+            return success();
+        }
+        return failure();
+    }
+
+    void rewrite(mock::IndexOp op, PatternRewriter& rewriter) const override {
+        auto parent = op->getParentOfType<func::FuncOp>();
+        assert(parent);
+
+        const auto& blockArgs = parent.getBody().front().getArguments();
+        const mlir::Value index = blockArgs.front();
+        rewriter.replaceOp(op, { index });
+    }
+};
+
+struct OffsetLowering : public OpRewritePattern<mock::OffsetOp> {
+    using OpRewritePattern<mock::OffsetOp>::OpRewritePattern;
+
+    LogicalResult matchAndRewrite(mock::OffsetOp op, PatternRewriter& rewriter) const override final {
+        Location loc = op->getLoc();
+
+        Value index = op.getIndex();
+        std::vector<int64_t> offsets;
+        for (const auto& offset : op.getOffset().getAsRange<IntegerAttr>()) {
+            offsets.push_back(offset.getInt());
+        }
+
+        assert(index.getType().isa<MemRefType>());
+        const auto indexType = index.getType().dyn_cast<MemRefType>();
+
+        Value result = rewriter.create<memref::AllocaOp>(loc, indexType);
+        for (size_t dimIdx = 0; dimIdx < offsets.size(); ++dimIdx) {
+            std::array accessIndex = { Value(rewriter.create<arith::ConstantIndexOp>(loc, dimIdx)) };
+            Value original = rewriter.create<memref::LoadOp>(loc, index, accessIndex);
+            Value offset = rewriter.create<arith::ConstantIndexOp>(loc, offsets[dimIdx]);
+            Value sum = rewriter.create<arith::AddIOp>(loc, original, offset);
+            rewriter.create<memref::StoreOp>(loc, sum, result, accessIndex);
+        }
+
+        rewriter.replaceOp(op, result);
+
+        return success();
+    }
+};
+
+struct SampleLowering : public OpRewritePattern<mock::SampleOp> {
+    using OpRewritePattern<mock::SampleOp>::OpRewritePattern;
+
+    LogicalResult matchAndRewrite(mock::SampleOp op, PatternRewriter& rewriter) const override final {
+        Location loc = op->getLoc();
+
+        Value index = op.getIndex();
+        Value field = op.getField();
+
+        assert(index.getType().isa<MemRefType>());
+        const auto indexType = index.getType().dyn_cast<MemRefType>();
+        const auto numDims = indexType.getShape()[0];
+        assert(numDims != ShapedType::kDynamicSize);
+
+        std::vector<Value> indices;
+        for (ptrdiff_t dimIdx = 0; dimIdx < numDims; ++dimIdx) {
+            std::array loadIndex = { Value(rewriter.create<arith::ConstantIndexOp>(loc, dimIdx)) };
+            indices.push_back(rewriter.create<memref::LoadOp>(loc, index, loadIndex));
+        }
+
+        Value value = rewriter.create<memref::LoadOp>(loc, field, indices);
+        rewriter.replaceOp(op, value);
+
+        return success();
+    }
+};
+
 
 void KernelToAffinePass::getDependentDialects(DialectRegistry& registry) const {
-    registry.insert<arith::ArithmeticDialect, AffineDialect, memref::MemRefDialect>();
+    registry.insert<arith::ArithmeticDialect, AffineDialect, memref::MemRefDialect, linalg::LinalgDialect>();
 }
 
 
@@ -170,14 +249,18 @@ void KernelToAffinePass::runOnOperation() {
     target.addLegalDialect<arith::ArithmeticDialect>();
     target.addLegalDialect<func::FuncDialect>();
     target.addLegalDialect<memref::MemRefDialect>();
-    target.addIllegalOp<mock::KernelLaunchOp>();
-    target.addIllegalOp<mock::KernelReturnOp>();
-    target.addIllegalOp<mock::KernelFuncOp>();
+    target.addLegalDialect<linalg::LinalgDialect>();
+    target.addIllegalDialect<mock::MockDialect>();
+    target.addLegalOp<mock::PrintOp>();
 
     RewritePatternSet patterns(&getContext());
     patterns.add<KernelFuncLowering>(&getContext());
     patterns.add<KernelReturnLowering>(&getContext());
     patterns.add<KernelCallLowering>(&getContext());
+
+    patterns.add<IndexLowering>(&getContext());
+    patterns.add<OffsetLowering>(&getContext());
+    patterns.add<SampleLowering>(&getContext());
 
     if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {
         signalPassFailure();

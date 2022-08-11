@@ -13,7 +13,7 @@ struct Location {
     int col;
 };
 
-struct Node {
+struct Node : std::enable_shared_from_this<Node> {
     virtual ~Node() = default;
     Node(std::optional<Location> loc = {}) : location(loc) {}
     std::optional<Location> location;

@@ -20,12 +20,6 @@ class Mock_Op<string mnemonic, list<Trait> traits = []> :
     Op<Mock_Dialect, mnemonic, traits>;
 
 
-def PrintOp : Mock_Op<"print", [NoSideEffect]> {
-  let arguments = (ins F32:$input);
-  let assemblyFormat = "$input attr-dict `:` type($input)";
-}
-
-
 def KernelFuncOp : Mock_Op<"kernel_func", [
   AffineScope, AutomaticAllocationScope, CallableOpInterface,
   FunctionOpInterface, IsolatedFromAbove, OpAsmOpInterface, Symbol
@@ -142,4 +136,33 @@ def KernelReturnOp : Mock_Op<"kernel_return", [
   }]>];
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = "attr-dict ($arguments^ `:` type($arguments))?";
+}
+
+
+def IndexOp : Mock_Op<"index", [NoSideEffect, HasParent<"KernelFuncOp">]> {
+  let results = (outs AnyMemRef:$index);
+  let hasCustomAssemblyFormat = 1;
+  let assemblyFormat = "attr-dict `:` type($index)";
+}
+
+
+def OffsetOp : Mock_Op<"offset", [NoSideEffect, HasParent<"KernelFuncOp">]> {
+  let arguments = (ins AnyMemRef:$index, I64ArrayAttr:$offset);
+  let results = (outs AnyMemRef:$offseted_index);
+  let hasCustomAssemblyFormat = 1;
+  let assemblyFormat = "$index `,` $offset attr-dict `:` functional-type($index, $offseted_index)";
+}
+
+
+def SampleOp : Mock_Op<"sample", [NoSideEffect, HasParent<"KernelFuncOp">]> {
+  let arguments = (ins AnyMemRef:$field, AnyMemRef:$index);
+  let results = (outs AnyType:$sampled_value);
+  let hasCustomAssemblyFormat = 1;
+  let assemblyFormat = "$field`[` $index `]` attr-dict `:` functional-type(operands, $sampled_value)";
+}
+
+
+def PrintOp : Mock_Op<"print", [NoSideEffect]> {
+  let arguments = (ins F32:$input);
+  let assemblyFormat = "$input attr-dict `:` type($input)";
 }
