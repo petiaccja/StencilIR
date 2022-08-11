@@ -32,7 +32,8 @@ def KernelFuncOp : Mock_Op<"kernel_func", [
 ]> {
   let arguments = (ins
     SymbolNameAttr:$sym_name,
-    TypeAttrOf<FunctionType>:$function_type
+    TypeAttrOf<FunctionType>:$function_type,
+    IndexAttr:$num_dimensions
   );
   let regions = (region AnyRegion:$body);
   let extraClassDeclaration = [{

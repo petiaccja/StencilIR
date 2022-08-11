@@ -42,12 +42,14 @@ struct KernelFunc : Node {
                         std::vector<Parameter> parameters,
                         std::vector<types::Type> results,
                         std::vector<std::shared_ptr<Statement>> body,
+                        size_t numDimensions,
                         std::optional<Location> loc = {})
-        : Node(loc), name(name), parameters(parameters), results(results), body(body) {}
+        : Node(loc), name(name), parameters(parameters), results(results), body(body), numDimensions(numDimensions) {}
     std::string name;
     std::vector<Parameter> parameters;
     std::vector<types::Type> results;
     std::vector<std::shared_ptr<Statement>> body;
+    size_t numDimensions;
 };
 
 struct KernelReturn : Statement {

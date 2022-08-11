@@ -156,8 +156,13 @@ mlir::Type ConvertType(mlir::OpBuilder& builder, types::Type type) {
         }
         mlir::Type operator()(const types::FieldType& type) const {
             const mlir::Type elementType = (*this)(type.elementType);
-            const auto shape = std::array<int64_t, 1>{ mlir::ShapedType::kDynamicSize };
-            return mlir::MemRefType::get(shape, elementType);
+
+            constexpr auto offset = mlir::ShapedType::kDynamicStrideOrOffset;
+            std::vector<int64_t> shape(type.numDimensions, mlir::ShapedType::kDynamicSize);
+            std::vector<int64_t> strides(type.numDimensions, mlir::ShapedType::kDynamicStrideOrOffset);
+            auto strideMap = mlir::makeStridedLinearLayoutMap(strides, offset, builder.getContext());
+
+            return mlir::MemRefType::get(shape, elementType, strideMap);
         }
     } visitor{ builder };
     return std::visit(visitor, type);
@@ -258,7 +263,6 @@ struct ASTToMLIRRules {
 
     auto operator()(const ASTToMLIRTranformer& tf, const ast::KernelFunc& node) const -> std::vector<mlir::Value> {
         // Create operation
-        const auto symName = builder.getStringAttr(node.name);
         std::vector<mlir::Type> inputTypes{};
         for (auto& param : node.parameters) {
             inputTypes.push_back(ConvertType(builder, param.type));
@@ -270,8 +274,9 @@ struct ASTToMLIRRules {
         const auto functionType = builder.getFunctionType(mlir::TypeRange{ inputTypes }, mlir::TypeRange{ resultTypes });
         const auto loc = ConvertLocation(builder, node.location);
         auto kernelFuncOp = builder.create<mock::KernelFuncOp>(loc,
-                                                               symName,
-                                                               functionType);
+                                                               node.name,
+                                                               functionType,
+                                                               mlir::APInt(64, node.numDimensions));
 
         // Create function body
         auto& kernelFuncBlock = *kernelFuncOp.addEntryBlock();
@@ -323,10 +328,10 @@ struct ASTToMLIRRules {
         }
 
         builder.create<mock::KernelLaunchOp>(ConvertLocation(builder, node.location),
-                                           callee,
-                                           mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ gridDim } },
-                                           mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ targets } },
-                                           mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ operands } });
+                                             callee,
+                                             mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ gridDim } },
+                                             mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ targets } },
+                                             mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ operands } });
 
         return {};
     }
@@ -336,10 +341,11 @@ struct ASTToMLIRRules {
 
         mlir::Value source = tf(*node.field).front();
         mlir::MemRefType sourceType = source.getType().dyn_cast<mlir::MemRefType>();
-        
+
+        constexpr auto offsetType = mlir::ShapedType::kDynamicStrideOrOffset;
         std::vector<int64_t> shapeType(node.shape.size(), mlir::ShapedType::kDynamicSize);
         std::vector<int64_t> stridesType(node.shape.size(), mlir::ShapedType::kDynamicStrideOrOffset);
-        auto strideMap = mlir::makeStridedLinearLayoutMap(stridesType, 0, builder.getContext());
+        auto strideMap = mlir::makeStridedLinearLayoutMap(stridesType, offsetType, builder.getContext());
 
         mlir::MemRefType type = mlir::MemRefType::get(shapeType, sourceType.getElementType(), strideMap);
         mlir::Value offset = builder.create<mlir::arith::ConstantIndexOp>(loc, 0);

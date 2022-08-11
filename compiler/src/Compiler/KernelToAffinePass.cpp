@@ -14,6 +14,7 @@
 #include <MockDialect/MockDialect.hpp>
 #include <MockDialect/MockOps.hpp>
 #include <algorithm>
+#include <cstddef>
 #include <iostream>
 #include <iterator>
 #include <llvm/ADT/APFloat.h>
@@ -36,17 +37,20 @@ struct KernelFuncLowering : public OpRewritePattern<mock::KernelFuncOp> {
     LogicalResult matchAndRewrite(mock::KernelFuncOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
 
+        const int64_t numDims = op.getNumDimensions().getSExtValue();
+
         std::vector<mlir::Type> functionParamTypes;
         std::vector<mlir::Type> targetParamTypes;
-        const auto indexType = MemRefType::get({ 3 }, rewriter.getIndexType());
+        const auto indexType = MemRefType::get({ numDims }, rewriter.getIndexType());
         functionParamTypes.push_back(indexType);
         for (auto& argument : op.getArgumentTypes()) {
             functionParamTypes.push_back(argument);
         }
         for (auto& result : op.getResultTypes()) {
-            std::vector<int64_t> shape(2, ShapedType::kDynamicSize);
-            std::vector<int64_t> strides(2, mlir::ShapedType::kDynamicStrideOrOffset);
-            auto strideMap = mlir::makeStridedLinearLayoutMap(strides, 0, rewriter.getContext());
+            constexpr auto offset = mlir::ShapedType::kDynamicStrideOrOffset;
+            std::vector<int64_t> shape(numDims, ShapedType::kDynamicSize);
+            std::vector<int64_t> strides(numDims, mlir::ShapedType::kDynamicStrideOrOffset);
+            auto strideMap = mlir::makeStridedLinearLayoutMap(strides, offset, rewriter.getContext());
             Type type = MemRefType::get(shape, result, strideMap);
             targetParamTypes.push_back(type);
         }
@@ -87,12 +91,15 @@ struct KernelReturnLowering : public OpRewritePattern<mock::KernelReturnOp> {
 
         const auto& blockArgs = parent.getBody().front().getArguments();
         const mlir::Value index = blockArgs.front();
+        assert(index.getType().isa<mlir::MemRefType>());
+        const auto indexType = index.getType().dyn_cast<mlir::MemRefType>();
+        const int64_t numDims = indexType.getShape()[0];
         std::vector<mlir::Value> targets;
         std::copy_n(blockArgs.rbegin(), op->getNumOperands(), std::back_inserter(targets));
         std::reverse(targets.begin(), targets.end());
 
         std::vector<mlir::Value> indices;
-        for (size_t dimIdx = 0; dimIdx < 2; ++dimIdx) {
+        for (ptrdiff_t dimIdx = 0; dimIdx < numDims; ++dimIdx) {
             mlir::Value indexElement = rewriter.create<arith::ConstantIndexOp>(loc, dimIdx);
             indices.push_back(rewriter.create<memref::LoadOp>(loc, index, indexElement));
         }
@@ -113,34 +120,27 @@ struct KernelCallLowering : public OpRewritePattern<mock::KernelLaunchOp> {
     LogicalResult matchAndRewrite(mock::KernelLaunchOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
 
+        const int64_t numDims = op.getGridDim().size();
+
         std::vector<Value> lbValues;
         std::vector<Value> ubValues;
         std::vector<int64_t> steps;
-        for (size_t boundIdx = 0; boundIdx < op.getGridDim().size(); ++boundIdx) {
+        for (ptrdiff_t boundIdx = 0; boundIdx < numDims; ++boundIdx) {
             auto lbAttr = rewriter.getIndexAttr(0);
             lbValues.push_back(rewriter.create<arith::ConstantOp>(loc, lbAttr));
             ubValues.push_back(*(op.getGridDim().begin() + boundIdx));
             steps.push_back(1);
         }
 
-        buildAffineLoopNest(rewriter, loc, lbValues, ubValues, steps, [&op](OpBuilder& builder, Location loc, ValueRange loopVars) {
+        buildAffineLoopNest(rewriter, loc, lbValues, ubValues, steps, [&op, numDims](OpBuilder& builder, Location loc, ValueRange loopVars) {
             auto MakeIndex = [&builder, &loc](int64_t value) {
                 return builder.create<arith::ConstantOp>(loc, builder.getIndexAttr(value));
             };
 
             std::vector<Value> operands;
-            const Value indexPadding = MakeIndex(1);
-            std::vector<Value> loopVarsExtended;
-            for (const auto& loopVar : loopVars) {
-                loopVarsExtended.push_back(loopVar);
-            }
-            while (loopVarsExtended.size() < 3) {
-                loopVarsExtended.push_back(indexPadding);
-            }
-
-            auto index = builder.create<memref::AllocaOp>(loc, MemRefType::get({ 3 }, builder.getIndexType()));
-            for (size_t i = 0; i < 3; ++i) {
-                builder.create<memref::StoreOp>(loc, loopVarsExtended[i], index, ValueRange{ MakeIndex(i) });
+            auto index = builder.create<memref::AllocaOp>(loc, MemRefType::get({ numDims }, builder.getIndexType()));
+            for (ptrdiff_t dimIdx = 0; dimIdx < numDims; ++dimIdx) {
+                builder.create<memref::StoreOp>(loc, loopVars[dimIdx], index, ValueRange{ MakeIndex(dimIdx) });
             }
 
             operands.push_back(index);

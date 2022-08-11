@@ -1,6 +1,7 @@
 #pragma once
 
 #include <variant>
+#include <cstddef>
 
 namespace types {
 
@@ -27,10 +28,10 @@ struct FundamentalType {
 
 struct FieldType {
     FundamentalType elementType;
+    size_t numDimensions;
 };
 
 
 using Type = std::variant<FundamentalType, FieldType>;
-
 
 }

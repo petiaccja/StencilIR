@@ -26,6 +26,7 @@
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/raw_ostream.h>
 #include <memory>
+#include <mlir/Dialect/Affine/Passes.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/ExecutionEngine/ExecutionEngine.h>
 #include <mlir/ExecutionEngine/OptUtils.h>
@@ -43,7 +44,6 @@
 #include <mlir/Transforms/Passes.h>
 #include <stdexcept>
 #include <type_traits>
-#include <mlir/Dialect/Affine/Passes.h>
 
 
 std::shared_ptr<ast::Module> CreateProgram() {
@@ -62,7 +62,8 @@ std::shared_ptr<ast::Module> CreateProgram() {
     auto kernel = std::make_shared<ast::KernelFunc>("kernel_fun",
                                                     kernelParams,
                                                     kernelReturns,
-                                                    kernelBody);
+                                                    kernelBody,
+                                                    2);
 
     // Main function logic
     auto inputA = std::make_shared<ast::SymbolRef>("a");
@@ -70,16 +71,6 @@ std::shared_ptr<ast::Module> CreateProgram() {
     auto output = std::make_shared<ast::SymbolRef>("out");
     auto sizeX = std::make_shared<ast::SymbolRef>("sizeX");
     auto sizeY = std::make_shared<ast::SymbolRef>("sizeY");
-
-    auto shape = std::vector<std::shared_ptr<ast::Expression>>{
-        sizeX,
-        sizeY,
-    };
-    auto strides = std::vector<std::shared_ptr<ast::Expression>>{
-        std::make_shared<ast::Constant<int64_t>>(1, types::FundamentalType::SSIZE),
-        sizeX,
-    };
-    auto reshapedOutput = std::make_shared<ast::ReshapeField>(output, shape, strides);
 
     std::vector<std::shared_ptr<ast::Expression>> gridDim = {
         sizeX,
@@ -90,7 +81,7 @@ std::shared_ptr<ast::Module> CreateProgram() {
         inputB,
     };
     std::vector<std::shared_ptr<ast::Expression>> kernelTargets{
-        reshapedOutput,
+        output,
     };
     auto kernelLaunch = std::make_shared<ast::KernelLaunch>("kernel_fun",
                                                             gridDim,
@@ -101,7 +92,7 @@ std::shared_ptr<ast::Module> CreateProgram() {
     auto moduleParams = std::vector<ast::Parameter>{
         { "a", types::FundamentalType::FLOAT32 },
         { "b", types::FundamentalType::FLOAT32 },
-        { "out", types::FieldType{ types::FundamentalType::FLOAT32 } },
+        { "out", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
         { "sizeX", types::FundamentalType::SSIZE },
         { "sizeY", types::FundamentalType::SSIZE },
     };
@@ -125,7 +116,7 @@ void ApplyLowerToAffine(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     passManager.addPass(std::make_unique<KernelToAffinePass>());
     passManager.addPass(std::make_unique<MockPrintPass>());
     ThrowIfFailed(passManager.run(op), "Failed to lower to Affine.");
-    
+
     passManager.clear();
     passManager.addNestedPass<mlir::func::FuncOp>(mlir::createAffineParallelizePass());
     ThrowIfFailed(passManager.run(op), "Failed to parallelize Affine.");
@@ -167,33 +158,53 @@ void ApplyLocationSnapshot(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     ThrowIfFailed(passManager.run(op), "Failed to snapshot locations.");
 }
 
-auto ConvertArg(std::floating_point auto& arg) {
+template <class T, size_t Dim>
+struct MemRef {
+    T* ptr;
+    T* alignedPtr;
+    ptrdiff_t offset;
+    std::array<ptrdiff_t, Dim> shape;
+    std::array<ptrdiff_t, Dim> strides;
+};
+
+auto ConvertArg(const std::floating_point auto& arg) {
     return std::tuple{ arg };
 }
 
-auto ConvertArg(std::integral auto& arg) {
+auto ConvertArg(const std::integral auto& arg) {
     return std::tuple{ arg };
 }
 
-auto ConvertArg(std::ranges::contiguous_range auto& arg) {
-    auto* ptr = std::addressof(*begin(arg));
-    size_t size = std::distance(begin(arg), end(arg));
-    return std::tuple{ ptr, ptr, size_t(0), size, size_t(1) };
+template <class T, size_t Dim, size_t... Indices>
+auto ArrayToTupleHelper(const std::array<T, Dim>& arr, std::index_sequence<Indices...>) {
+    return std::make_tuple(arr[Indices]...);
+}
+
+template <class T, size_t Dim>
+auto ArrayToTuple(const std::array<T, Dim>& arr) {
+    return ArrayToTupleHelper(arr, std::make_index_sequence<Dim>());
+}
+
+template <class T, size_t Dim>
+auto ConvertArg(const MemRef<T, Dim>& arg) {
+    return std::tuple_cat(std::tuple{ arg.ptr, arg.alignedPtr, arg.offset },
+                          ArrayToTuple(arg.shape),
+                          ArrayToTuple(arg.strides));
 }
 
 template <class... Args>
-auto ConvertArgs(Args&... args) {
+auto ConvertArgs(const Args&... args) {
     return std::tuple_cat(ConvertArg(args)...);
 }
 
-template <size_t... Indices, class... Args>
-auto OpaqueArgsHelper(std::index_sequence<Indices...>, std::tuple<Args...>& args) {
+template <class... Args, size_t... Indices>
+auto OpaqueArgsHelper(std::tuple<Args...>& args, std::index_sequence<Indices...>) {
     return std::array{ static_cast<void*>(std::addressof(std::get<Indices>(args)))... };
 }
 
 template <class... Args>
 auto OpaqueArgs(std::tuple<Args...>& args) {
-    return OpaqueArgsHelper(std::make_index_sequence<sizeof...(Args)>(), args);
+    return OpaqueArgsHelper(args, std::make_index_sequence<sizeof...(Args)>());
 }
 
 
@@ -266,16 +277,19 @@ int main() {
         // Execute JIT-ed module.
         float a = 3.5;
         float b = 2.6;
-        constexpr ptrdiff_t sizeX = 13;
-        constexpr ptrdiff_t sizeY = 9;
-        std::array<float, sizeX * sizeY * 25> out;
-        std::ranges::fill(out, 0);
+        constexpr ptrdiff_t inputSizeX = 9;
+        constexpr ptrdiff_t inputSizeY = 7;
+        constexpr ptrdiff_t domainSizeX = inputSizeX - 2;
+        constexpr ptrdiff_t domainSizeY = inputSizeY - 2;
+        std::array<float, inputSizeX * inputSizeY> outputBuffer;
+        MemRef<float, 2> output{ outputBuffer.data(), outputBuffer.data(), inputSizeX + 1, { domainSizeX, domainSizeY }, { 1, inputSizeX } };
+        std::ranges::fill(outputBuffer, 0);
 
-        ExecuteProgram(module, a, b, out, sizeX, sizeY);
+        ExecuteProgram(module, a, b, output, domainSizeX, domainSizeY);
 
-        for (size_t y = 0; y < sizeY; ++y) {
-            for (size_t x = 0; x < sizeX; ++x) {
-                std::cout << out[y * sizeX + x] << " ";
+        for (size_t y = 0; y < inputSizeY; ++y) {
+            for (size_t x = 0; x < inputSizeX; ++x) {
+                std::cout << outputBuffer[y * inputSizeX + x] << " ";
             }
             std::cout << std::endl;
         }
