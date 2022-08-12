@@ -92,6 +92,15 @@ def KernelOp : Stencil_Op<"kernel", [
     bool isDeclaration() { return isExternal(); }
   }];
   let hasCustomAssemblyFormat = 1;
+  let summary = "A compute kernel similar to a CUDA or shader function.";
+  let description = [{
+    Represents the entry point of a thread in a multi-dimensional grid of threads.
+    A kernel is meant for executing stencil operations. 
+    A kernel can access its index in the grid, and use that index to sample buffers.
+    The kernel can also manipulate the index and perform arithmetic to compute
+    zero or more return values. The return values are written into buffers
+    at the grid index of the kernel.
+  }];
 }
 
 
@@ -124,6 +133,15 @@ def LaunchKernelOp : Stencil_Op<"launch_kernel", [
   let assemblyFormat = [{
     $callee `<``<``<` $grid_dim `>``>``>` `(` `(` $arguments `)` `->` `(` $targets `)` `)` attr-dict `:` functional-type($arguments, $targets)
   }];
+  let summary = "Launch a kernel on a multi-dimensional grid, like CUDA or compute shaders.";
+  let description = [{
+    For each index in the grid, a thread is launched that starts executing the kernel.
+    The index is passed to the kernel. The values returned from the kernel are written
+    into the targets of this operation at the threads's index.
+
+    In theory, all threads are executed in parallel, through in practice this reduces
+    to a parallel OpenMP loop or a GPU kernel call.
+  }];
 }
 
 
@@ -136,6 +154,7 @@ def ReturnOp : Stencil_Op<"return", [
   }]>];
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = "attr-dict ($arguments^ `:` type($arguments))?";
+  let summary = "Return values from a kernel.";
 }
 
 
@@ -143,6 +162,7 @@ def IndexOp : Stencil_Op<"index", [NoSideEffect, HasParent<"KernelOp">]> {
   let results = (outs AnyMemRef:$index);
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = "attr-dict `:` type($index)";
+  let summary = "Get the index of this kernel in the grid.";
 }
 
 
@@ -151,6 +171,7 @@ def JumpOp : Stencil_Op<"jump", [NoSideEffect, HasParent<"KernelOp">]> {
   let results = (outs AnyMemRef:$offseted_index);
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = "$input_index `,` $offset attr-dict `:` functional-type($input_index, $offseted_index)";
+  let summary = "Move an index by a constant offset.";
 }
 
 
@@ -159,6 +180,7 @@ def SampleOp : Stencil_Op<"sample", [NoSideEffect, HasParent<"KernelOp">]> {
   let results = (outs AnyType:$sampled_value);
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = "$field`[` $index `]` attr-dict `:` functional-type(operands, $sampled_value)";
+  let summary = "Get the element from a field at the specified index.";
 }
 
 
@@ -167,6 +189,16 @@ def JumpIndirectOp : Stencil_Op<"jump_indirect", [NoSideEffect, HasParent<"Kerne
   let results = (outs AnyMemRef:$offseted_index);
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = "$input_index `[` $dimension `]``,` $map `[` $map_element `]` attr-dict `:` functional-type(operands, $offseted_index)";
+  let summary = "Use a connectivity map to modify the index.";
+  let description = [{
+    The procedure is as follows:
+    1. index_element = input_index[dimension]
+    2. new_element = map[index_element, map_element]
+    3. input_index[dimension] = new_element
+
+    Essentially, one element of the index is replaced by a value from the map.
+    The modified index is returned, while the input index is in fact left unchanged.
+  }];
 }
 
 
@@ -175,10 +207,22 @@ def SampleIndirectOp : Stencil_Op<"sample_indirect", [NoSideEffect, HasParent<"K
   let results = (outs AnyType:$field_value);
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = "$field`[` $index`[`$dimension`]``,` $field_element `]` attr-dict `:` functional-type(operands, $field_value)";
+  let summary = "Sample a field of the same shape as a connectivity map.";
+  let description = [{
+    The procedure is as follows:
+    1. index_element = input_index[dimension]
+    2. sample = field[index_element, map_element]
+
+    The sample is then returned by this operation.
+  }];
 }
 
 
 def PrintOp : Stencil_Op<"print"> {
   let arguments = (ins F32:$input);
   let assemblyFormat = "$input attr-dict `:` type($input)";
+  let summary = "Prints a float32 to STDOUT.";
+  let description = [{
+    It's best not to use use this at all, except for debugging on the CPU.
+  }];
 }
