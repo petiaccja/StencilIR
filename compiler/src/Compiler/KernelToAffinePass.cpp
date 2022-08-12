@@ -1,7 +1,9 @@
 #include "KernelToAffinePass.hpp"
 
+#include "llvm/ADT/ArrayRef.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
@@ -15,6 +17,7 @@
 #include <MockDialect/MockOps.hpp>
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <iostream>
 #include <iterator>
 #include <llvm/ADT/APFloat.h>
@@ -116,24 +119,20 @@ struct KernelReturnLowering : public OpRewritePattern<mock::KernelReturnOp> {
 };
 
 struct KernelCallLowering : public OpRewritePattern<mock::KernelLaunchOp> {
-    using OpRewritePattern<mock::KernelLaunchOp>::OpRewritePattern;
+    bool m_makeParallelLoops = false;
+
+    KernelCallLowering(MLIRContext* context,
+                       PatternBenefit benefit = 1,
+                       ArrayRef<StringRef> generatedNames = {},
+                       bool makeParallelLoops = false)
+        : OpRewritePattern<mock::KernelLaunchOp>(context, benefit, generatedNames),
+          m_makeParallelLoops(makeParallelLoops) {}
 
     LogicalResult matchAndRewrite(mock::KernelLaunchOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
-
         const int64_t numDims = op.getGridDim().size();
 
-        std::vector<Value> lbValues;
-        std::vector<Value> ubValues;
-        std::vector<int64_t> steps;
-        for (ptrdiff_t boundIdx = 0; boundIdx < numDims; ++boundIdx) {
-            auto lbAttr = rewriter.getIndexAttr(0);
-            lbValues.push_back(rewriter.create<arith::ConstantOp>(loc, lbAttr));
-            ubValues.push_back(*(op.getGridDim().begin() + boundIdx));
-            steps.push_back(1);
-        }
-
-        buildAffineLoopNest(rewriter, loc, lbValues, ubValues, steps, [&op, numDims](OpBuilder& builder, Location loc, ValueRange loopVars) {
+        auto createLoopBody = [&op, numDims](OpBuilder& builder, Location loc, ValueRange loopVars) {
             auto MakeIndex = [&builder, &loc](int64_t value) {
                 return builder.create<arith::ConstantOp>(loc, builder.getIndexAttr(value));
             };
@@ -152,7 +151,40 @@ struct KernelCallLowering : public OpRewritePattern<mock::KernelLaunchOp> {
                 operands.push_back(target);
             }
             builder.create<func::CallOp>(loc, op.getCallee(), TypeRange{}, operands);
-        });
+        };
+
+
+        std::vector<Value> lbValues;
+        std::vector<Value> ubValues;
+        std::vector<int64_t> steps;
+        for (ptrdiff_t boundIdx = 0; boundIdx < numDims; ++boundIdx) {
+            auto lbAttr = rewriter.getIndexAttr(0);
+            lbValues.push_back(rewriter.create<arith::ConstantOp>(loc, lbAttr));
+            ubValues.push_back(*(op.getGridDim().begin() + boundIdx));
+            steps.push_back(1);
+        }
+
+        std::vector<AffineExpr> affineDims = {};
+        for (ptrdiff_t i = 0; i < numDims; ++i) {
+            affineDims.push_back(rewriter.getAffineDimExpr(i));
+        }
+        std::vector<AffineMap> affineMaps = {};
+        for (ptrdiff_t i = 0; i < numDims; ++i) {
+            affineMaps.push_back(AffineMap::get(numDims, 0, affineDims[i]));
+        }
+        std::array<Type, 0> resultTypes{};
+        std::vector<arith::AtomicRMWKind> reductions = {};
+
+        if (m_makeParallelLoops) {
+            auto parallelOp = rewriter.create<AffineParallelOp>(loc, resultTypes, reductions, affineMaps, lbValues, affineMaps, ubValues, steps);
+            auto& parallelBlock = *parallelOp.getBody();
+            auto loopVars = parallelBlock.getArguments();
+            rewriter.setInsertionPointToStart(&parallelBlock);
+            createLoopBody(rewriter, loc, loopVars);
+        }
+        else {
+            buildAffineLoopNest(rewriter, loc, lbValues, ubValues, steps, createLoopBody);
+        }
 
         rewriter.eraseOp(op);
         return success();
@@ -256,7 +288,7 @@ void KernelToAffinePass::runOnOperation() {
     RewritePatternSet patterns(&getContext());
     patterns.add<KernelFuncLowering>(&getContext());
     patterns.add<KernelReturnLowering>(&getContext());
-    patterns.add<KernelCallLowering>(&getContext());
+    patterns.add<KernelCallLowering>(&getContext(), 1, ArrayRef<StringRef>{}, m_makeParallelLoops);
 
     patterns.add<IndexLowering>(&getContext());
     patterns.add<OffsetLowering>(&getContext());

@@ -6,6 +6,7 @@
 #include "LoweringPasses.hpp"
 #include "MockPrintPass.hpp"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/Support/Casting.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/LocationSnapshot.h"
 #include <MockDialect/MockDialect.hpp>
@@ -154,9 +155,9 @@ void ThrowIfFailed(mlir::LogicalResult result, std::string msg) {
     }
 }
 
-void ApplyLowerToAffine(mlir::MLIRContext& context, mlir::ModuleOp& op) {
+void ApplyLowerToAffine(mlir::MLIRContext& context, mlir::ModuleOp& op, bool makeParallelLoops = false) {
     mlir::PassManager passManager(&context);
-    passManager.addPass(std::make_unique<KernelToAffinePass>());
+    passManager.addPass(std::make_unique<KernelToAffinePass>(makeParallelLoops));
     passManager.addPass(std::make_unique<MockPrintPass>());
     ThrowIfFailed(passManager.run(op), "Failed to lower to Affine.");
 
@@ -199,6 +200,47 @@ void ApplyLocationSnapshot(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     mlir::PassManager passManager(&context);
     passManager.addPass(mlir::createLocationSnapshotPass({}, fileName));
     ThrowIfFailed(passManager.run(op), "Failed to snapshot locations.");
+}
+
+auto LowerToLLVMCPU(mlir::MLIRContext& context, const mlir::ModuleOp& module) {
+    std::vector<std::pair<std::string, std::string>> stages;
+    auto clone = mlir::dyn_cast<mlir::ModuleOp>(module->clone());
+
+    std::string ir;
+    llvm::raw_string_ostream ss{ ir };
+
+    ApplyLowerToAffine(context, clone);
+    ApplyCleanupPasses(context, clone);
+    clone.print(ss);
+    stages.push_back({ "Affine & Func", std::move(ir) });
+    ir = {};
+
+    ApplyLowerToScf(context, clone);
+    ApplyCleanupPasses(context, clone);
+    clone.print(ss);
+    stages.push_back({ "SCF", std::move(ir) });
+    ir = {};
+
+    ApplyLowerToCf(context, clone);
+    ApplyCleanupPasses(context, clone);
+    clone.print(ss);
+    stages.push_back({ "ControlFlow", std::move(ir) });
+    ir = {};
+
+    ApplyLowerToLLVM(context, clone);
+    ApplyCleanupPasses(context, clone);
+    clone.print(ss);
+    stages.push_back({ "LLVM", std::move(ir) });
+    ir = {};
+
+    return std::tuple{ clone, stages };
+}
+
+auto LowerToLLVMGPU(mlir::MLIRContext& context, const mlir::ModuleOp& module) {
+    std::vector<std::pair<std::string, std::string>> stages;
+    auto clone = mlir::dyn_cast<mlir::ModuleOp>(module->clone());
+
+    return std::tuple{ clone, stages };
 }
 
 template <class T, size_t Dim>
@@ -292,34 +334,26 @@ int main() {
         // Generate module from AST
         mlir::ModuleOp module = LowerAST(context, *ast);
         ApplyLocationSnapshot(context, module);
-        std::cout << "Mock raw IR:\n\n";
+        std::cout << "Mock original:\n\n";
         module.dump();
 
         ApplyCleanupPasses(context, module);
-        std::cout << "Mock cleaned IR:\n\n";
+        std::cout << "Mock cleaned:\n\n";
         module.dump();
 
-        // Lower module to LLVM IR
-        ApplyLowerToAffine(context, module);
-        ApplyCleanupPasses(context, module);
-        std::cout << "\n\nAffine IR:\n\n";
-        module.dump();
+        // Lower module to LLVM IR regular CPU
+        auto [llvmCpu, llvmCpuStages] = LowerToLLVMCPU(context, module);
+        for (auto& stage : llvmCpuStages) {
+            std::cout << stage.first << ":\n\n";
+            std::cout << stage.second << "\n\n";
+        }
 
-        ApplyLowerToScf(context, module);
-        ApplyCleanupPasses(context, module);
-        std::cout << "\n\nSFC IR:\n\n";
-        module.dump();
-
-        ApplyLowerToCf(context, module);
-        ApplyCleanupPasses(context, module);
-        std::cout << "\n\nControlFLow IR:\n\n";
-        module.dump();
-
-        ApplyLowerToLLVM(context, module);
-        ApplyCleanupPasses(context, module);
-        std::cout << "\n\nLLVM IR:\n\n";
-        module.dump();
-
+        // Lower module to LLVM IR regular GPU
+        auto [llvmGpu, llvmGpuStages] = LowerToLLVMGPU(context, module);
+        for (auto& stage : llvmGpuStages) {
+            std::cout << stage.first << ":\n\n";
+            std::cout << stage.second << "\n\n";
+        }
 
         // Execute JIT-ed module.
         float a = 0.01f;
@@ -333,14 +367,14 @@ int main() {
         MemRef<float, 2> output{ outputBuffer.data(), outputBuffer.data(), inputSizeX + 1, { domainSizeX, domainSizeY }, { 1, inputSizeX } };
         MemRef<float, 2> input{ inputBuffer.data(), inputBuffer.data(), inputSizeX + 1, { domainSizeX, domainSizeY }, { 1, inputSizeX } };
         std::ranges::fill(outputBuffer, 0);
-        
+
         for (size_t y = 0; y < inputSizeY; ++y) {
             for (size_t x = 0; x < inputSizeX; ++x) {
-                inputBuffer[y * inputSizeX + x] = (x*x*x + y*y) * 0.1f;
+                inputBuffer[y * inputSizeX + x] = (x * x * x + y * y) * 0.1f;
             }
         }
 
-        ExecuteProgram(module, a, b, input, output, domainSizeX, domainSizeY);
+        ExecuteProgram(llvmCpu, a, b, input, output, domainSizeX, domainSizeY);
 
         std::cout << "Input:" << std::endl;
         for (size_t y = 0; y < inputSizeY; ++y) {

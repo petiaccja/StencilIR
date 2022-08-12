@@ -8,6 +8,10 @@
 
 class KernelToAffinePass : public mlir::PassWrapper<KernelToAffinePass, mlir::OperationPass<mlir::ModuleOp>> {
 public:
+    KernelToAffinePass(bool makeParallelLoops = false) : m_makeParallelLoops(makeParallelLoops) {}
     void getDependentDialects(mlir::DialectRegistry& registry) const override;
     void runOnOperation() override final;
+
+private:
+    bool m_makeParallelLoops;
 };
