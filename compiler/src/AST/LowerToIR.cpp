@@ -1,4 +1,4 @@
-#include "LowerAST.hpp"
+#include "LowerToIR.hpp"
 
 #include <AST/AST.hpp>
 #include <AST/Node.hpp>
@@ -424,7 +424,7 @@ struct ASTToMLIRRules {
     }
 };
 
-mlir::ModuleOp LowerAST(mlir::MLIRContext& context, const ast::Module& node) {
+mlir::ModuleOp LowerToIR(mlir::MLIRContext& context, const ast::Module& node) {
     mlir::OpBuilder builder{ &context };
     SymbolTable<std::string, mlir::Value> symbolTable;
     std::optional<mlir::ModuleOp> moduleOp;

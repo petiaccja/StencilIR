@@ -7,23 +7,18 @@ include(AddLLVM)
 include(AddMLIR)
 include(HandleLLVMOptions)
 
-add_executable(Compiler)
+add_library(Compiler)
 
 target_sources(Compiler
     PRIVATE
-        main.cpp
         PrintToLLVMPass.hpp
         PrintToLLVMPass.cpp
         LoweringPasses.hpp
         LoweringPasses.cpp
-        LowerAST.hpp
-        LowerAST.cpp
         StencilToAffinePass.cpp
         StencilToAffinePass.hpp
         Lowering.cpp
         Lowering.hpp
-        Execution.cpp
-        Execution.hpp
 )
 
 target_include_directories(Compiler INTERFACE ${CMAKE_CURRENT_LIST_DIR}/..)
@@ -56,8 +51,6 @@ target_link_libraries(Compiler
     MLIRLLVMDialect
     MLIRLLVMIRTransforms
     MLIRLLVMToLLVMIRTranslation
-    MLIRExecutionEngine
-    MLIRExecutionEngineUtils
 )
 
 target_link_libraries(Compiler

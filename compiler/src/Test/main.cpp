@@ -1,10 +1,10 @@
 #include "Execution.hpp"
-#include "LowerAST.hpp"
-#include "Lowering.hpp"
 
 #include <AST/AST.hpp>
+#include <AST/LowerToIR.hpp>
 #include <AST/Node.hpp>
 #include <AST/Types.hpp>
+#include <Compiler/Lowering.hpp>
 
 #include <iostream>
 #include <string_view>
@@ -57,7 +57,7 @@ std::shared_ptr<ast::Module> CreateLaplacian() {
     };
     std::vector<types::Type> kernelReturns = { types::FundamentalType::FLOAT32 };
     std::vector<std::shared_ptr<ast::Statement>> kernelBody{ ret };
-    auto kernel = std::make_shared<ast::KernelFunc>("kernel_fun",
+    auto kernel = std::make_shared<ast::KernelFunc>("laplacian",
                                                     kernelParams,
                                                     kernelReturns,
                                                     kernelBody,
@@ -79,7 +79,7 @@ std::shared_ptr<ast::Module> CreateLaplacian() {
     std::vector<std::shared_ptr<ast::Expression>> kernelTargets{
         output,
     };
-    auto kernelLaunch = std::make_shared<ast::KernelLaunch>("kernel_fun",
+    auto kernelLaunch = std::make_shared<ast::KernelLaunch>(kernel->name,
                                                             gridDim,
                                                             kernelArgs,
                                                             kernelTargets);
@@ -152,7 +152,7 @@ int main() {
 
     std::shared_ptr<ast::Module> ast = CreateLaplacian();
     try {
-        mlir::ModuleOp module = LowerAST(context, *ast);
+        mlir::ModuleOp module = LowerToIR(context, *ast);
         ApplyLocationSnapshot(context, module);
         DumpIR(module, "Stencil original");
         ApplyCleanupPasses(context, module);

@@ -5,6 +5,8 @@ target_sources(AST
         Node.hpp
         AST.hpp
         Types.hpp
+        LowerToIR.cpp
+        LowerToIR.hpp
 )
-set_target_properties(AST PROPERTIES LINKER_LANGUAGE CXX)
 target_include_directories(AST INTERFACE ${CMAKE_CURRENT_LIST_DIR}/..)
+target_link_libraries(AST StencilDialect)

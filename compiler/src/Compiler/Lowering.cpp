@@ -61,6 +61,7 @@ void ApplyCleanupPasses(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     passManager.addPass(mlir::createCSEPass());
     passManager.addPass(mlir::createCanonicalizerPass());
     passManager.addPass(mlir::createTopologicalSortPass());
+    passManager.addPass(mlir::createSCCPPass());
     ThrowIfFailed(passManager.run(op), "Failed to clean up.");
 }
 
