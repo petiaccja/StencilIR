@@ -20,6 +20,10 @@ target_sources(Compiler
         LowerAST.cpp
         KernelToAffinePass.cpp
         KernelToAffinePass.hpp
+        Lowering.cpp
+        Lowering.hpp
+        Execution.cpp
+        Execution.hpp
 )
 
 target_include_directories(Compiler INTERFACE ${CMAKE_CURRENT_LIST_DIR}/..)
