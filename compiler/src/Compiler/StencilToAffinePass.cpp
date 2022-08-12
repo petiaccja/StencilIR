@@ -37,7 +37,7 @@
 
 using namespace mlir;
 
-struct KernelFuncLowering : public OpRewritePattern<stencil::KernelOp> {
+struct KernelLowering : public OpRewritePattern<stencil::KernelOp> {
     using OpRewritePattern<stencil::KernelOp>::OpRewritePattern;
 
     LogicalResult matchAndRewrite(stencil::KernelOp op, PatternRewriter& rewriter) const override final {
@@ -46,22 +46,13 @@ struct KernelFuncLowering : public OpRewritePattern<stencil::KernelOp> {
         const int64_t numDims = op.getNumDimensions().getSExtValue();
 
         std::vector<mlir::Type> functionParamTypes;
-        std::vector<mlir::Type> targetParamTypes;
         const auto indexType = MemRefType::get({ numDims }, rewriter.getIndexType());
         functionParamTypes.push_back(indexType);
         for (auto& argument : op.getArgumentTypes()) {
             functionParamTypes.push_back(argument);
         }
-        for (auto& result : op.getResultTypes()) {
-            constexpr auto offset = mlir::ShapedType::kDynamicStrideOrOffset;
-            std::vector<int64_t> shape(numDims, ShapedType::kDynamicSize);
-            std::vector<int64_t> strides(numDims, mlir::ShapedType::kDynamicStrideOrOffset);
-            auto strideMap = mlir::makeStridedLinearLayoutMap(strides, offset, rewriter.getContext());
-            Type type = MemRefType::get(shape, result, strideMap);
-            targetParamTypes.push_back(type);
-        }
-        std::copy(targetParamTypes.begin(), targetParamTypes.end(), std::back_inserter(functionParamTypes));
-        auto functionType = rewriter.getFunctionType(functionParamTypes, {});
+        auto functionReturnTypes = op.getResultTypes();
+        auto functionType = rewriter.getFunctionType(functionParamTypes, functionReturnTypes);
 
         auto funcOp = rewriter.create<func::FuncOp>(loc, op.getSymName(), functionType);
         rewriter.inlineRegionBefore(op.getRegion(), funcOp.getBody(), funcOp.end());
@@ -70,9 +61,6 @@ struct KernelFuncLowering : public OpRewritePattern<stencil::KernelOp> {
         // insertArgument seems buggy with empty list.
         block.getNumArguments() == 0 ? block.addArgument(indexType, loc)
                                      : block.insertArgument(block.args_begin(), indexType, loc);
-        for (auto& targetType : targetParamTypes) {
-            block.addArgument(targetType, loc);
-        }
 
         rewriter.eraseOp(op);
         return success();
@@ -82,41 +70,11 @@ struct KernelFuncLowering : public OpRewritePattern<stencil::KernelOp> {
 struct KernelReturnLowering : public OpRewritePattern<stencil::ReturnOp> {
     using OpRewritePattern<stencil::ReturnOp>::OpRewritePattern;
 
-    LogicalResult match(stencil::ReturnOp op) const override {
-        auto parent = op->getParentOfType<func::FuncOp>();
-        if (parent) {
-            return success();
-        }
-        return failure();
-    }
-
-    void rewrite(stencil::ReturnOp op, PatternRewriter& rewriter) const override {
+    LogicalResult matchAndRewrite(stencil::ReturnOp op, PatternRewriter& rewriter) const override {
         Location loc = op->getLoc();
-        auto parent = op->getParentOfType<func::FuncOp>();
-        assert(parent);
-
-        const auto& blockArgs = parent.getBody().front().getArguments();
-        const mlir::Value index = blockArgs.front();
-        assert(index.getType().isa<mlir::MemRefType>());
-        const auto indexType = index.getType().dyn_cast<mlir::MemRefType>();
-        const int64_t numDims = indexType.getShape()[0];
-        std::vector<mlir::Value> targets;
-        std::copy_n(blockArgs.rbegin(), op->getNumOperands(), std::back_inserter(targets));
-        std::reverse(targets.begin(), targets.end());
-
-        std::vector<mlir::Value> indices;
-        for (ptrdiff_t dimIdx = 0; dimIdx < numDims; ++dimIdx) {
-            mlir::Value indexElement = rewriter.create<arith::ConstantIndexOp>(loc, dimIdx);
-            indices.push_back(rewriter.create<memref::LoadOp>(loc, index, indexElement));
-        }
-        for (size_t targetIdx = 0; targetIdx < targets.size(); ++targetIdx) {
-            auto target = targets[targetIdx];
-            auto value = op->getOperand(targetIdx);
-            rewriter.create<memref::StoreOp>(loc, value, target, indices);
-        }
-
-        rewriter.create<func::ReturnOp>(loc);
+        rewriter.create<func::ReturnOp>(loc, op->getOperands());
         rewriter.eraseOp(op);
+        return success();
     }
 };
 
@@ -139,23 +97,42 @@ struct KernelCallLowering : public OpRewritePattern<stencil::LaunchKernelOp> {
                 return builder.create<arith::ConstantOp>(loc, builder.getIndexAttr(value));
             };
 
-            std::vector<Value> operands;
+            // Make operands list: { index, args... }
             auto index = builder.create<memref::AllocaOp>(loc, MemRefType::get({ numDims }, builder.getIndexType()));
             for (ptrdiff_t dimIdx = 0; dimIdx < numDims; ++dimIdx) {
                 builder.create<memref::StoreOp>(loc, loopVars[dimIdx], index, ValueRange{ MakeIndex(dimIdx) });
             }
 
+            std::vector<Value> operands;
             operands.push_back(index);
             for (const auto& argument : op.getArguments()) {
                 operands.push_back(argument);
             }
+
+            std::vector<Type> resultTypes;
             for (const auto& target : op.getTargets()) {
-                operands.push_back(target);
+                auto type = target.getType();
+                assert(type.isa<MemRefType>());
+                resultTypes.push_back(type.dyn_cast<MemRefType>().getElementType());
             }
-            builder.create<func::CallOp>(loc, op.getCallee(), TypeRange{}, operands);
+
+            // Create regular function call to kernel
+            auto call = builder.create<func::CallOp>(loc, op.getCallee(), resultTypes, operands);
+
+            // Store return values to targets
+            const auto results = call.getResults();
+            const auto targets = op.getTargets();
+            const auto numResults = results.size();
+
+            assert(results.size() == targets.size());
+
+            for (size_t resultIdx = 0; resultIdx < numResults; ++resultIdx) {
+                builder.create<memref::StoreOp>(loc, results[resultIdx], targets[resultIdx], loopVars);
+            }
         };
 
 
+        // Create loops from domain
         std::vector<Value> lbValues;
         std::vector<Value> ubValues;
         std::vector<int64_t> steps;
@@ -288,7 +265,7 @@ void StencilToAffinePass::runOnOperation() {
     target.addLegalOp<stencil::PrintOp>();
 
     RewritePatternSet patterns(&getContext());
-    patterns.add<KernelFuncLowering>(&getContext());
+    patterns.add<KernelLowering>(&getContext());
     patterns.add<KernelReturnLowering>(&getContext());
     patterns.add<KernelCallLowering>(&getContext(), 1, ArrayRef<StringRef>{}, m_makeParallelLoops);
 
