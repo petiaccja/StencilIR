@@ -146,7 +146,7 @@ def IndexOp : Stencil_Op<"index", [NoSideEffect, HasParent<"KernelOp">]> {
 }
 
 
-def ShiftOp : Stencil_Op<"shift", [NoSideEffect, HasParent<"KernelOp">]> {
+def JumpOp : Stencil_Op<"jump", [NoSideEffect, HasParent<"KernelOp">]> {
   let arguments = (ins AnyMemRef:$index, I64ArrayAttr:$offset);
   let results = (outs AnyMemRef:$offseted_index);
   let hasCustomAssemblyFormat = 1;

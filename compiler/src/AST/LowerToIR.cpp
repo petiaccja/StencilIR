@@ -400,11 +400,11 @@ struct ASTToMLIRRules {
         return { op.getIndex() };
     }
 
-    auto operator()(const ASTToMLIRTranformer& tf, const ast::Offset& node) const -> std::vector<mlir::Value> {
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::Jump& node) const -> std::vector<mlir::Value> {
         const auto loc = ConvertLocation(builder, node.location);
         const auto index = tf(*node.index).front();
         const auto offset = builder.getI64ArrayAttr(node.offset);
-        auto op = builder.create<stencil::ShiftOp>(loc, index.getType(), index, offset);
+        auto op = builder.create<stencil::JumpOp>(loc, index.getType(), index, offset);
         return { op.getOffsetedIndex() };
     }
 
@@ -444,7 +444,7 @@ mlir::ModuleOp LowerToIR(mlir::MLIRContext& context, const ast::Module& node) {
     transformer.AddNodeTransformer<ast::SymbolRef>(rules);
 
     transformer.AddNodeTransformer<ast::Index>(rules);
-    transformer.AddNodeTransformer<ast::Offset>(rules);
+    transformer.AddNodeTransformer<ast::Jump>(rules);
     transformer.AddNodeTransformer<ast::Sample>(rules);
 
     transformer.AddNodeTransformer<ast::Constant<float>>(rules);

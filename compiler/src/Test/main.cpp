@@ -18,10 +18,10 @@ std::shared_ptr<ast::Module> CreateLaplacian() {
 
     std::array<std::shared_ptr<ast::Expression>, 5> offsetIndices = {
         index,
-        std::make_shared<ast::Offset>(index, std::vector<int64_t>{ 0, 1 }),
-        std::make_shared<ast::Offset>(index, std::vector<int64_t>{ 1, 0 }),
-        std::make_shared<ast::Offset>(index, std::vector<int64_t>{ 0, -1 }),
-        std::make_shared<ast::Offset>(index, std::vector<int64_t>{ -1, 0 }),
+        std::make_shared<ast::Jump>(index, std::vector<int64_t>{ 0, 1 }),
+        std::make_shared<ast::Jump>(index, std::vector<int64_t>{ 1, 0 }),
+        std::make_shared<ast::Jump>(index, std::vector<int64_t>{ 0, -1 }),
+        std::make_shared<ast::Jump>(index, std::vector<int64_t>{ -1, 0 }),
     };
     std::array<std::shared_ptr<ast::Expression>, 5> samples = {
         std::make_shared<ast::Sample>(field, offsetIndices[0]),

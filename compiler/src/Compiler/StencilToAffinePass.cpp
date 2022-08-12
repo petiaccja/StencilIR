@@ -191,10 +191,10 @@ struct IndexLowering : public OpRewritePattern<stencil::IndexOp> {
     }
 };
 
-struct OffsetLowering : public OpRewritePattern<stencil::ShiftOp> {
-    using OpRewritePattern<stencil::ShiftOp>::OpRewritePattern;
+struct OffsetLowering : public OpRewritePattern<stencil::JumpOp> {
+    using OpRewritePattern<stencil::JumpOp>::OpRewritePattern;
 
-    LogicalResult matchAndRewrite(stencil::ShiftOp op, PatternRewriter& rewriter) const override final {
+    LogicalResult matchAndRewrite(stencil::JumpOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
 
         Value index = op.getIndex();

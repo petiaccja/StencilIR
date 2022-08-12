@@ -91,8 +91,8 @@ struct Index : Expression {
     explicit Index(std::optional<Location> loc = {}) : Expression(loc) {}
 };
 
-struct Offset : Expression {
-    explicit Offset(std::shared_ptr<Expression> index,
+struct Jump : Expression {
+    explicit Jump(std::shared_ptr<Expression> index,
                     std::vector<int64_t> offset,
                     std::optional<Location> loc = {})
         : Expression(loc), index(index), offset(offset) {}
