@@ -1,4 +1,7 @@
-#include "KernelToAffinePass.hpp"
+#include "StencilToAffinePass.hpp"
+
+#include <StencilDialect/StencilDialect.hpp>
+#include <StencilDialect/StencilOps.hpp>
 
 #include "llvm/ADT/ArrayRef.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
@@ -13,15 +16,7 @@
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
 #include "mlir/Support/LLVM.h"
-#include <MockDialect/MockDialect.hpp>
-#include <MockDialect/MockOps.hpp>
-#include <algorithm>
-#include <cstddef>
-#include <cstdint>
-#include <iostream>
-#include <iterator>
 #include <llvm/ADT/APFloat.h>
-#include <memory>
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/Dialect/Linalg/IR/Linalg.h>
@@ -30,15 +25,22 @@
 #include <mlir/IR/PatternMatch.h>
 #include <mlir/Support/LogicalResult.h>
 #include <mlir/Transforms/DialectConversion.h>
+
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <iostream>
+#include <iterator>
+#include <memory>
 #include <vector>
 
 
 using namespace mlir;
 
-struct KernelFuncLowering : public OpRewritePattern<mock::KernelFuncOp> {
-    using OpRewritePattern<mock::KernelFuncOp>::OpRewritePattern;
+struct KernelFuncLowering : public OpRewritePattern<stencil::KernelFuncOp> {
+    using OpRewritePattern<stencil::KernelFuncOp>::OpRewritePattern;
 
-    LogicalResult matchAndRewrite(mock::KernelFuncOp op, PatternRewriter& rewriter) const override final {
+    LogicalResult matchAndRewrite(stencil::KernelFuncOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
 
         const int64_t numDims = op.getNumDimensions().getSExtValue();
@@ -77,10 +79,10 @@ struct KernelFuncLowering : public OpRewritePattern<mock::KernelFuncOp> {
     }
 };
 
-struct KernelReturnLowering : public OpRewritePattern<mock::KernelReturnOp> {
-    using OpRewritePattern<mock::KernelReturnOp>::OpRewritePattern;
+struct KernelReturnLowering : public OpRewritePattern<stencil::KernelReturnOp> {
+    using OpRewritePattern<stencil::KernelReturnOp>::OpRewritePattern;
 
-    LogicalResult match(mock::KernelReturnOp op) const override {
+    LogicalResult match(stencil::KernelReturnOp op) const override {
         auto parent = op->getParentOfType<func::FuncOp>();
         if (parent) {
             return success();
@@ -88,7 +90,7 @@ struct KernelReturnLowering : public OpRewritePattern<mock::KernelReturnOp> {
         return failure();
     }
 
-    void rewrite(mock::KernelReturnOp op, PatternRewriter& rewriter) const override {
+    void rewrite(stencil::KernelReturnOp op, PatternRewriter& rewriter) const override {
         Location loc = op->getLoc();
         auto parent = op->getParentOfType<func::FuncOp>();
         assert(parent);
@@ -118,17 +120,17 @@ struct KernelReturnLowering : public OpRewritePattern<mock::KernelReturnOp> {
     }
 };
 
-struct KernelCallLowering : public OpRewritePattern<mock::KernelLaunchOp> {
+struct KernelCallLowering : public OpRewritePattern<stencil::KernelLaunchOp> {
     bool m_makeParallelLoops = false;
 
     KernelCallLowering(MLIRContext* context,
                        PatternBenefit benefit = 1,
                        ArrayRef<StringRef> generatedNames = {},
                        bool makeParallelLoops = false)
-        : OpRewritePattern<mock::KernelLaunchOp>(context, benefit, generatedNames),
+        : OpRewritePattern<stencil::KernelLaunchOp>(context, benefit, generatedNames),
           m_makeParallelLoops(makeParallelLoops) {}
 
-    LogicalResult matchAndRewrite(mock::KernelLaunchOp op, PatternRewriter& rewriter) const override final {
+    LogicalResult matchAndRewrite(stencil::KernelLaunchOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
         const int64_t numDims = op.getGridDim().size();
 
@@ -191,10 +193,10 @@ struct KernelCallLowering : public OpRewritePattern<mock::KernelLaunchOp> {
     }
 };
 
-struct IndexLowering : public OpRewritePattern<mock::IndexOp> {
-    using OpRewritePattern<mock::IndexOp>::OpRewritePattern;
+struct IndexLowering : public OpRewritePattern<stencil::IndexOp> {
+    using OpRewritePattern<stencil::IndexOp>::OpRewritePattern;
 
-    LogicalResult match(mock::IndexOp op) const override {
+    LogicalResult match(stencil::IndexOp op) const override {
         auto parent = op->getParentOfType<func::FuncOp>();
         if (parent) {
             return success();
@@ -202,7 +204,7 @@ struct IndexLowering : public OpRewritePattern<mock::IndexOp> {
         return failure();
     }
 
-    void rewrite(mock::IndexOp op, PatternRewriter& rewriter) const override {
+    void rewrite(stencil::IndexOp op, PatternRewriter& rewriter) const override {
         auto parent = op->getParentOfType<func::FuncOp>();
         assert(parent);
 
@@ -212,10 +214,10 @@ struct IndexLowering : public OpRewritePattern<mock::IndexOp> {
     }
 };
 
-struct OffsetLowering : public OpRewritePattern<mock::OffsetOp> {
-    using OpRewritePattern<mock::OffsetOp>::OpRewritePattern;
+struct OffsetLowering : public OpRewritePattern<stencil::OffsetOp> {
+    using OpRewritePattern<stencil::OffsetOp>::OpRewritePattern;
 
-    LogicalResult matchAndRewrite(mock::OffsetOp op, PatternRewriter& rewriter) const override final {
+    LogicalResult matchAndRewrite(stencil::OffsetOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
 
         Value index = op.getIndex();
@@ -242,10 +244,10 @@ struct OffsetLowering : public OpRewritePattern<mock::OffsetOp> {
     }
 };
 
-struct SampleLowering : public OpRewritePattern<mock::SampleOp> {
-    using OpRewritePattern<mock::SampleOp>::OpRewritePattern;
+struct SampleLowering : public OpRewritePattern<stencil::SampleOp> {
+    using OpRewritePattern<stencil::SampleOp>::OpRewritePattern;
 
-    LogicalResult matchAndRewrite(mock::SampleOp op, PatternRewriter& rewriter) const override final {
+    LogicalResult matchAndRewrite(stencil::SampleOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
 
         Value index = op.getIndex();
@@ -270,20 +272,20 @@ struct SampleLowering : public OpRewritePattern<mock::SampleOp> {
 };
 
 
-void KernelToAffinePass::getDependentDialects(DialectRegistry& registry) const {
+void StencilToAffinePass::getDependentDialects(DialectRegistry& registry) const {
     registry.insert<arith::ArithmeticDialect, AffineDialect, memref::MemRefDialect, linalg::LinalgDialect>();
 }
 
 
-void KernelToAffinePass::runOnOperation() {
+void StencilToAffinePass::runOnOperation() {
     ConversionTarget target(getContext());
     target.addLegalDialect<AffineDialect>();
     target.addLegalDialect<arith::ArithmeticDialect>();
     target.addLegalDialect<func::FuncDialect>();
     target.addLegalDialect<memref::MemRefDialect>();
     target.addLegalDialect<linalg::LinalgDialect>();
-    target.addIllegalDialect<mock::MockDialect>();
-    target.addLegalOp<mock::PrintOp>();
+    target.addIllegalDialect<stencil::StencilDialect>();
+    target.addLegalOp<stencil::PrintOp>();
 
     RewritePatternSet patterns(&getContext());
     patterns.add<KernelFuncLowering>(&getContext());

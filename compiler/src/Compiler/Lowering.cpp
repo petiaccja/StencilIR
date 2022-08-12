@@ -1,10 +1,10 @@
 #include "Lowering.hpp"
 
-#include "KernelToAffinePass.hpp"
+#include "StencilToAffinePass.hpp"
 #include "LoweringPasses.hpp"
-#include "MockPrintPass.hpp"
+#include "PrintToLLVMPass.hpp"
 
-#include <MockDialect/MockDialect.hpp>
+#include <StencilDialect/StencilDialect.hpp>
 
 #include <mlir/Pass/Pass.h>
 #include <mlir/Pass/PassManager.h>
@@ -29,8 +29,8 @@ mlir::ModuleOp CloneModule(mlir::ModuleOp original) {
 
 void ApplyLowerToAffine(mlir::MLIRContext& context, mlir::ModuleOp& op, bool makeParallelLoops = false) {
     mlir::PassManager passManager(&context);
-    passManager.addPass(std::make_unique<KernelToAffinePass>(makeParallelLoops));
-    passManager.addPass(std::make_unique<MockPrintPass>());
+    passManager.addPass(std::make_unique<StencilToAffinePass>(makeParallelLoops));
+    passManager.addPass(std::make_unique<PrintToLLVMPass>());
     ThrowIfFailed(passManager.run(op), "Failed to lower to Affine.");
 }
 
@@ -67,7 +67,7 @@ void ApplyCleanupPasses(mlir::MLIRContext& context, mlir::ModuleOp& op) {
 
 void ApplyLocationSnapshot(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     const auto tempPath = std::filesystem::temp_directory_path();
-    const auto tempFile = tempPath / "mock.mlir";
+    const auto tempFile = tempPath / "stencil.mlir";
     const auto fileName = tempFile.string();
 
     mlir::PassManager passManager(&context);

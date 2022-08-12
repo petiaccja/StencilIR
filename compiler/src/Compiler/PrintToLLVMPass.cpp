@@ -1,9 +1,9 @@
-#include "MockPrintPass.hpp"
+#include "PrintToLLVMPass.hpp"
 
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 
-#include <MockDialect/MockDialect.hpp>
-#include <MockDialect/MockOps.hpp>
+#include <StencilDialect/StencilDialect.hpp>
+#include <StencilDialect/StencilOps.hpp>
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/Sequence.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
@@ -25,7 +25,7 @@ using namespace mlir;
 
 class PrintOpLowering : public ConversionPattern {
 public:
-    explicit PrintOpLowering(MLIRContext* context) : ConversionPattern(mock::PrintOp::getOperationName(), 1, context) {}
+    explicit PrintOpLowering(MLIRContext* context) : ConversionPattern(stencil::PrintOp::getOperationName(), 1, context) {}
 
     LogicalResult matchAndRewrite(Operation* op,
                                   llvm::ArrayRef<Value> operands,
@@ -42,7 +42,7 @@ public:
                                                            module);
 
 
-        auto printOp = cast<mock::PrintOp>(op);
+        auto printOp = cast<stencil::PrintOp>(op);
         Value printArg = printOp.getInput();
         Value castPrintArg = rewriter.create<arith::ExtFOp>(loc, rewriter.getF64Type(), printArg);
         rewriter.create<LLVM::CallOp>(loc,
@@ -99,16 +99,16 @@ private:
 };
 
 
-void MockPrintPass::getDependentDialects(DialectRegistry& registry) const {
+void PrintToLLVMPass::getDependentDialects(DialectRegistry& registry) const {
     registry.insert<func::FuncDialect, LLVM::LLVMDialect, arith::ArithmeticDialect>();
 }
 
-void MockPrintPass::runOnOperation() {
+void PrintToLLVMPass::runOnOperation() {
     ConversionTarget target(getContext());
     target.addLegalDialect<LLVM::LLVMDialect>();
     target.addLegalDialect<func::FuncDialect>();
     target.addLegalDialect<arith::ArithmeticDialect>();
-    target.addIllegalOp<mock::PrintOp>();
+    target.addIllegalOp<stencil::PrintOp>();
 
     RewritePatternSet patterns(&getContext());
     patterns.add<PrintOpLowering>(&getContext());

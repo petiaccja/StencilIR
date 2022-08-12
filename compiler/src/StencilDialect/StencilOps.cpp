@@ -1,4 +1,4 @@
-#include "MockOps.hpp"
+#include "StencilOps.hpp"
 
 #include "llvm/ADT/ArrayRef.h"
 #include "mlir/IR/TypeRange.h"
@@ -10,12 +10,12 @@
 
 // clang-format: off
 #define GET_OP_CLASSES
-#include <MockDialect/Mock.cpp.inc>
+#include <StencilDialect/Stencil.cpp.inc>
 // clang-format: on
 
 
 using namespace mlir;
-using namespace mock;
+using namespace stencil;
 
 //------------------------------------------------------------------------------
 // KernelFuncOp

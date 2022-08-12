@@ -9,18 +9,18 @@ include "mlir/IR/OpBase.td"
 include "mlir/IR/SymbolInterfaces.td"
 
 
-def Mock_Dialect : Dialect {
-  let name = "mock";
-  let cppNamespace = "::mock";
+def Stencil_Dialect : Dialect {
+  let name = "stencil";
+  let cppNamespace = "::stencil";
   let hasConstantMaterializer = 0;
   let emitAccessorPrefix = kEmitAccessorPrefix_Prefixed;
 }
 
-class Mock_Op<string mnemonic, list<Trait> traits = []> :
-    Op<Mock_Dialect, mnemonic, traits>;
+class Stencil_Op<string mnemonic, list<Trait> traits = []> :
+    Op<Stencil_Dialect, mnemonic, traits>;
 
 
-def KernelFuncOp : Mock_Op<"kernel_func", [
+def KernelFuncOp : Stencil_Op<"kernel_func", [
   AffineScope, AutomaticAllocationScope, CallableOpInterface,
   FunctionOpInterface, IsolatedFromAbove, OpAsmOpInterface, Symbol
 ]> {
@@ -95,7 +95,7 @@ def KernelFuncOp : Mock_Op<"kernel_func", [
 }
 
 
-def KernelLaunchOp : Mock_Op<"kernel_launch", [
+def KernelLaunchOp : Stencil_Op<"kernel_launch", [
   CallOpInterface, MemRefsNormalizable, AttrSizedOperandSegments,
   DeclareOpInterfaceMethods<SymbolUserOpInterface>
 ]> {
@@ -127,7 +127,7 @@ def KernelLaunchOp : Mock_Op<"kernel_launch", [
 }
 
 
-def KernelReturnOp : Mock_Op<"kernel_return", [
+def KernelReturnOp : Stencil_Op<"kernel_return", [
   ReturnLike, Terminator, MemRefsNormalizable, NoSideEffect, HasParent<"KernelFuncOp">
 ]> {
   let arguments = (ins Variadic<AnyType>:$arguments);
@@ -139,14 +139,14 @@ def KernelReturnOp : Mock_Op<"kernel_return", [
 }
 
 
-def IndexOp : Mock_Op<"index", [NoSideEffect, HasParent<"KernelFuncOp">]> {
+def IndexOp : Stencil_Op<"index", [NoSideEffect, HasParent<"KernelFuncOp">]> {
   let results = (outs AnyMemRef:$index);
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = "attr-dict `:` type($index)";
 }
 
 
-def OffsetOp : Mock_Op<"offset", [NoSideEffect, HasParent<"KernelFuncOp">]> {
+def OffsetOp : Stencil_Op<"offset", [NoSideEffect, HasParent<"KernelFuncOp">]> {
   let arguments = (ins AnyMemRef:$index, I64ArrayAttr:$offset);
   let results = (outs AnyMemRef:$offseted_index);
   let hasCustomAssemblyFormat = 1;
@@ -154,7 +154,7 @@ def OffsetOp : Mock_Op<"offset", [NoSideEffect, HasParent<"KernelFuncOp">]> {
 }
 
 
-def SampleOp : Mock_Op<"sample", [NoSideEffect, HasParent<"KernelFuncOp">]> {
+def SampleOp : Stencil_Op<"sample", [NoSideEffect, HasParent<"KernelFuncOp">]> {
   let arguments = (ins AnyMemRef:$field, AnyMemRef:$index);
   let results = (outs AnyType:$sampled_value);
   let hasCustomAssemblyFormat = 1;
@@ -162,7 +162,7 @@ def SampleOp : Mock_Op<"sample", [NoSideEffect, HasParent<"KernelFuncOp">]> {
 }
 
 
-def PrintOp : Mock_Op<"print", [NoSideEffect]> {
+def PrintOp : Stencil_Op<"print", [NoSideEffect]> {
   let arguments = (ins F32:$input);
   let assemblyFormat = "$input attr-dict `:` type($input)";
 }

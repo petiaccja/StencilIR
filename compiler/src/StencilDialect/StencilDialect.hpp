@@ -7,5 +7,5 @@
 #include <mlir/Interfaces/InferTypeOpInterface.h>
 #include <mlir/Interfaces/SideEffectInterfaces.h>
 // clang-format: off
-#include <MockDialect/MockDialect.h.inc>
+#include <StencilDialect/StencilDialect.h.inc>
 // clang-format: on

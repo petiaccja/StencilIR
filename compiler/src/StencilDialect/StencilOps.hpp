@@ -16,5 +16,5 @@
 #include <mlir/Interfaces/SideEffectInterfaces.h>
 // clang-format: off
 #define GET_OP_CLASSES
-#include <MockDialect/Mock.h.inc>
+#include <StencilDialect/Stencil.h.inc>
 // clang-format: on

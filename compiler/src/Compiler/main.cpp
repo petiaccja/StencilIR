@@ -154,9 +154,9 @@ int main() {
     try {
         mlir::ModuleOp module = LowerAST(context, *ast);
         ApplyLocationSnapshot(context, module);
-        DumpIR(module, "Mock original");
+        DumpIR(module, "Stencil original");
         ApplyCleanupPasses(context, module);
-        DumpIR(module, "Mock cleaned");
+        DumpIR(module, "Stencil cleaned");
 
         auto llvmCpuStages = LowerToLLVMCPU(context, module);
         for (auto& stage : llvmCpuStages) {

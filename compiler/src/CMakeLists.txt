@@ -1,3 +1,3 @@
 add_subdirectory(AST)
-add_subdirectory(MockDialect)
+add_subdirectory(StencilDialect)
 add_subdirectory(Compiler)

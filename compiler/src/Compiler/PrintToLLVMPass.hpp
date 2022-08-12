@@ -6,7 +6,7 @@
 #include <mlir/Transforms/DialectConversion.h>
 
 
-class MockPrintPass : public mlir::PassWrapper<MockPrintPass, mlir::OperationPass<mlir::ModuleOp>> {
+class PrintToLLVMPass : public mlir::PassWrapper<PrintToLLVMPass, mlir::OperationPass<mlir::ModuleOp>> {
 public:
     void getDependentDialects(mlir::DialectRegistry& registry) const override;
     void runOnOperation() override final;

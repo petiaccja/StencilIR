@@ -1,7 +1,11 @@
 #include "LowerAST.hpp"
 
-#include "AST/AST.hpp"
-#include "AST/Types.hpp"
+#include <AST/AST.hpp>
+#include <AST/Node.hpp>
+#include <AST/Types.hpp>
+#include <StencilDialect/StencilDialect.hpp>
+#include <StencilDialect/StencilOps.hpp>
+
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
@@ -19,18 +23,7 @@
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
-#include <AST/Node.hpp>
-#include <MockDialect/MockDialect.hpp>
-#include <MockDialect/MockOps.hpp>
-#include <algorithm>
-#include <bit>
-#include <cassert>
-#include <concepts>
-#include <cstddef>
-#include <functional>
-#include <list>
 #include <llvm/ADT/ScopedHashTable.h>
-#include <memory>
 #include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/Dialect/MemRef/IR/MemRef.h>
@@ -40,6 +33,15 @@
 #include <mlir/IR/MLIRContext.h>
 #include <mlir/IR/Operation.h>
 #include <mlir/Support/LLVM.h>
+
+#include <algorithm>
+#include <bit>
+#include <cassert>
+#include <concepts>
+#include <cstddef>
+#include <functional>
+#include <list>
+#include <memory>
 #include <optional>
 #include <ranges>
 #include <stack>
@@ -210,7 +212,7 @@ struct ASTToMLIRRules {
 
     auto operator()(const ASTToMLIRTranformer& tf, const ast::Print& node) const -> std::vector<mlir::Value> {
         mlir::Value arg = tf(*node.argument).front();
-        builder.create<mock::PrintOp>(ConvertLocation(builder, node.location),
+        builder.create<stencil::PrintOp>(ConvertLocation(builder, node.location),
                                       arg);
         return {};
     }
@@ -279,7 +281,7 @@ struct ASTToMLIRRules {
         }
         const auto functionType = builder.getFunctionType(mlir::TypeRange{ inputTypes }, mlir::TypeRange{ resultTypes });
         const auto loc = ConvertLocation(builder, node.location);
-        auto kernelFuncOp = builder.create<mock::KernelFuncOp>(loc,
+        auto kernelFuncOp = builder.create<stencil::KernelFuncOp>(loc,
                                                                node.name,
                                                                functionType,
                                                                mlir::APInt(64, node.numDimensions));
@@ -311,7 +313,7 @@ struct ASTToMLIRRules {
                 values.push_back(item);
             }
         }
-        builder.create<mock::KernelReturnOp>(loc, values);
+        builder.create<stencil::KernelReturnOp>(loc, values);
         return {};
     }
 
@@ -333,7 +335,7 @@ struct ASTToMLIRRules {
             operands.push_back(tf(*argument).front());
         }
 
-        builder.create<mock::KernelLaunchOp>(ConvertLocation(builder, node.location),
+        builder.create<stencil::KernelLaunchOp>(ConvertLocation(builder, node.location),
                                              callee,
                                              mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ gridDim } },
                                              mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ targets } },
@@ -394,7 +396,7 @@ struct ASTToMLIRRules {
         const int64_t numDims = currentFunc->numDimensions;
         const auto indexType = mlir::MemRefType::get({ numDims }, builder.getIndexType());
 
-        auto op = builder.create<mock::IndexOp>(loc, indexType);
+        auto op = builder.create<stencil::IndexOp>(loc, indexType);
         return { op.getIndex() };
     }
 
@@ -402,7 +404,7 @@ struct ASTToMLIRRules {
         const auto loc = ConvertLocation(builder, node.location);
         const auto index = tf(*node.index).front();
         const auto offset = builder.getI64ArrayAttr(node.offset);
-        auto op = builder.create<mock::OffsetOp>(loc, index.getType(), index, offset);
+        auto op = builder.create<stencil::OffsetOp>(loc, index.getType(), index, offset);
         return { op.getOffsetedIndex() };
     }
 
@@ -417,7 +419,7 @@ struct ASTToMLIRRules {
         }
         auto elementType = fieldType.dyn_cast<mlir::MemRefType>().getElementType();
 
-        auto op = builder.create<mock::SampleOp>(loc, elementType, field, index);
+        auto op = builder.create<stencil::SampleOp>(loc, elementType, field, index);
         return { op.getSampledValue() };
     }
 };
@@ -459,7 +461,7 @@ mlir::ModuleOp LowerAST(mlir::MLIRContext& context, const ast::Module& node) {
     context.getOrLoadDialect<mlir::func::FuncDialect>();
     context.getOrLoadDialect<mlir::arith::ArithmeticDialect>();
     context.getOrLoadDialect<mlir::memref::MemRefDialect>();
-    context.getOrLoadDialect<mock::MockDialect>();
+    context.getOrLoadDialect<stencil::StencilDialect>();
 
     transformer(node);
     return moduleOp.value();

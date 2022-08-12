@@ -2,8 +2,8 @@
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
-#include <MockDialect/MockDialect.hpp>
-#include <MockDialect/MockOps.hpp>
+#include <StencilDialect/StencilDialect.hpp>
+#include <StencilDialect/StencilOps.hpp>
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/Sequence.h>
 #include <mlir/Conversion/AffineToStandard/AffineToStandard.h>
