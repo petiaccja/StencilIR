@@ -122,7 +122,7 @@ def LaunchKernelOp : Stencil_Op<"launch_kernel", [
 
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = [{
-    $callee `<` $grid_dim `>` `(` `(` $arguments `)` `->` `(` $targets `)` `)` attr-dict `:` functional-type($arguments, $targets)
+    $callee `<``<``<` $grid_dim `>``>``>` `(` `(` $arguments `)` `->` `(` $targets `)` `)` attr-dict `:` functional-type($arguments, $targets)
   }];
 }
 
