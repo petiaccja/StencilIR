@@ -163,7 +163,13 @@ int main() {
             DumpIR(stage.second, stage.first);
         }
 
-        JitRunner jitRunner{ llvmCpuStages.back().second };
+        constexpr int optLevel = 3;
+        JitRunner jitRunner{ llvmCpuStages.back().second, optLevel };
+
+        std::cout << "LLVM IR:\n"
+                  << jitRunner.LLVMIR() << "\n"
+                  << std::endl;
+
         RunLaplacian(jitRunner);
     }
     catch (std::exception& ex) {

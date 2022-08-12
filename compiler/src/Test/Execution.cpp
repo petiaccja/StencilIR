@@ -4,14 +4,14 @@
 #include <mlir/ExecutionEngine/ExecutionEngine.h>
 #include <mlir/ExecutionEngine/OptUtils.h>
 #include <mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h>
+#include <mlir/Target/LLVMIR/Export.h>
 
 
-JitRunner::JitRunner(mlir::ModuleOp& llvmIr) {
+JitRunner::JitRunner(mlir::ModuleOp& llvmIr, int optLevel) {
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmPrinter();
     mlir::registerLLVMDialectTranslation(*llvmIr.getContext());
 
-    constexpr int optLevel = 0;
     constexpr int sizeLevel = 0;
     constexpr auto targetMachine = nullptr;
     auto optPipeline = mlir::makeOptimizingTransformer(optLevel, sizeLevel, targetMachine);
@@ -24,4 +24,17 @@ JitRunner::JitRunner(mlir::ModuleOp& llvmIr) {
     }
 
     m_engine = std::move(maybeEngine.get());
+
+    // translate to LLVM IR for testing
+    llvm::LLVMContext llvmContext;
+    auto llvmModule = mlir::translateModuleToLLVMIR(llvmIr, llvmContext);
+    if (!llvmModule) {
+        throw std::runtime_error("failed to generate LLVM IR");
+    }
+    mlir::ExecutionEngine::setupTargetTriple(llvmModule.get());
+    if (auto err = optPipeline(llvmModule.get())) {
+        throw std::runtime_error("failed to optimize LLVM IR");
+    }
+    llvm::raw_string_ostream ss{m_llvmIrDump};
+    ss << *llvmModule;
 }

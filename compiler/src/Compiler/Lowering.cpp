@@ -95,7 +95,7 @@ auto LowerToLLVMCPU(mlir::MLIRContext& context, const mlir::ModuleOp& module)
 
     ApplyLowerToLLVM(context, mutableModule);
     ApplyCleanupPasses(context, mutableModule);
-    stages.push_back({ "LLVM", CloneModule(mutableModule) });
+    stages.push_back({ "MLIR/LLVM", CloneModule(mutableModule) });
 
     return stages;
 }

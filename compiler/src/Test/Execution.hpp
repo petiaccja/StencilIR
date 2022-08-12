@@ -23,10 +23,12 @@ struct MemRef {
 
 class JitRunner {
 public:
-    JitRunner(mlir::ModuleOp& llvmIr);
+    JitRunner(mlir::ModuleOp& llvmIr, int optLevel = 0);
 
     template <class... Args>
     void InvokeFunction(std::string_view name, Args&&... args) const;
+
+    std::string_view LLVMIR() const { return m_llvmIrDump; }
 
 private:
     static auto ConvertArg(const std::floating_point auto& arg) {
@@ -71,6 +73,7 @@ private:
 
 private:
     std::unique_ptr<mlir::ExecutionEngine> m_engine;
+    std::string m_llvmIrDump;
 };
 
 
