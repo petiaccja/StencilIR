@@ -18,10 +18,10 @@ using namespace mlir;
 using namespace stencil;
 
 //------------------------------------------------------------------------------
-// KernelFuncOp
+// KernelOp
 //------------------------------------------------------------------------------
 
-ParseResult KernelFuncOp::parse(OpAsmParser& parser, OperationState& result) {
+ParseResult KernelOp::parse(OpAsmParser& parser, OperationState& result) {
     auto buildFuncType =
         [](Builder& builder, ArrayRef<Type> argTypes, ArrayRef<Type> results,
            function_interface_impl::VariadicFlag,
@@ -31,22 +31,22 @@ ParseResult KernelFuncOp::parse(OpAsmParser& parser, OperationState& result) {
         parser, result, /*allowVariadic=*/false, buildFuncType);
 }
 
-void KernelFuncOp::print(OpAsmPrinter& p) {
+void KernelOp::print(OpAsmPrinter& p) {
     function_interface_impl::printFunctionOp(p, *this, /*isVariadic=*/false);
 }
 
 
 //------------------------------------------------------------------------------
-// KernelLaunchOp
+// LaunchKernelOp
 //------------------------------------------------------------------------------
 
-LogicalResult KernelLaunchOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
+LogicalResult LaunchKernelOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
     // Check that the callee attribute was specified.
     auto fnAttr = (*this)->getAttrOfType<FlatSymbolRefAttr>("callee");
     if (!fnAttr) {
         return emitOpError("requires a 'callee' symbol reference attribute");
     }
-    KernelFuncOp fn = symbolTable.lookupNearestSymbolFrom<KernelFuncOp>(*this, fnAttr);
+    KernelOp fn = symbolTable.lookupNearestSymbolFrom<KernelOp>(*this, fnAttr);
     if (!fn) {
         return emitOpError() << "'" << fnAttr.getValue()
                              << "' does not reference a valid function";
@@ -92,11 +92,11 @@ LogicalResult KernelLaunchOp::verifySymbolUses(SymbolTableCollection& symbolTabl
     return success();
 }
 
-FunctionType KernelLaunchOp::getCalleeType() {
+FunctionType LaunchKernelOp::getCalleeType() {
     return FunctionType::get(getContext(), getOperandTypes(), getTargetTypes());
 }
 
-mlir::TypeRange KernelLaunchOp::getTargetTypes() {
+mlir::TypeRange LaunchKernelOp::getTargetTypes() {
     llvm::ArrayRef<mlir::Type> targetTypes;
     for (const auto& target : getTargets()) {
         const auto targetType = target.getType();

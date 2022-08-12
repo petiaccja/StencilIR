@@ -281,13 +281,13 @@ struct ASTToMLIRRules {
         }
         const auto functionType = builder.getFunctionType(mlir::TypeRange{ inputTypes }, mlir::TypeRange{ resultTypes });
         const auto loc = ConvertLocation(builder, node.location);
-        auto kernelFuncOp = builder.create<stencil::KernelFuncOp>(loc,
+        auto KernelOp = builder.create<stencil::KernelOp>(loc,
                                                                node.name,
                                                                functionType,
                                                                mlir::APInt(64, node.numDimensions));
 
         // Create function body
-        auto& kernelFuncBlock = *kernelFuncOp.addEntryBlock();
+        auto& kernelFuncBlock = *KernelOp.addEntryBlock();
 
         symbolTable.Push();
         for (size_t i = 0; i < node.parameters.size(); ++i) {
@@ -313,7 +313,7 @@ struct ASTToMLIRRules {
                 values.push_back(item);
             }
         }
-        builder.create<stencil::KernelReturnOp>(loc, values);
+        builder.create<stencil::ReturnOp>(loc, values);
         return {};
     }
 
@@ -335,7 +335,7 @@ struct ASTToMLIRRules {
             operands.push_back(tf(*argument).front());
         }
 
-        builder.create<stencil::KernelLaunchOp>(ConvertLocation(builder, node.location),
+        builder.create<stencil::LaunchKernelOp>(ConvertLocation(builder, node.location),
                                              callee,
                                              mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ gridDim } },
                                              mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ targets } },
@@ -404,7 +404,7 @@ struct ASTToMLIRRules {
         const auto loc = ConvertLocation(builder, node.location);
         const auto index = tf(*node.index).front();
         const auto offset = builder.getI64ArrayAttr(node.offset);
-        auto op = builder.create<stencil::OffsetOp>(loc, index.getType(), index, offset);
+        auto op = builder.create<stencil::ShiftOp>(loc, index.getType(), index, offset);
         return { op.getOffsetedIndex() };
     }
 

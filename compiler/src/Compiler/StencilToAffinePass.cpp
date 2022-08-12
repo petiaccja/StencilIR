@@ -37,10 +37,10 @@
 
 using namespace mlir;
 
-struct KernelFuncLowering : public OpRewritePattern<stencil::KernelFuncOp> {
-    using OpRewritePattern<stencil::KernelFuncOp>::OpRewritePattern;
+struct KernelFuncLowering : public OpRewritePattern<stencil::KernelOp> {
+    using OpRewritePattern<stencil::KernelOp>::OpRewritePattern;
 
-    LogicalResult matchAndRewrite(stencil::KernelFuncOp op, PatternRewriter& rewriter) const override final {
+    LogicalResult matchAndRewrite(stencil::KernelOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
 
         const int64_t numDims = op.getNumDimensions().getSExtValue();
@@ -79,10 +79,10 @@ struct KernelFuncLowering : public OpRewritePattern<stencil::KernelFuncOp> {
     }
 };
 
-struct KernelReturnLowering : public OpRewritePattern<stencil::KernelReturnOp> {
-    using OpRewritePattern<stencil::KernelReturnOp>::OpRewritePattern;
+struct KernelReturnLowering : public OpRewritePattern<stencil::ReturnOp> {
+    using OpRewritePattern<stencil::ReturnOp>::OpRewritePattern;
 
-    LogicalResult match(stencil::KernelReturnOp op) const override {
+    LogicalResult match(stencil::ReturnOp op) const override {
         auto parent = op->getParentOfType<func::FuncOp>();
         if (parent) {
             return success();
@@ -90,7 +90,7 @@ struct KernelReturnLowering : public OpRewritePattern<stencil::KernelReturnOp> {
         return failure();
     }
 
-    void rewrite(stencil::KernelReturnOp op, PatternRewriter& rewriter) const override {
+    void rewrite(stencil::ReturnOp op, PatternRewriter& rewriter) const override {
         Location loc = op->getLoc();
         auto parent = op->getParentOfType<func::FuncOp>();
         assert(parent);
@@ -120,17 +120,17 @@ struct KernelReturnLowering : public OpRewritePattern<stencil::KernelReturnOp> {
     }
 };
 
-struct KernelCallLowering : public OpRewritePattern<stencil::KernelLaunchOp> {
+struct KernelCallLowering : public OpRewritePattern<stencil::LaunchKernelOp> {
     bool m_makeParallelLoops = false;
 
     KernelCallLowering(MLIRContext* context,
                        PatternBenefit benefit = 1,
                        ArrayRef<StringRef> generatedNames = {},
                        bool makeParallelLoops = false)
-        : OpRewritePattern<stencil::KernelLaunchOp>(context, benefit, generatedNames),
+        : OpRewritePattern<stencil::LaunchKernelOp>(context, benefit, generatedNames),
           m_makeParallelLoops(makeParallelLoops) {}
 
-    LogicalResult matchAndRewrite(stencil::KernelLaunchOp op, PatternRewriter& rewriter) const override final {
+    LogicalResult matchAndRewrite(stencil::LaunchKernelOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
         const int64_t numDims = op.getGridDim().size();
 
@@ -214,10 +214,10 @@ struct IndexLowering : public OpRewritePattern<stencil::IndexOp> {
     }
 };
 
-struct OffsetLowering : public OpRewritePattern<stencil::OffsetOp> {
-    using OpRewritePattern<stencil::OffsetOp>::OpRewritePattern;
+struct OffsetLowering : public OpRewritePattern<stencil::ShiftOp> {
+    using OpRewritePattern<stencil::ShiftOp>::OpRewritePattern;
 
-    LogicalResult matchAndRewrite(stencil::OffsetOp op, PatternRewriter& rewriter) const override final {
+    LogicalResult matchAndRewrite(stencil::ShiftOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
 
         Value index = op.getIndex();

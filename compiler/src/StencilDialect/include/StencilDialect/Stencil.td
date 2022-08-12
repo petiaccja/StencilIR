@@ -20,7 +20,7 @@ class Stencil_Op<string mnemonic, list<Trait> traits = []> :
     Op<Stencil_Dialect, mnemonic, traits>;
 
 
-def KernelFuncOp : Stencil_Op<"kernel_func", [
+def KernelOp : Stencil_Op<"kernel", [
   AffineScope, AutomaticAllocationScope, CallableOpInterface,
   FunctionOpInterface, IsolatedFromAbove, OpAsmOpInterface, Symbol
 ]> {
@@ -31,11 +31,11 @@ def KernelFuncOp : Stencil_Op<"kernel_func", [
   );
   let regions = (region AnyRegion:$body);
   let extraClassDeclaration = [{
-    static KernelFuncOp create(mlir::Location location, mlir::StringRef name, mlir::FunctionType type,
+    static KernelOp create(mlir::Location location, mlir::StringRef name, mlir::FunctionType type,
                          llvm::ArrayRef<mlir::NamedAttribute> attrs = {});
-    static KernelFuncOp create(mlir::Location location, mlir::StringRef name, mlir::FunctionType type,
+    static KernelOp create(mlir::Location location, mlir::StringRef name, mlir::FunctionType type,
                          mlir::Operation::dialect_attr_range attrs);
-    static KernelFuncOp create(mlir::Location location, mlir::StringRef name, mlir::FunctionType type,
+    static KernelOp create(mlir::Location location, mlir::StringRef name, mlir::FunctionType type,
                          llvm::ArrayRef<mlir::NamedAttribute> attrs,
                          llvm::ArrayRef<mlir::DictionaryAttr> argAttrs);
 
@@ -46,14 +46,14 @@ def KernelFuncOp : Stencil_Op<"kernel_func", [
     /// included in the new function. Replaces references to cloned sub-values
     /// with the corresponding value that is copied, and adds those mappings to
     /// the mapper.
-    KernelFuncOp clone(mlir::BlockAndValueMapping &mapper);
-    KernelFuncOp clone();
+    KernelOp clone(mlir::BlockAndValueMapping &mapper);
+    KernelOp clone();
 
     /// Clone the internal blocks and attributes from this function into dest.
     /// Any cloned blocks are appended to the back of dest. This function
     /// asserts that the attributes of the current function and dest are
     /// compatible.
-    void cloneInto(KernelFuncOp dest, mlir::BlockAndValueMapping &mapper);
+    void cloneInto(KernelOp dest, mlir::BlockAndValueMapping &mapper);
 
     //===------------------------------------------------------------------===//
     // CallableOpInterface
@@ -95,7 +95,7 @@ def KernelFuncOp : Stencil_Op<"kernel_func", [
 }
 
 
-def KernelLaunchOp : Stencil_Op<"kernel_launch", [
+def LaunchKernelOp : Stencil_Op<"launch_kernel", [
   CallOpInterface, MemRefsNormalizable, AttrSizedOperandSegments,
   DeclareOpInterfaceMethods<SymbolUserOpInterface>
 ]> {
@@ -127,8 +127,8 @@ def KernelLaunchOp : Stencil_Op<"kernel_launch", [
 }
 
 
-def KernelReturnOp : Stencil_Op<"kernel_return", [
-  ReturnLike, Terminator, MemRefsNormalizable, NoSideEffect, HasParent<"KernelFuncOp">
+def ReturnOp : Stencil_Op<"return", [
+  ReturnLike, Terminator, MemRefsNormalizable, NoSideEffect, HasParent<"KernelOp">
 ]> {
   let arguments = (ins Variadic<AnyType>:$arguments);
   let builders = [OpBuilder<(ins), [{
@@ -139,14 +139,14 @@ def KernelReturnOp : Stencil_Op<"kernel_return", [
 }
 
 
-def IndexOp : Stencil_Op<"index", [NoSideEffect, HasParent<"KernelFuncOp">]> {
+def IndexOp : Stencil_Op<"index", [NoSideEffect, HasParent<"KernelOp">]> {
   let results = (outs AnyMemRef:$index);
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = "attr-dict `:` type($index)";
 }
 
 
-def OffsetOp : Stencil_Op<"offset", [NoSideEffect, HasParent<"KernelFuncOp">]> {
+def ShiftOp : Stencil_Op<"shift", [NoSideEffect, HasParent<"KernelOp">]> {
   let arguments = (ins AnyMemRef:$index, I64ArrayAttr:$offset);
   let results = (outs AnyMemRef:$offseted_index);
   let hasCustomAssemblyFormat = 1;
@@ -154,7 +154,7 @@ def OffsetOp : Stencil_Op<"offset", [NoSideEffect, HasParent<"KernelFuncOp">]> {
 }
 
 
-def SampleOp : Stencil_Op<"sample", [NoSideEffect, HasParent<"KernelFuncOp">]> {
+def SampleOp : Stencil_Op<"sample", [NoSideEffect, HasParent<"KernelOp">]> {
   let arguments = (ins AnyMemRef:$field, AnyMemRef:$index);
   let results = (outs AnyType:$sampled_value);
   let hasCustomAssemblyFormat = 1;
