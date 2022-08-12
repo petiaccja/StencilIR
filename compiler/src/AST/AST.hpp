@@ -2,6 +2,7 @@
 
 #include "Node.hpp"
 #include "Types.hpp"
+
 #include <array>
 #include <memory>
 #include <optional>
@@ -93,8 +94,8 @@ struct Index : Expression {
 
 struct Jump : Expression {
     explicit Jump(std::shared_ptr<Expression> index,
-                    std::vector<int64_t> offset,
-                    std::optional<Location> loc = {})
+                  std::vector<int64_t> offset,
+                  std::optional<Location> loc = {})
         : Expression(loc), index(index), offset(offset) {}
     std::shared_ptr<Expression> index;
     std::vector<int64_t> offset;
@@ -107,6 +108,32 @@ struct Sample : Expression {
         : Expression(loc), field(field), index(index) {}
     std::shared_ptr<Expression> field;
     std::shared_ptr<Expression> index;
+};
+
+struct JumpIndirect : Expression {
+    explicit JumpIndirect(std::shared_ptr<Expression> index,
+                          int64_t dimension,
+                          std::shared_ptr<Expression> map,
+                          std::shared_ptr<Expression> mapElement,
+                          std::optional<Location> loc = {})
+        : Expression(loc), index(index), dimension(dimension), map(map), mapElement(mapElement) {}
+    std::shared_ptr<Expression> index;
+    int64_t dimension;
+    std::shared_ptr<Expression> map;
+    std::shared_ptr<Expression> mapElement;
+};
+
+struct SampleIndirect : Expression {
+    explicit SampleIndirect(std::shared_ptr<Expression> index,
+                            int64_t dimension,
+                            std::shared_ptr<Expression> field,
+                            std::shared_ptr<Expression> fieldElement,
+                            std::optional<Location> loc = {})
+        : Expression(loc), index(index), dimension(dimension), field(field), fieldElement(fieldElement) {}
+    std::shared_ptr<Expression> index;
+    int64_t dimension;
+    std::shared_ptr<Expression> field;
+    std::shared_ptr<Expression> fieldElement;
 };
 
 
@@ -126,6 +153,13 @@ struct Constant : Expression {
 
 struct Add : Expression {
     Add(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {})
+        : Expression(loc), lhs(lhs), rhs(rhs) {}
+    std::shared_ptr<Expression> lhs;
+    std::shared_ptr<Expression> rhs;
+};
+
+struct Sub : Expression {
+    Sub(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {})
         : Expression(loc), lhs(lhs), rhs(rhs) {}
     std::shared_ptr<Expression> lhs;
     std::shared_ptr<Expression> rhs;

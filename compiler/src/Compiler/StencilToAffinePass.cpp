@@ -191,13 +191,13 @@ struct IndexLowering : public OpRewritePattern<stencil::IndexOp> {
     }
 };
 
-struct OffsetLowering : public OpRewritePattern<stencil::JumpOp> {
+struct JumpLowering : public OpRewritePattern<stencil::JumpOp> {
     using OpRewritePattern<stencil::JumpOp>::OpRewritePattern;
 
     LogicalResult matchAndRewrite(stencil::JumpOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
 
-        Value index = op.getIndex();
+        Value index = op.getInputIndex();
         std::vector<int64_t> offsets;
         for (const auto& offset : op.getOffset().getAsRange<IntegerAttr>()) {
             offsets.push_back(offset.getInt());
@@ -249,6 +249,59 @@ struct SampleLowering : public OpRewritePattern<stencil::SampleOp> {
 };
 
 
+struct JumpIndirectLowering : public OpRewritePattern<stencil::JumpIndirectOp> {
+    using OpRewritePattern<stencil::JumpIndirectOp>::OpRewritePattern;
+
+    LogicalResult matchAndRewrite(stencil::JumpIndirectOp op, PatternRewriter& rewriter) const override final {
+        Location loc = op->getLoc();
+
+        auto inputIndex = op.getInputIndex();
+        const auto dimension = op.getDimension().getSExtValue();
+        std::array<Value, 1> dimIndices = { rewriter.create<arith::ConstantIndexOp>(loc, dimension) };
+        Value inputIndexElem = rewriter.create<memref::LoadOp>(loc, inputIndex, dimIndices);
+
+        auto map = op.getMap();
+        auto mapElement = op.getMapElement();
+        std::array<Value, 2> mapIndices = { inputIndexElem, mapElement };
+        Value newIndexElem = rewriter.create<memref::LoadOp>(loc, map, mapIndices);
+
+        assert(inputIndex.getType().isa<MemRefType>());
+        const auto indexType = inputIndex.getType().dyn_cast<MemRefType>();
+
+        Value outputIndex = rewriter.create<memref::AllocaOp>(loc, indexType);
+        rewriter.create<memref::CopyOp>(loc, inputIndex, outputIndex);
+        rewriter.create<memref::StoreOp>(loc, newIndexElem, outputIndex, dimIndices);
+
+        rewriter.replaceOp(op, outputIndex);
+
+        return success();
+    }
+};
+
+
+struct SampleIndirectLowering : public OpRewritePattern<stencil::SampleIndirectOp> {
+    using OpRewritePattern<stencil::SampleIndirectOp>::OpRewritePattern;
+
+    LogicalResult matchAndRewrite(stencil::SampleIndirectOp op, PatternRewriter& rewriter) const override final {
+        Location loc = op->getLoc();
+
+        auto inputIndex = op.getIndex();
+        const auto dimension = op.getDimension().getSExtValue();
+        std::array<Value, 1> dimIndices = { rewriter.create<arith::ConstantIndexOp>(loc, dimension) };
+        Value inputIndexElem = rewriter.create<memref::LoadOp>(loc, inputIndex, dimIndices);
+
+        auto field = op.getField();
+        auto fieldElement = op.getFieldElement();
+        std::array<Value, 2> mapIndices = { inputIndexElem, fieldElement };
+        Value sample = rewriter.create<memref::LoadOp>(loc, field, mapIndices);
+
+        rewriter.replaceOp(op, sample);
+
+        return success();
+    }
+};
+
+
 void StencilToAffinePass::getDependentDialects(DialectRegistry& registry) const {
     registry.insert<arith::ArithmeticDialect, AffineDialect, memref::MemRefDialect, linalg::LinalgDialect>();
 }
@@ -270,8 +323,10 @@ void StencilToAffinePass::runOnOperation() {
     patterns.add<KernelCallLowering>(&getContext(), 1, ArrayRef<StringRef>{}, m_makeParallelLoops);
 
     patterns.add<IndexLowering>(&getContext());
-    patterns.add<OffsetLowering>(&getContext());
+    patterns.add<JumpLowering>(&getContext());
     patterns.add<SampleLowering>(&getContext());
+    patterns.add<JumpIndirectLowering>(&getContext());
+    patterns.add<SampleIndirectLowering>(&getContext());
 
     if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {
         signalPassFailure();

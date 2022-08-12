@@ -213,7 +213,7 @@ struct ASTToMLIRRules {
     auto operator()(const ASTToMLIRTranformer& tf, const ast::Print& node) const -> std::vector<mlir::Value> {
         mlir::Value arg = tf(*node.argument).front();
         builder.create<stencil::PrintOp>(ConvertLocation(builder, node.location),
-                                      arg);
+                                         arg);
         return {};
     }
 
@@ -221,6 +221,15 @@ struct ASTToMLIRRules {
         mlir::Value lhs = tf(*node.lhs).front();
         mlir::Value rhs = tf(*node.rhs).front();
         auto op = builder.create<mlir::arith::AddFOp>(ConvertLocation(builder, node.location),
+                                                      lhs,
+                                                      rhs);
+        return { op->getResult(0) };
+    }
+
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::Sub& node) const -> std::vector<mlir::Value> {
+        mlir::Value lhs = tf(*node.lhs).front();
+        mlir::Value rhs = tf(*node.rhs).front();
+        auto op = builder.create<mlir::arith::SubFOp>(ConvertLocation(builder, node.location),
                                                       lhs,
                                                       rhs);
         return { op->getResult(0) };
@@ -282,9 +291,9 @@ struct ASTToMLIRRules {
         const auto functionType = builder.getFunctionType(mlir::TypeRange{ inputTypes }, mlir::TypeRange{ resultTypes });
         const auto loc = ConvertLocation(builder, node.location);
         auto KernelOp = builder.create<stencil::KernelOp>(loc,
-                                                               node.name,
-                                                               functionType,
-                                                               mlir::APInt(64, node.numDimensions));
+                                                          node.name,
+                                                          functionType,
+                                                          mlir::APInt(64, node.numDimensions));
 
         // Create function body
         auto& kernelFuncBlock = *KernelOp.addEntryBlock();
@@ -336,10 +345,10 @@ struct ASTToMLIRRules {
         }
 
         builder.create<stencil::LaunchKernelOp>(ConvertLocation(builder, node.location),
-                                             callee,
-                                             mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ gridDim } },
-                                             mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ targets } },
-                                             mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ operands } });
+                                                callee,
+                                                mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ gridDim } },
+                                                mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ targets } },
+                                                mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ operands } });
 
         return {};
     }
@@ -422,6 +431,33 @@ struct ASTToMLIRRules {
         auto op = builder.create<stencil::SampleOp>(loc, elementType, field, index);
         return { op.getSampledValue() };
     }
+
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::JumpIndirect& node) const -> std::vector<mlir::Value> {
+        const auto loc = ConvertLocation(builder, node.location);
+        auto index = tf(*node.index).front();
+        auto dimension = builder.getIndexAttr(node.dimension);
+        auto map = tf(*node.map).front();
+        auto mapElement = tf(*node.mapElement).front();
+        auto op = builder.create<stencil::JumpIndirectOp>(loc, index.getType(), index, dimension, map, mapElement);
+        return { op.getOffsetedIndex() };
+    }
+
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::SampleIndirect& node) const -> std::vector<mlir::Value> {
+        const auto loc = ConvertLocation(builder, node.location);
+        auto index = tf(*node.index).front();
+        auto dimension = builder.getIndexAttr(node.dimension);
+        auto field = tf(*node.field).front();
+        auto fieldElement = tf(*node.fieldElement).front();
+
+        auto fieldType = field.getType();
+        if (!fieldType.isa<mlir::MemRefType>()) {
+            throw std::invalid_argument("SampleIndirectOp must be used to sample fields.");
+        }
+        auto elementType = fieldType.dyn_cast<mlir::MemRefType>().getElementType();
+
+        auto op = builder.create<stencil::SampleIndirectOp>(loc, elementType, index, dimension, field, fieldElement);
+        return { op.getFieldValue() };
+    }
 };
 
 mlir::ModuleOp LowerToIR(mlir::MLIRContext& context, const ast::Module& node) {
@@ -434,6 +470,7 @@ mlir::ModuleOp LowerToIR(mlir::MLIRContext& context, const ast::Module& node) {
 
     transformer.AddNodeTransformer<ast::Print>(rules);
     transformer.AddNodeTransformer<ast::Add>(rules);
+    transformer.AddNodeTransformer<ast::Sub>(rules);
     transformer.AddNodeTransformer<ast::Mul>(rules);
     transformer.AddNodeTransformer<ast::ReshapeField>(rules);
 
@@ -446,6 +483,8 @@ mlir::ModuleOp LowerToIR(mlir::MLIRContext& context, const ast::Module& node) {
     transformer.AddNodeTransformer<ast::Index>(rules);
     transformer.AddNodeTransformer<ast::Jump>(rules);
     transformer.AddNodeTransformer<ast::Sample>(rules);
+    transformer.AddNodeTransformer<ast::JumpIndirect>(rules);
+    transformer.AddNodeTransformer<ast::SampleIndirect>(rules);
 
     transformer.AddNodeTransformer<ast::Constant<float>>(rules);
     transformer.AddNodeTransformer<ast::Constant<double>>(rules);

@@ -1,4 +1,6 @@
 add_subdirectory(AST)
 add_subdirectory(StencilDialect)
 add_subdirectory(Compiler)
-add_subdirectory(Test)
+add_subdirectory(Execution)
+add_subdirectory(TestStructured)
+add_subdirectory(TestUnstructured)

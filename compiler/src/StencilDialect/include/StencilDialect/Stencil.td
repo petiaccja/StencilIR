@@ -147,10 +147,10 @@ def IndexOp : Stencil_Op<"index", [NoSideEffect, HasParent<"KernelOp">]> {
 
 
 def JumpOp : Stencil_Op<"jump", [NoSideEffect, HasParent<"KernelOp">]> {
-  let arguments = (ins AnyMemRef:$index, I64ArrayAttr:$offset);
+  let arguments = (ins AnyMemRef:$input_index, I64ArrayAttr:$offset);
   let results = (outs AnyMemRef:$offseted_index);
   let hasCustomAssemblyFormat = 1;
-  let assemblyFormat = "$index `,` $offset attr-dict `:` functional-type($index, $offseted_index)";
+  let assemblyFormat = "$input_index `,` $offset attr-dict `:` functional-type($input_index, $offseted_index)";
 }
 
 
@@ -162,7 +162,23 @@ def SampleOp : Stencil_Op<"sample", [NoSideEffect, HasParent<"KernelOp">]> {
 }
 
 
-def PrintOp : Stencil_Op<"print", [NoSideEffect]> {
+def JumpIndirectOp : Stencil_Op<"jump_indirect", [NoSideEffect, HasParent<"KernelOp">]> {
+  let arguments = (ins AnyMemRef:$input_index, IndexAttr:$dimension, AnyMemRef:$map, Index:$map_element);
+  let results = (outs AnyMemRef:$offseted_index);
+  let hasCustomAssemblyFormat = 1;
+  let assemblyFormat = "$input_index `[` $dimension `]``,` $map `[` $map_element `]` attr-dict `:` functional-type(operands, $offseted_index)";
+}
+
+
+def SampleIndirectOp : Stencil_Op<"sample_indirect", [NoSideEffect, HasParent<"KernelOp">]> {
+  let arguments = (ins AnyMemRef:$index, IndexAttr:$dimension, AnyMemRef:$field, Index:$field_element);
+  let results = (outs AnyType:$field_value);
+  let hasCustomAssemblyFormat = 1;
+  let assemblyFormat = "$field`[` $index`[`$dimension`]``,` $field_element `]` attr-dict `:` functional-type(operands, $field_value)";
+}
+
+
+def PrintOp : Stencil_Op<"print"> {
   let arguments = (ins F32:$input);
   let assemblyFormat = "$input attr-dict `:` type($input)";
 }
