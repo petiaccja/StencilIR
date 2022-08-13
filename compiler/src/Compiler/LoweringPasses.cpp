@@ -1,9 +1,10 @@
 #include "LoweringPasses.hpp"
 
-#include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include <StencilDialect/StencilDialect.hpp>
 #include <StencilDialect/StencilOps.hpp>
+
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/Sequence.h>
 #include <mlir/Conversion/AffineToStandard/AffineToStandard.h>
@@ -12,18 +13,14 @@
 #include <mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h>
 #include <mlir/Conversion/LLVMCommon/ConversionTarget.h>
 #include <mlir/Conversion/LLVMCommon/TypeConverter.h>
-#include <mlir/Conversion/LinalgToLLVM/LinalgToLLVM.h>
-#include <mlir/Conversion/LinalgToStandard/LinalgToStandard.h>
 #include <mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h>
 #include <mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h>
-#include <mlir/Conversion/TensorToLinalg/TensorToLinalg.h>
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
 #include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 #include <mlir/Dialect/ControlFlow/IR/ControlFlow.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/Dialect/LLVMIR/LLVMDialect.h>
 #include <mlir/Dialect/LLVMIR/LLVMTypes.h>
-#include <mlir/Dialect/Linalg/IR/Linalg.h>
 #include <mlir/Dialect/MemRef/IR/MemRef.h>
 #include <mlir/Dialect/SCF/IR/SCF.h>
 #include <mlir/Dialect/Tensor/IR/Tensor.h>
@@ -46,7 +43,7 @@ void AffineToScfPass::getDependentDialects(DialectRegistry& registry) const {
                     scf::SCFDialect,
                     arith::ArithmeticDialect,
                     cf::ControlFlowDialect,
-                    linalg::LinalgDialect>();
+                    memref::MemRefDialect>();
 }
 
 void AffineToScfPass::runOnOperation() {
@@ -54,12 +51,11 @@ void AffineToScfPass::runOnOperation() {
     target.addLegalDialect<scf::SCFDialect>();
     target.addLegalDialect<arith::ArithmeticDialect>();
     target.addLegalDialect<cf::ControlFlowDialect>();
+    target.addLegalDialect<memref::MemRefDialect>();
     target.addIllegalDialect<AffineDialect>();
-    target.addIllegalDialect<linalg::LinalgDialect>();
 
     RewritePatternSet patterns(&getContext());
     populateAffineToStdConversionPatterns(patterns);
-    linalg::populateLinalgToStandardConversionPatterns(patterns);
 
     if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {
         signalPassFailure();

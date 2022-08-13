@@ -27,6 +27,7 @@
 #include <mlir/Transforms/DialectConversion.h>
 
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
@@ -111,7 +112,7 @@ struct LaunchKernelLowering : public OpRewritePattern<stencil::LaunchKernelOp> {
             assert(results.size() == targets.size());
 
             for (size_t resultIdx = 0; resultIdx < numResults; ++resultIdx) {
-                builder.create<memref::StoreOp>(loc, results[resultIdx], targets[resultIdx], loopVars);
+                builder.create<AffineStoreOp>(loc, results[resultIdx], targets[resultIdx], loopVars);
             }
         };
 
