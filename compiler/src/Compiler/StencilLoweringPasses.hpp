@@ -8,15 +8,17 @@
 
 class StencilToAffinePass : public mlir::PassWrapper<StencilToAffinePass, mlir::OperationPass<mlir::ModuleOp>> {
 public:
-    StencilToAffinePass(bool makeParallelLoops = false) : m_makeParallelLoops(makeParallelLoops) {}
     void getDependentDialects(mlir::DialectRegistry& registry) const override;
     void runOnOperation() override final;
-
-private:
-    bool m_makeParallelLoops;
 };
 
 class StencilToFuncPass : public mlir::PassWrapper<StencilToFuncPass, mlir::OperationPass<mlir::ModuleOp>> {
+public:
+    void getDependentDialects(mlir::DialectRegistry& registry) const override;
+    void runOnOperation() override final;
+};
+
+class StencilToGPUPass : public mlir::PassWrapper<StencilToGPUPass, mlir::OperationPass<mlir::ModuleOp>> {
 public:
     void getDependentDialects(mlir::DialectRegistry& registry) const override;
     void runOnOperation() override final;

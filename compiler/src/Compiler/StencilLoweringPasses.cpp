@@ -19,7 +19,7 @@
 #include <llvm/ADT/APFloat.h>
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
-#include <mlir/Dialect/Linalg/IR/Linalg.h>
+#include <mlir/Dialect/GPU/IR/GPUDialect.h>
 #include <mlir/IR/BuiltinAttributes.h>
 #include <mlir/IR/Location.h>
 #include <mlir/IR/PatternMatch.h>
@@ -79,54 +79,71 @@ struct KernelReturnLowering : public OpRewritePattern<stencil::ReturnOp> {
     }
 };
 
-struct LaunchKernelLowering : public OpRewritePattern<stencil::LaunchKernelOp> {
-    bool m_makeParallelLoops = false;
+struct LaunchKernelLoweringBase : public OpRewritePattern<stencil::LaunchKernelOp> {
+    using OpRewritePattern<stencil::LaunchKernelOp>::OpRewritePattern;
 
-    LaunchKernelLowering(MLIRContext* context,
-                         PatternBenefit benefit = 1,
-                         ArrayRef<StringRef> generatedNames = {},
-                         bool makeParallelLoops = false)
-        : OpRewritePattern<stencil::LaunchKernelOp>(context, benefit, generatedNames),
-          m_makeParallelLoops(makeParallelLoops) {}
+    static auto CreateLoopBody(stencil::LaunchKernelOp op, OpBuilder& builder, Location loc, ValueRange loopVars) {
+        // Insert a kernel invocation within the loop
+        std::vector<Type> resultTypes;
+        for (const auto& target : op.getTargets()) {
+            auto type = target.getType();
+            assert(type.isa<MemRefType>());
+            resultTypes.push_back(type.dyn_cast<MemRefType>().getElementType());
+        }
+
+        auto call = builder.create<stencil::InvokeKernelOp>(loc, resultTypes, op.getCallee(), loopVars, op.getArguments());
+
+        // Store return values to targets
+        const auto results = call.getResults();
+        const auto targets = op.getTargets();
+        const auto numResults = results.size();
+
+        assert(results.size() == targets.size());
+
+        for (size_t resultIdx = 0; resultIdx < numResults; ++resultIdx) {
+            builder.create<AffineStoreOp>(loc, results[resultIdx], targets[resultIdx], loopVars);
+        }
+    };
+
+    static auto GetGridSize(stencil::LaunchKernelOp op, OpBuilder& builder, Location loc)
+        -> std::vector<Value> {
+        const int64_t numDims = op.getGridDim().size();
+        std::vector<Value> ubValues;
+        for (ptrdiff_t boundIdx = 0; boundIdx < numDims; ++boundIdx) {
+            ubValues.push_back(op.getGridDim()[boundIdx]);
+        }
+        return ubValues;
+    }
+};
+
+struct LaunchKernelLoweringAffineLoop : LaunchKernelLoweringBase {
+    using LaunchKernelLoweringBase::LaunchKernelLoweringBase;
 
     LogicalResult matchAndRewrite(stencil::LaunchKernelOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
         const int64_t numDims = op.getGridDim().size();
 
-        auto createLoopBody = [&op](OpBuilder& builder, Location loc, ValueRange loopVars) {
-            // Insert a kernel invocation within the loop
-            std::vector<Type> resultTypes;
-            for (const auto& target : op.getTargets()) {
-                auto type = target.getType();
-                assert(type.isa<MemRefType>());
-                resultTypes.push_back(type.dyn_cast<MemRefType>().getElementType());
-            }
+        const auto ubValues = GetGridSize(op, rewriter, loc);
+        const auto lbValues = std::vector<Value>(numDims, rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0)));
+        const std::vector<int64_t> steps(numDims, 1);
 
-            auto call = builder.create<stencil::InvokeKernelOp>(loc, resultTypes, op.getCallee(), loopVars, op.getArguments());
+        buildAffineLoopNest(rewriter, loc, lbValues, ubValues, steps, [&op](auto... args) { CreateLoopBody(op, args...); });
+        rewriter.eraseOp(op);
 
-            // Store return values to targets
-            const auto results = call.getResults();
-            const auto targets = op.getTargets();
-            const auto numResults = results.size();
+        return success();
+    }
+};
 
-            assert(results.size() == targets.size());
+struct LaunchKernelLoweringAffineParallel : LaunchKernelLoweringBase {
+    using LaunchKernelLoweringBase::LaunchKernelLoweringBase;
 
-            for (size_t resultIdx = 0; resultIdx < numResults; ++resultIdx) {
-                builder.create<AffineStoreOp>(loc, results[resultIdx], targets[resultIdx], loopVars);
-            }
-        };
+    LogicalResult matchAndRewrite(stencil::LaunchKernelOp op, PatternRewriter& rewriter) const override final {
+        Location loc = op->getLoc();
+        const int64_t numDims = op.getGridDim().size();
 
-
-        // Create loops from domain
-        std::vector<Value> lbValues;
-        std::vector<Value> ubValues;
-        std::vector<int64_t> steps;
-        for (ptrdiff_t boundIdx = 0; boundIdx < numDims; ++boundIdx) {
-            auto lbAttr = rewriter.getIndexAttr(0);
-            lbValues.push_back(rewriter.create<arith::ConstantOp>(loc, lbAttr));
-            ubValues.push_back(*(op.getGridDim().begin() + boundIdx));
-            steps.push_back(1);
-        }
+        const auto ubValues = GetGridSize(op, rewriter, loc);
+        const auto lbValues = std::vector<Value>(numDims, rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0)));
+        const std::vector<int64_t> steps(numDims, 1);
 
         std::vector<AffineExpr> affineDims = {};
         for (ptrdiff_t i = 0; i < numDims; ++i) {
@@ -139,18 +156,78 @@ struct LaunchKernelLowering : public OpRewritePattern<stencil::LaunchKernelOp> {
         std::array<Type, 0> resultTypes{};
         std::vector<arith::AtomicRMWKind> reductions = {};
 
-        if (m_makeParallelLoops) {
-            auto parallelOp = rewriter.create<AffineParallelOp>(loc, resultTypes, reductions, affineMaps, lbValues, affineMaps, ubValues, steps);
-            auto& parallelBlock = *parallelOp.getBody();
-            auto loopVars = parallelBlock.getArguments();
-            rewriter.setInsertionPointToStart(&parallelBlock);
-            createLoopBody(rewriter, loc, loopVars);
-        }
-        else {
-            buildAffineLoopNest(rewriter, loc, lbValues, ubValues, steps, createLoopBody);
-        }
+        auto parallelOp = rewriter.create<AffineParallelOp>(loc, resultTypes, reductions, affineMaps, lbValues, affineMaps, ubValues, steps);
+        auto& parallelBlock = *parallelOp.getBody();
+        auto loopVars = parallelBlock.getArguments();
+        rewriter.setInsertionPointToStart(&parallelBlock);
+        CreateLoopBody(op, rewriter, loc, loopVars);
 
         rewriter.eraseOp(op);
+
+        return success();
+    }
+};
+
+struct LaunchKernelLoweringGPULaunch : LaunchKernelLoweringBase {
+    using LaunchKernelLoweringBase::LaunchKernelLoweringBase;
+
+    LogicalResult matchAndRewrite(stencil::LaunchKernelOp op, PatternRewriter& rewriter) const override final {
+        Location loc = op->getLoc();
+        const int64_t numDims = op.getGridDim().size();
+
+        const auto domainSizes = GetGridSize(op, rewriter, loc);
+
+        const auto blockSizes = [numDims]() -> std::array<int64_t, 3> {
+            switch (numDims) {
+                case 1: return { 256, 1, 1 };
+                case 2: return { 16, 16, 1 };
+                case 3: return { 8, 8, 4 };
+                default: return { 8, 8, 4 };
+            }
+        }();
+
+        Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+        auto DivSnapUpwards = [&rewriter, &loc, &one](Value lhs, Value rhs) {
+            Value decr = rewriter.create<arith::SubIOp>(loc, rhs, one);
+            Value incr = rewriter.create<arith::AddIOp>(loc, lhs, decr);
+            return Value(rewriter.create<arith::DivUIOp>(loc, incr, rhs));
+        };
+
+        auto totalSize = domainSizes;
+        totalSize.resize(3, one);
+
+        auto blockSizeX = rewriter.create<arith::ConstantIndexOp>(loc, blockSizes[0]);
+        auto blockSizeY = rewriter.create<arith::ConstantIndexOp>(loc, blockSizes[1]);
+        auto blockSizeZ = rewriter.create<arith::ConstantIndexOp>(loc, blockSizes[2]);
+
+        auto gridSizeX = DivSnapUpwards(totalSize[0], blockSizeX);
+        auto gridSizeY = DivSnapUpwards(totalSize[1], blockSizeY);
+        auto gridSizeZ = DivSnapUpwards(totalSize[2], blockSizeZ);
+
+        Value dynamicSharedMemorySize = nullptr;
+
+        auto launchOp = rewriter.create<gpu::LaunchOp>(loc,
+                                                       gridSizeX,
+                                                       gridSizeY,
+                                                       gridSizeZ,
+                                                       blockSizeX,
+                                                       blockSizeY,
+                                                       blockSizeZ,
+                                                       dynamicSharedMemorySize);
+
+        Region& body = launchOp.body();
+        Block& block = body.getBlocks().front();
+
+        rewriter.setInsertionPointToEnd(&block);
+        // TODO:
+        // Pass upper bounds to block
+        // Calculate absolute indices from threadIdx.? and blockIdx.?
+        // Add affine::IfOp to halt threads outside bounds
+        // Add affine::ForOp loops if dimension is larger than three
+        rewriter.create<gpu::TerminatorOp>(loc);
+
+        rewriter.eraseOp(op);
+
         return success();
     }
 };
@@ -319,7 +396,7 @@ struct SampleIndirectLowering : public OpRewritePattern<stencil::SampleIndirectO
 
 
 void StencilToAffinePass::getDependentDialects(DialectRegistry& registry) const {
-    registry.insert<arith::ArithmeticDialect, AffineDialect, memref::MemRefDialect, linalg::LinalgDialect>();
+    registry.insert<arith::ArithmeticDialect, AffineDialect, memref::MemRefDialect>();
 }
 
 
@@ -332,7 +409,7 @@ void StencilToAffinePass::runOnOperation() {
     target.addIllegalOp<stencil::LaunchKernelOp>();
 
     RewritePatternSet patterns(&getContext());
-    patterns.add<LaunchKernelLowering>(&getContext(), 1, ArrayRef<StringRef>{}, m_makeParallelLoops);
+    patterns.add<LaunchKernelLoweringAffineLoop>(&getContext(), 1, ArrayRef<StringRef>{});
 
     if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {
         signalPassFailure();
@@ -341,7 +418,7 @@ void StencilToAffinePass::runOnOperation() {
 
 
 void StencilToFuncPass::getDependentDialects(DialectRegistry& registry) const {
-    registry.insert<arith::ArithmeticDialect, AffineDialect, memref::MemRefDialect, linalg::LinalgDialect>();
+    registry.insert<arith::ArithmeticDialect, AffineDialect, memref::MemRefDialect>();
 }
 
 
@@ -364,6 +441,33 @@ void StencilToFuncPass::runOnOperation() {
     patterns.add<SampleLowering>(&getContext());
     patterns.add<JumpIndirectLowering>(&getContext());
     patterns.add<SampleIndirectLowering>(&getContext());
+
+    if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {
+        signalPassFailure();
+    }
+}
+
+
+void StencilToGPUPass::getDependentDialects(DialectRegistry& registry) const {
+    registry.insert<arith::ArithmeticDialect,
+                    AffineDialect,
+                    memref::MemRefDialect,
+                    stencil::StencilDialect,
+                    gpu::GPUDialect>();
+}
+
+
+void StencilToGPUPass::runOnOperation() {
+    ConversionTarget target(getContext());
+    target.addLegalDialect<AffineDialect>();
+    target.addLegalDialect<gpu::GPUDialect>();
+    target.addLegalDialect<arith::ArithmeticDialect>();
+    target.addLegalDialect<memref::MemRefDialect>();
+    target.addLegalDialect<stencil::StencilDialect>();
+    target.addIllegalOp<stencil::LaunchKernelOp>();
+
+    RewritePatternSet patterns(&getContext());
+    patterns.add<LaunchKernelLoweringGPULaunch>(&getContext());
 
     if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {
         signalPassFailure();

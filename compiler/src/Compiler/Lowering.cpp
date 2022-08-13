@@ -27,14 +27,14 @@ mlir::ModuleOp CloneModule(mlir::ModuleOp original) {
 }
 
 
-void ApplyLowerToAffine(mlir::MLIRContext& context, mlir::ModuleOp& op, bool makeParallelLoops = false) {
+void ApplyLowerToAffine(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     mlir::PassManager passManager(&context);
-    passManager.addPass(std::make_unique<StencilToAffinePass>(makeParallelLoops));
+    passManager.addPass(std::make_unique<StencilToAffinePass>());
     ThrowIfFailed(passManager.run(op), "Failed to lower to Affine.");
 }
 
 
-void ApplyLowerToFunc(mlir::MLIRContext& context, mlir::ModuleOp& op, bool makeParallelLoops = false) {
+void ApplyLowerToFunc(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     mlir::PassManager passManager(&context);
     passManager.addPass(std::make_unique<StencilToFuncPass>());
     passManager.addPass(std::make_unique<PrintToLLVMPass>());
@@ -111,10 +111,20 @@ auto LowerToLLVMCPU(mlir::MLIRContext& context, const mlir::ModuleOp& module)
     return stages;
 }
 
+void ApplyLowerToGPU(mlir::MLIRContext& context, mlir::ModuleOp& op) {
+    mlir::PassManager passManager(&context);
+    passManager.addPass(std::make_unique<StencilToGPUPass>());
+    ThrowIfFailed(passManager.run(op), "Failed to lower to GPU.");
+}
 
-auto LowerToLLVMGPU(mlir::MLIRContext& context, const mlir::ModuleOp& module) {
-    std::vector<std::pair<std::string, std::string>> stages;
-    auto clone = mlir::dyn_cast<mlir::ModuleOp>(module->clone());
+auto LowerToLLVMGPU(mlir::MLIRContext& context, const mlir::ModuleOp& module)
+    -> std::vector<std::pair<std::string, mlir::ModuleOp>> {
+    std::vector<std::pair<std::string, mlir::ModuleOp>> stages;
+    auto mutableModule = CloneModule(module);
 
-    return std::tuple{ clone, stages };
+    ApplyLowerToGPU(context, mutableModule);
+    ApplyCleanupPasses(context, mutableModule);
+    stages.push_back({ "GPU", CloneModule(mutableModule) });
+
+    return stages;
 }
