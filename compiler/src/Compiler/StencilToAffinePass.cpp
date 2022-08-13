@@ -78,13 +78,13 @@ struct KernelReturnLowering : public OpRewritePattern<stencil::ReturnOp> {
     }
 };
 
-struct KernelCallLowering : public OpRewritePattern<stencil::LaunchKernelOp> {
+struct LaunchKernelLowering : public OpRewritePattern<stencil::LaunchKernelOp> {
     bool m_makeParallelLoops = false;
 
-    KernelCallLowering(MLIRContext* context,
-                       PatternBenefit benefit = 1,
-                       ArrayRef<StringRef> generatedNames = {},
-                       bool makeParallelLoops = false)
+    LaunchKernelLowering(MLIRContext* context,
+                         PatternBenefit benefit = 1,
+                         ArrayRef<StringRef> generatedNames = {},
+                         bool makeParallelLoops = false)
         : OpRewritePattern<stencil::LaunchKernelOp>(context, benefit, generatedNames),
           m_makeParallelLoops(makeParallelLoops) {}
 
@@ -92,23 +92,8 @@ struct KernelCallLowering : public OpRewritePattern<stencil::LaunchKernelOp> {
         Location loc = op->getLoc();
         const int64_t numDims = op.getGridDim().size();
 
-        auto createLoopBody = [&op, numDims](OpBuilder& builder, Location loc, ValueRange loopVars) {
-            auto MakeIndex = [&builder, &loc](int64_t value) {
-                return builder.create<arith::ConstantOp>(loc, builder.getIndexAttr(value));
-            };
-
-            // Make operands list: { index, args... }
-            auto index = builder.create<memref::AllocaOp>(loc, MemRefType::get({ numDims }, builder.getIndexType()));
-            for (ptrdiff_t dimIdx = 0; dimIdx < numDims; ++dimIdx) {
-                builder.create<memref::StoreOp>(loc, loopVars[dimIdx], index, ValueRange{ MakeIndex(dimIdx) });
-            }
-
-            std::vector<Value> operands;
-            operands.push_back(index);
-            for (const auto& argument : op.getArguments()) {
-                operands.push_back(argument);
-            }
-
+        auto createLoopBody = [&op](OpBuilder& builder, Location loc, ValueRange loopVars) {
+            // Insert a kernel invocation within the loop
             std::vector<Type> resultTypes;
             for (const auto& target : op.getTargets()) {
                 auto type = target.getType();
@@ -116,8 +101,7 @@ struct KernelCallLowering : public OpRewritePattern<stencil::LaunchKernelOp> {
                 resultTypes.push_back(type.dyn_cast<MemRefType>().getElementType());
             }
 
-            // Create regular function call to kernel
-            auto call = builder.create<func::CallOp>(loc, op.getCallee(), resultTypes, operands);
+            auto call = builder.create<stencil::InvokeKernelOp>(loc, resultTypes, op.getCallee(), loopVars, op.getArguments());
 
             // Store return values to targets
             const auto results = call.getResults();
@@ -169,6 +153,37 @@ struct KernelCallLowering : public OpRewritePattern<stencil::LaunchKernelOp> {
         return success();
     }
 };
+
+
+struct InvokeKernelLowering : public OpRewritePattern<stencil::InvokeKernelOp> {
+    using OpRewritePattern<stencil::InvokeKernelOp>::OpRewritePattern;
+
+    LogicalResult matchAndRewrite(stencil::InvokeKernelOp op, PatternRewriter& rewriter) const override {
+        Location loc = op->getLoc();
+
+        auto MakeIndex = [&rewriter, &loc](int64_t value) {
+            return rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(value));
+        };
+
+        const int64_t numDims = op.getIndices().size();
+        auto index = rewriter.create<memref::AllocaOp>(loc, MemRefType::get({ numDims }, rewriter.getIndexType()));
+        for (ptrdiff_t dimIdx = 0; dimIdx < numDims; ++dimIdx) {
+            rewriter.create<memref::StoreOp>(loc, op.getIndices()[dimIdx], index, ValueRange{ MakeIndex(dimIdx) });
+        }
+
+        std::vector<Value> operands;
+        operands.push_back(index);
+        for (const auto& argument : op.getArguments()) {
+            operands.push_back(argument);
+        }
+        const auto resultTypes = op->getResultTypes();
+
+        rewriter.replaceOpWithNewOp<func::CallOp>(op, op.getCallee(), resultTypes, operands);
+
+        return success();
+    }
+};
+
 
 struct IndexLowering : public OpRewritePattern<stencil::IndexOp> {
     using OpRewritePattern<stencil::IndexOp>::OpRewritePattern;
@@ -320,7 +335,8 @@ void StencilToAffinePass::runOnOperation() {
     RewritePatternSet patterns(&getContext());
     patterns.add<KernelLowering>(&getContext());
     patterns.add<KernelReturnLowering>(&getContext());
-    patterns.add<KernelCallLowering>(&getContext(), 1, ArrayRef<StringRef>{}, m_makeParallelLoops);
+    patterns.add<LaunchKernelLowering>(&getContext(), 1, ArrayRef<StringRef>{}, m_makeParallelLoops);
+    patterns.add<InvokeKernelLowering>(&getContext());
 
     patterns.add<IndexLowering>(&getContext());
     patterns.add<JumpLowering>(&getContext());

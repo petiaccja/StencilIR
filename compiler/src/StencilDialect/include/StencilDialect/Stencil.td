@@ -145,6 +145,36 @@ def LaunchKernelOp : Stencil_Op<"launch_kernel", [
 }
 
 
+def InvokeKernelOp : Stencil_Op<"invoke_kernel", [
+  CallOpInterface, MemRefsNormalizable, AttrSizedOperandSegments,
+  DeclareOpInterfaceMethods<SymbolUserOpInterface>, NoSideEffect
+]> {
+  let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<Index>:$indices, Variadic<AnyType>:$arguments);
+  let results = (outs Variadic<AnyType>);
+  let extraClassDeclaration = [{
+    mlir::FunctionType getCalleeType();
+
+    /// Get the argument operands to the called function.
+    operand_range getArgOperands() {
+      return {arg_operand_begin(), arg_operand_end()};
+    }
+
+    operand_iterator arg_operand_begin() { return operand_begin(); }
+    operand_iterator arg_operand_end() { return operand_end(); }
+
+    /// Return the callee of this operation.
+    mlir::CallInterfaceCallable getCallableForCallee() {
+      return (*this)->getAttrOfType<mlir::SymbolRefAttr>("callee");
+    }
+  }];
+
+  let hasCustomAssemblyFormat = 1;
+  let assemblyFormat = [{
+    $callee `<` $indices `>` `(` $arguments `)` attr-dict `:` functional-type($arguments, results)
+  }];
+}
+
+
 def ReturnOp : Stencil_Op<"return", [
   ReturnLike, Terminator, MemRefsNormalizable, NoSideEffect, HasParent<"KernelOp">
 ]> {
