@@ -108,7 +108,7 @@ def LaunchKernelOp : Stencil_Op<"launch_kernel", [
   CallOpInterface, MemRefsNormalizable, AttrSizedOperandSegments,
   DeclareOpInterfaceMethods<SymbolUserOpInterface>
 ]> {
-  let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<Index>:$grid_dim, Variadic<AnyType>:$targets, Variadic<AnyType>:$arguments);
+  let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<Index>:$grid_dim, Variadic<AnyMemRef>:$targets, Variadic<AnyType>:$arguments);
 
   let extraClassDeclaration = [{
     mlir::FunctionType getCalleeType();
