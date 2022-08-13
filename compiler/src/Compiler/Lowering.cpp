@@ -1,8 +1,8 @@
 #include "Lowering.hpp"
 
-#include "StencilToAffinePass.hpp"
 #include "LoweringPasses.hpp"
 #include "PrintToLLVMPass.hpp"
+#include "StencilLoweringPasses.hpp"
 
 #include <StencilDialect/StencilDialect.hpp>
 
@@ -30,8 +30,15 @@ mlir::ModuleOp CloneModule(mlir::ModuleOp original) {
 void ApplyLowerToAffine(mlir::MLIRContext& context, mlir::ModuleOp& op, bool makeParallelLoops = false) {
     mlir::PassManager passManager(&context);
     passManager.addPass(std::make_unique<StencilToAffinePass>(makeParallelLoops));
-    passManager.addPass(std::make_unique<PrintToLLVMPass>());
     ThrowIfFailed(passManager.run(op), "Failed to lower to Affine.");
+}
+
+
+void ApplyLowerToFunc(mlir::MLIRContext& context, mlir::ModuleOp& op, bool makeParallelLoops = false) {
+    mlir::PassManager passManager(&context);
+    passManager.addPass(std::make_unique<StencilToFuncPass>());
+    passManager.addPass(std::make_unique<PrintToLLVMPass>());
+    ThrowIfFailed(passManager.run(op), "Failed to lower to Func.");
 }
 
 
@@ -83,7 +90,11 @@ auto LowerToLLVMCPU(mlir::MLIRContext& context, const mlir::ModuleOp& module)
 
     ApplyLowerToAffine(context, mutableModule);
     ApplyCleanupPasses(context, mutableModule);
-    stages.push_back({ "Affine & Func", CloneModule(mutableModule) });
+    stages.push_back({ "Affine", CloneModule(mutableModule) });
+
+    ApplyLowerToFunc(context, mutableModule);
+    ApplyCleanupPasses(context, mutableModule);
+    stages.push_back({ "Func", CloneModule(mutableModule) });
 
     ApplyLowerToScf(context, mutableModule);
     ApplyCleanupPasses(context, mutableModule);

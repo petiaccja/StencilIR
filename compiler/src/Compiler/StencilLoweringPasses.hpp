@@ -15,3 +15,9 @@ public:
 private:
     bool m_makeParallelLoops;
 };
+
+class StencilToFuncPass : public mlir::PassWrapper<StencilToFuncPass, mlir::OperationPass<mlir::ModuleOp>> {
+public:
+    void getDependentDialects(mlir::DialectRegistry& registry) const override;
+    void runOnOperation() override final;
+};

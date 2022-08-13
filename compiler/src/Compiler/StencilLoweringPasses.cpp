@@ -1,4 +1,4 @@
-#include "StencilToAffinePass.hpp"
+#include "StencilLoweringPasses.hpp"
 
 #include <StencilDialect/StencilDialect.hpp>
 #include <StencilDialect/StencilOps.hpp>
@@ -326,16 +326,36 @@ void StencilToAffinePass::runOnOperation() {
     ConversionTarget target(getContext());
     target.addLegalDialect<AffineDialect>();
     target.addLegalDialect<arith::ArithmeticDialect>();
+    target.addLegalDialect<memref::MemRefDialect>();
+    target.addLegalDialect<stencil::StencilDialect>();
+    target.addIllegalOp<stencil::LaunchKernelOp>();
+
+    RewritePatternSet patterns(&getContext());
+    patterns.add<LaunchKernelLowering>(&getContext(), 1, ArrayRef<StringRef>{}, m_makeParallelLoops);
+
+    if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {
+        signalPassFailure();
+    }
+}
+
+
+void StencilToFuncPass::getDependentDialects(DialectRegistry& registry) const {
+    registry.insert<arith::ArithmeticDialect, AffineDialect, memref::MemRefDialect, linalg::LinalgDialect>();
+}
+
+
+void StencilToFuncPass::runOnOperation() {
+    ConversionTarget target(getContext());
+    target.addLegalDialect<AffineDialect>();
+    target.addLegalDialect<arith::ArithmeticDialect>();
     target.addLegalDialect<func::FuncDialect>();
     target.addLegalDialect<memref::MemRefDialect>();
-    target.addLegalDialect<linalg::LinalgDialect>();
     target.addIllegalDialect<stencil::StencilDialect>();
     target.addLegalOp<stencil::PrintOp>();
 
     RewritePatternSet patterns(&getContext());
     patterns.add<KernelLowering>(&getContext());
     patterns.add<KernelReturnLowering>(&getContext());
-    patterns.add<LaunchKernelLowering>(&getContext(), 1, ArrayRef<StringRef>{}, m_makeParallelLoops);
     patterns.add<InvokeKernelLowering>(&getContext());
 
     patterns.add<IndexLowering>(&getContext());

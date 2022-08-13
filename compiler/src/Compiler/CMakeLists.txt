@@ -15,8 +15,8 @@ target_sources(Compiler
         PrintToLLVMPass.cpp
         LoweringPasses.hpp
         LoweringPasses.cpp
-        StencilToAffinePass.cpp
-        StencilToAffinePass.hpp
+        StencilLoweringPasses.cpp
+        StencilLoweringPasses.hpp
         Lowering.cpp
         Lowering.hpp
 )

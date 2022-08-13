@@ -126,14 +126,14 @@ LogicalResult InvokeKernelOp::verifySymbolUses(SymbolTableCollection& symbolTabl
 
     // Verify that the operand and result types match the callee.
     auto fnType = fn.getFunctionType();
-    if (fnType.getNumInputs() != getNumOperands())
+    if (fnType.getNumInputs() != getArguments().size())
         return emitOpError("incorrect number of operands for callee");
 
     for (unsigned i = 0, e = fnType.getNumInputs(); i != e; ++i)
-        if (getOperand(i).getType() != fnType.getInput(i))
+        if (getArguments()[i].getType() != fnType.getInput(i))
             return emitOpError("operand type mismatch: expected operand type ")
                    << fnType.getInput(i) << ", but provided "
-                   << getOperand(i).getType() << " for operand number " << i;
+                   << getArguments()[i].getType() << " for operand number " << i;
 
     if (fnType.getNumResults() != getNumResults())
         return emitOpError("incorrect number of results for callee");
@@ -150,5 +150,9 @@ LogicalResult InvokeKernelOp::verifySymbolUses(SymbolTableCollection& symbolTabl
 }
 
 FunctionType InvokeKernelOp::getCalleeType() {
-    return FunctionType::get(getContext(), getOperandTypes(), getResultTypes());
+    std::vector<Type> argumentTypes;
+    for (const auto& arg : getArguments()) {
+        argumentTypes.push_back(arg.getType());
+    }
+    return FunctionType::get(getContext(), argumentTypes, getResultTypes());
 }
