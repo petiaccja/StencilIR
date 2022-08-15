@@ -1,4 +1,5 @@
 #include <AST/AST.hpp>
+#include <AST/Build.hpp>
 #include <AST/LowerToIR.hpp>
 #include <AST/Node.hpp>
 #include <AST/Types.hpp>
@@ -11,79 +12,55 @@
 
 
 std::shared_ptr<ast::Module> CreateLaplacian() {
-    auto cellK = std::make_shared<ast::SymbolRef>("cellK");
-    auto edgeToCell = std::make_shared<ast::SymbolRef>("edgeToCell");
-    auto cellWeights = std::make_shared<ast::SymbolRef>("cellWeights");
+    auto cellK = ast::symref("cellK");
+    auto edgeToCell = ast::symref("edgeToCell");
+    auto cellWeights = ast::symref("cellWeights");
 
     // Kernel logic
-    auto field = std::make_shared<ast::SymbolRef>("cellK");
+    auto field = ast::symref("cellK");
 
-    auto c0 = std::make_shared<ast::Constant<int64_t>>(0, types::FundamentalType::SSIZE);
-    auto c1 = std::make_shared<ast::Constant<int64_t>>(1, types::FundamentalType::SSIZE);
-    auto index = std::make_shared<ast::Index>();
-    auto indexLeft = std::make_shared<ast::JumpIndirect>(index, 0, edgeToCell, c0);
-    auto indexRight = std::make_shared<ast::JumpIndirect>(index, 0, edgeToCell, c1);
-    auto weightLeft = std::make_shared<ast::SampleIndirect>(index, 0, cellWeights, c0);
-    auto weightRight = std::make_shared<ast::SampleIndirect>(index, 0, cellWeights, c1);
-    auto sampleLeft = std::make_shared<ast::Sample>(cellK, indexLeft);
-    auto sampleRight = std::make_shared<ast::Sample>(cellK, indexRight);
-    auto prodLeft = std::make_shared<ast::Mul>(sampleLeft, weightLeft);
-    auto prodRight = std::make_shared<ast::Mul>(sampleRight, weightRight);
-    auto sum = std::make_shared<ast::Sub>(prodLeft, prodRight);
+    auto c0 = ast::constant(0, types::FundamentalType::SSIZE);
+    auto c1 = ast::constant(1, types::FundamentalType::SSIZE);
 
-    auto ret = std::make_shared<ast::KernelReturn>(std::vector<std::shared_ptr<ast::Expression>>{ sum });
+    auto weightLeft = ast::sample_indirect(ast::index(), 0, cellWeights, c0);
+    auto weightRight = ast::sample_indirect(ast::index(), 0, cellWeights, c1);
+    auto sampleLeft = ast::sample(cellK, ast::jump_indirect(ast::index(), 0, edgeToCell, c0));
+    auto sampleRight = ast::sample(cellK, ast::jump_indirect(ast::index(), 0, edgeToCell, c1));
+    auto sum = ast::sub(ast::mul(sampleLeft, weightLeft),
+                        ast::mul(sampleRight, weightRight));
 
-    std::vector<ast::Parameter> kernelParams = {
-        { "cellK", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-        { "edgeToCell", types::FieldType{ types::FundamentalType::SSIZE, 2 } },
-        { "cellWeights", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-    };
-    std::vector<types::Type> kernelReturns = { types::FundamentalType::FLOAT32 };
-    std::vector<std::shared_ptr<ast::Statement>> kernelBody{ ret };
-    auto kernel = std::make_shared<ast::KernelFunc>("edge_diffs",
-                                                    kernelParams,
-                                                    kernelReturns,
-                                                    kernelBody,
-                                                    2);
+    auto ret = ast::kernel_return({ sum });
+
+    auto kernel = ast::kernel("edge_diffs",
+                              {
+                                  { "cellK", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
+                                  { "edgeToCell", types::FieldType{ types::FundamentalType::SSIZE, 2 } },
+                                  { "cellWeights", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
+                              },
+                              { types::FundamentalType::FLOAT32 },
+                              { ret },
+                              2);
 
     // Main function logic
-    auto outEdgeK = std::make_shared<ast::SymbolRef>("outEdgeK");
-    auto numEdges = std::make_shared<ast::SymbolRef>("numEdges");
-    auto numLevels = std::make_shared<ast::SymbolRef>("numLevels");
+    auto outEdgeK = ast::symref("outEdgeK");
+    auto numEdges = ast::symref("numEdges");
+    auto numLevels = ast::symref("numLevels");
 
-    std::vector<std::shared_ptr<ast::Expression>> gridDim = {
-        numEdges,
-        numLevels,
-    };
-    std::vector<std::shared_ptr<ast::Expression>> kernelArgs{
-        cellK,
-        edgeToCell,
-        cellWeights,
-    };
-    std::vector<std::shared_ptr<ast::Expression>> kernelTargets{
-        outEdgeK,
-    };
-    auto kernelLaunch = std::make_shared<ast::KernelLaunch>(kernel->name,
-                                                            gridDim,
-                                                            kernelArgs,
-                                                            kernelTargets);
+    auto kernelLaunch = ast::launch(kernel->name,
+                                    { numEdges, numLevels },
+                                    { cellK, edgeToCell, cellWeights },
+                                    { outEdgeK });
 
-    // Module
-    auto moduleParams = std::vector<ast::Parameter>{
-        { "cellK", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-        { "edgeToCell", types::FieldType{ types::FundamentalType::SSIZE, 2 } },
-        { "cellWeights", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-        { "outEdgeK", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-        { "numEdges", types::FundamentalType::SSIZE },
-        { "numLevels", types::FundamentalType::SSIZE },
-    };
-
-    auto moduleBody = std::vector<std::shared_ptr<ast::Node>>{ kernelLaunch };
-    auto moduleKernels = std::vector<std::shared_ptr<ast::KernelFunc>>{ kernel };
-
-    return std::make_shared<ast::Module>(moduleBody,
-                                         moduleKernels,
-                                         moduleParams);
+    return ast::module_({ kernelLaunch },
+                        { kernel },
+                        {
+                            { "cellK", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
+                            { "edgeToCell", types::FieldType{ types::FundamentalType::SSIZE, 2 } },
+                            { "cellWeights", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
+                            { "outEdgeK", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
+                            { "numEdges", types::FundamentalType::SSIZE },
+                            { "numLevels", types::FundamentalType::SSIZE },
+                        });
 }
 
 

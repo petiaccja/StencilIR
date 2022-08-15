@@ -1,10 +1,10 @@
-#include <Execution/Execution.hpp>
-
 #include <AST/AST.hpp>
+#include <AST/Build.hpp>
 #include <AST/LowerToIR.hpp>
 #include <AST/Node.hpp>
 #include <AST/Types.hpp>
 #include <Compiler/Lowering.hpp>
+#include <Execution/Execution.hpp>
 
 #include <iostream>
 #include <string_view>
@@ -12,92 +12,48 @@
 
 std::shared_ptr<ast::Module> CreateLaplacian() {
     // Kernel logic
-    auto field = std::make_shared<ast::SymbolRef>("field");
+    auto field = ast::symref("field");
 
-    auto index = std::make_shared<ast::Index>();
-
-    std::array<std::shared_ptr<ast::Expression>, 5> offsetIndices = {
-        index,
-        std::make_shared<ast::Jump>(index, std::vector<int64_t>{ 0, 1 }),
-        std::make_shared<ast::Jump>(index, std::vector<int64_t>{ 1, 0 }),
-        std::make_shared<ast::Jump>(index, std::vector<int64_t>{ 0, -1 }),
-        std::make_shared<ast::Jump>(index, std::vector<int64_t>{ -1, 0 }),
-    };
-    std::array<std::shared_ptr<ast::Expression>, 5> samples = {
-        std::make_shared<ast::Sample>(field, offsetIndices[0]),
-        std::make_shared<ast::Sample>(field, offsetIndices[1]),
-        std::make_shared<ast::Sample>(field, offsetIndices[2]),
-        std::make_shared<ast::Sample>(field, offsetIndices[3]),
-        std::make_shared<ast::Sample>(field, offsetIndices[4]),
-    };
-    std::array<std::shared_ptr<ast::Expression>, 5> weights = {
-        std::make_shared<ast::Constant<float>>(4.0f),
-        std::make_shared<ast::Constant<float>>(-1.0f),
-        std::make_shared<ast::Constant<float>>(-1.0f),
-        std::make_shared<ast::Constant<float>>(-1.0f),
-        std::make_shared<ast::Constant<float>>(-1.0f),
-    };
-    std::array<std::shared_ptr<ast::Expression>, 5> products = {
-        std::make_shared<ast::Mul>(samples[0], weights[0]),
-        std::make_shared<ast::Mul>(samples[1], weights[1]),
-        std::make_shared<ast::Mul>(samples[2], weights[2]),
-        std::make_shared<ast::Mul>(samples[3], weights[3]),
-        std::make_shared<ast::Mul>(samples[4], weights[4]),
+    std::array samples = {
+        ast::mul(ast::constant(4.0f), ast::sample(field, ast::index())),
+        ast::mul(ast::constant(-1.0f), ast::sample(field, ast::jump(ast::index(), { 0, 1 }))),
+        ast::mul(ast::constant(-1.0f), ast::sample(field, ast::jump(ast::index(), { 1, 0 }))),
+        ast::mul(ast::constant(-1.0f), ast::sample(field, ast::jump(ast::index(), { 0, -1 }))),
+        ast::mul(ast::constant(-1.0f), ast::sample(field, ast::jump(ast::index(), { -1, 0 }))),
     };
 
-    auto sum = std::make_shared<ast::Add>(products[0], products[1]);
-    sum = std::make_shared<ast::Add>(sum, products[2]);
-    sum = std::make_shared<ast::Add>(sum, products[3]);
-    sum = std::make_shared<ast::Add>(sum, products[4]);
+    auto sum = ast::add(samples[0], ast::add(samples[1], ast::add(samples[2], ast::add(samples[3], samples[4]))));
+    auto ret = ast::kernel_return({ sum });
 
-    auto ret = std::make_shared<ast::KernelReturn>(std::vector<std::shared_ptr<ast::Expression>>{ sum });
-
-    std::vector<ast::Parameter> kernelParams = {
-        { "field", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-    };
-    std::vector<types::Type> kernelReturns = { types::FundamentalType::FLOAT32 };
-    std::vector<std::shared_ptr<ast::Statement>> kernelBody{ ret };
-    auto kernel = std::make_shared<ast::KernelFunc>("laplacian",
-                                                    kernelParams,
-                                                    kernelReturns,
-                                                    kernelBody,
-                                                    2);
+    auto kernel = ast::kernel("laplacian",
+                              { { "field", types::FieldType{ types::FundamentalType::FLOAT32, 2 } } },
+                              { types::FundamentalType::FLOAT32 },
+                              { ret },
+                              2);
 
     // Main function logic
-    auto inputField = std::make_shared<ast::SymbolRef>("input");
-    auto output = std::make_shared<ast::SymbolRef>("out");
-    auto sizeX = std::make_shared<ast::SymbolRef>("sizeX");
-    auto sizeY = std::make_shared<ast::SymbolRef>("sizeY");
+    auto inputField = ast::symref("input");
+    auto output = ast::symref("out");
+    auto sizeX = ast::symref("sizeX");
+    auto sizeY = ast::symref("sizeY");
 
-    std::vector<std::shared_ptr<ast::Expression>> gridDim = {
-        sizeX,
-        sizeY,
-    };
-    std::vector<std::shared_ptr<ast::Expression>> kernelArgs{
-        inputField,
-    };
-    std::vector<std::shared_ptr<ast::Expression>> kernelTargets{
-        output,
-    };
-    auto kernelLaunch = std::make_shared<ast::KernelLaunch>(kernel->name,
-                                                            gridDim,
-                                                            kernelArgs,
-                                                            kernelTargets);
+    auto kernelLaunch = ast::launch(kernel->name,
+                                    { sizeX, sizeY },
+                                    { inputField },
+                                    { output });
 
     // Module
-    auto moduleParams = std::vector<ast::Parameter>{
-        { "input", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-        { "out", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-        { "sizeX", types::FundamentalType::SSIZE },
-        { "sizeY", types::FundamentalType::SSIZE },
-    };
-
     auto moduleBody = std::vector<std::shared_ptr<ast::Node>>{ kernelLaunch };
-    auto moduleKernels = std::vector<std::shared_ptr<ast::KernelFunc>>{ kernel };
+    auto moduleKernels = std::vector<std::shared_ptr<ast::Kernel>>{ kernel };
 
-    return std::make_shared<ast::Module>(moduleBody,
-                                         moduleKernels,
-                                         moduleParams);
+    return ast::module_({ kernelLaunch },
+                        { kernel },
+                        {
+                            { "input", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
+                            { "out", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
+                            { "sizeX", types::FundamentalType::SSIZE },
+                            { "sizeY", types::FundamentalType::SSIZE },
+                        });
 }
 
 

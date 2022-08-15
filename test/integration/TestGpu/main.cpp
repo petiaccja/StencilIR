@@ -1,4 +1,5 @@
 #include <AST/AST.hpp>
+#include <AST/Build.hpp>
 #include <AST/LowerToIR.hpp>
 #include <AST/Node.hpp>
 #include <AST/Types.hpp>
@@ -11,65 +12,39 @@
 
 std::shared_ptr<ast::Module> CreateDdx() {
     // Kernel logic
-    const auto field = std::make_shared<ast::SymbolRef>("field");
-
-    const auto index = std::make_shared<ast::Index>();
-
-    const auto left = std::make_shared<ast::Jump>(index, std::vector<int64_t>{ -1, 0 });
-    const auto right = std::make_shared<ast::Jump>(index, std::vector<int64_t>{ 1, 0 });
-
-    const auto sleft = std::make_shared<ast::Sample>(field, left);
-    const auto sright = std::make_shared<ast::Sample>(field, right);
-
-    const auto ddx = std::make_shared<ast::Sub>(sright, sleft);
-    auto ret = std::make_shared<ast::KernelReturn>(std::vector<std::shared_ptr<ast::Expression>>{ ddx });
-
-    std::vector<ast::Parameter> kernelParams = {
-        { "field", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-    };
-    std::vector<types::Type> kernelReturns = { types::FundamentalType::FLOAT32 };
-    std::vector<std::shared_ptr<ast::Statement>> kernelBody{ ret };
-    auto kernel = std::make_shared<ast::KernelFunc>("ddx",
-                                                    kernelParams,
-                                                    kernelReturns,
-                                                    kernelBody,
-                                                    2);
+    const auto field = ast::symref("field");
+    const auto index = ast::index();
+    const auto left = ast::jump(index, { -1, 0 });
+    const auto right = ast::jump(index, { 1, 0 });
+    const auto sleft = ast::sample(field, left);
+    const auto sright = ast::sample(field, right);
+    const auto ddx = ast::sub(sright, sleft);
+    auto ret = ast::kernel_return({ ddx });
+    auto kernel = ast::kernel("ddx",
+                              { { "field", types::FieldType{ types::FundamentalType::FLOAT32, 2 } } },
+                              { types::FundamentalType::FLOAT32 },
+                              { ret },
+                              2);
 
     // Main function logic
-    auto inputField = std::make_shared<ast::SymbolRef>("input");
-    auto output = std::make_shared<ast::SymbolRef>("out");
-    auto sizeX = std::make_shared<ast::SymbolRef>("sizeX");
-    auto sizeY = std::make_shared<ast::SymbolRef>("sizeY");
+    auto inputField = ast::symref("input");
+    auto output = ast::symref("out");
+    auto sizeX = ast::symref("sizeX");
+    auto sizeY = ast::symref("sizeY");
 
-    std::vector<std::shared_ptr<ast::Expression>> gridDim = {
-        sizeX,
-        sizeY,
-    };
-    std::vector<std::shared_ptr<ast::Expression>> kernelArgs{
-        inputField,
-    };
-    std::vector<std::shared_ptr<ast::Expression>> kernelTargets{
-        output,
-    };
-    auto kernelLaunch = std::make_shared<ast::KernelLaunch>(kernel->name,
-                                                            gridDim,
-                                                            kernelArgs,
-                                                            kernelTargets);
+    auto kernelLaunch = ast::launch(kernel->name,
+                                    { sizeX, sizeY },
+                                    { inputField },
+                                    { output });
 
-    // Module
-    auto moduleParams = std::vector<ast::Parameter>{
-        { "input", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-        { "out", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-        { "sizeX", types::FundamentalType::SSIZE },
-        { "sizeY", types::FundamentalType::SSIZE },
-    };
-
-    auto moduleBody = std::vector<std::shared_ptr<ast::Node>>{ kernelLaunch };
-    auto moduleKernels = std::vector<std::shared_ptr<ast::KernelFunc>>{ kernel };
-
-    return std::make_shared<ast::Module>(moduleBody,
-                                         moduleKernels,
-                                         moduleParams);
+    return ast::module_({ kernelLaunch },
+                        { kernel },
+                        {
+                            { "input", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
+                            { "out", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
+                            { "sizeX", types::FundamentalType::SSIZE },
+                            { "sizeY", types::FundamentalType::SSIZE },
+                        });
 }
 
 void DumpIR(mlir::ModuleOp ir, std::string_view name = {}) {

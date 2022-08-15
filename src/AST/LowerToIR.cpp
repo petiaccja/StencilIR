@@ -174,7 +174,7 @@ struct ASTToMLIRRules {
     mlir::OpBuilder& builder;
     SymbolTable<std::string, mlir::Value>& symbolTable;
     std::optional<mlir::ModuleOp>& moduleOp;
-    std::shared_ptr<const ast::KernelFunc>& currentFunc;
+    std::shared_ptr<const ast::Kernel>& currentFunc;
 
     template <class Func>
     void InsertInBlock(mlir::Block& block, Func func) const {
@@ -276,8 +276,8 @@ struct ASTToMLIRRules {
     // Structure
     //--------------------------------------------------------------------------
 
-    auto operator()(const ASTToMLIRTranformer& tf, const ast::KernelFunc& node) const -> std::vector<mlir::Value> {
-        currentFunc = std::dynamic_pointer_cast<const ast::KernelFunc>(node.shared_from_this());
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::Kernel& node) const -> std::vector<mlir::Value> {
+        currentFunc = std::dynamic_pointer_cast<const ast::Kernel>(node.shared_from_this());
 
         // Create operation
         std::vector<mlir::Type> inputTypes{};
@@ -326,7 +326,7 @@ struct ASTToMLIRRules {
         return {};
     }
 
-    auto operator()(const ASTToMLIRTranformer& tf, const ast::KernelLaunch& node) const -> std::vector<mlir::Value> {
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::Launch& node) const -> std::vector<mlir::Value> {
         const auto callee = mlir::StringRef(node.callee);
 
         std::vector<mlir::Value> gridDim;
@@ -464,7 +464,7 @@ mlir::ModuleOp LowerToIR(mlir::MLIRContext& context, const ast::Module& node) {
     mlir::OpBuilder builder{ &context };
     SymbolTable<std::string, mlir::Value> symbolTable;
     std::optional<mlir::ModuleOp> moduleOp;
-    std::shared_ptr<const ast::KernelFunc> currentFunc;
+    std::shared_ptr<const ast::Kernel> currentFunc;
     ASTToMLIRTranformer transformer;
     ASTToMLIRRules rules{ builder, symbolTable, moduleOp, currentFunc };
 
@@ -475,9 +475,9 @@ mlir::ModuleOp LowerToIR(mlir::MLIRContext& context, const ast::Module& node) {
     transformer.AddNodeTransformer<ast::ReshapeField>(rules);
 
     transformer.AddNodeTransformer<ast::Module>(rules);
-    transformer.AddNodeTransformer<ast::KernelFunc>(rules);
+    transformer.AddNodeTransformer<ast::Kernel>(rules);
     transformer.AddNodeTransformer<ast::KernelReturn>(rules);
-    transformer.AddNodeTransformer<ast::KernelLaunch>(rules);
+    transformer.AddNodeTransformer<ast::Launch>(rules);
     transformer.AddNodeTransformer<ast::SymbolRef>(rules);
 
     transformer.AddNodeTransformer<ast::Index>(rules);

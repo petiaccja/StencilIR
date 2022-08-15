@@ -38,8 +38,8 @@ struct Parameter {
     types::Type type;
 };
 
-struct KernelFunc : Node {
-    explicit KernelFunc(std::string name,
+struct Kernel : Node {
+    explicit Kernel(std::string name,
                         std::vector<Parameter> parameters,
                         std::vector<types::Type> results,
                         std::vector<std::shared_ptr<Statement>> body,
@@ -60,8 +60,8 @@ struct KernelReturn : Statement {
     std::vector<std::shared_ptr<Expression>> values;
 };
 
-struct KernelLaunch : Statement {
-    explicit KernelLaunch(std::string callee,
+struct Launch : Statement {
+    explicit Launch(std::string callee,
                           std::vector<std::shared_ptr<Expression>> gridDim,
                           std::vector<std::shared_ptr<Expression>> arguments = {},
                           std::vector<std::shared_ptr<Expression>> targets = {},
@@ -75,12 +75,12 @@ struct KernelLaunch : Statement {
 
 struct Module : Node {
     explicit Module(std::vector<std::shared_ptr<Node>> body,
-                    std::vector<std::shared_ptr<KernelFunc>> kernels = {},
+                    std::vector<std::shared_ptr<Kernel>> kernels = {},
                     std::vector<Parameter> parameters = {},
                     std::optional<Location> loc = {})
         : Node(loc), body(body), kernels(kernels), parameters(parameters) {}
     std::vector<std::shared_ptr<Node>> body;
-    std::vector<std::shared_ptr<KernelFunc>> kernels;
+    std::vector<std::shared_ptr<Kernel>> kernels;
     std::vector<Parameter> parameters;
 };
 
