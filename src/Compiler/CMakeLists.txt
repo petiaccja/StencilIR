@@ -11,12 +11,8 @@ add_library(Compiler)
 
 target_sources(Compiler
     PRIVATE
-        PrintToLLVMPass.hpp
-        PrintToLLVMPass.cpp
         LoweringPasses.hpp
         LoweringPasses.cpp
-        StencilLoweringPasses.cpp
-        StencilLoweringPasses.hpp
         Lowering.cpp
         Lowering.hpp
 )
@@ -28,7 +24,7 @@ target_include_directories(Compiler PUBLIC ${MLIR_INCLUDE_DIRS})
 target_link_directories(Compiler PUBLIC ${LLVM_BUILD_LIBRARY_DIR})
 target_compile_definitions(Compiler PUBLIC ${LLVM_DEFINITIONS})
 
-target_link_libraries(Compiler StencilDialect AST)
+target_link_libraries(Compiler StencilDialect AST Conversion)
 
 target_link_libraries(Compiler
     MLIRAnalysis

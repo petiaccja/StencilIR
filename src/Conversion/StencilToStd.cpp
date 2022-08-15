@@ -1,4 +1,4 @@
-#include "StencilLoweringPasses.hpp"
+#include "StencilToStd.hpp"
 
 #include <StencilDialect/StencilDialect.hpp>
 #include <StencilDialect/StencilOps.hpp>
@@ -363,34 +363,12 @@ struct SampleIndirectLowering : public OpRewritePattern<stencil::SampleIndirectO
 };
 
 
-void StencilToSCFPass::getDependentDialects(DialectRegistry& registry) const {
-    registry.insert<arith::ArithmeticDialect, scf::SCFDialect, memref::MemRefDialect>();
-}
-
-
-void StencilToSCFPass::runOnOperation() {
-    ConversionTarget target(getContext());
-    target.addLegalDialect<scf::SCFDialect>();
-    target.addLegalDialect<arith::ArithmeticDialect>();
-    target.addLegalDialect<memref::MemRefDialect>();
-    target.addLegalDialect<stencil::StencilDialect>();
-    target.addIllegalOp<stencil::LaunchKernelOp>();
-
-    RewritePatternSet patterns(&getContext());
-    patterns.add<LaunchKernelLoweringSCF>(&getContext(), 1, ArrayRef<StringRef>{});
-
-    if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {
-        signalPassFailure();
-    }
-}
-
-
-void StencilToFuncPass::getDependentDialects(DialectRegistry& registry) const {
+void StencilToStdPass::getDependentDialects(DialectRegistry& registry) const {
     registry.insert<arith::ArithmeticDialect, func::FuncDialect, memref::MemRefDialect>();
 }
 
 
-void StencilToFuncPass::runOnOperation() {
+void StencilToStdPass::runOnOperation() {
     ConversionTarget target(getContext());
     target.addLegalDialect<arith::ArithmeticDialect>();
     target.addLegalDialect<func::FuncDialect>();
@@ -402,37 +380,18 @@ void StencilToFuncPass::runOnOperation() {
     patterns.add<KernelLowering>(&getContext());
     patterns.add<KernelReturnLowering>(&getContext());
     patterns.add<InvokeKernelLowering>(&getContext());
+    if (launchToGpu) {
+        patterns.add<LaunchKernelLoweringGPULaunch>(&getContext());
+    }
+    else {
+        patterns.add<LaunchKernelLoweringSCF>(&getContext());
+    }
 
     patterns.add<IndexLowering>(&getContext());
     patterns.add<JumpLowering>(&getContext());
     patterns.add<SampleLowering>(&getContext());
     patterns.add<JumpIndirectLowering>(&getContext());
     patterns.add<SampleIndirectLowering>(&getContext());
-
-    if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {
-        signalPassFailure();
-    }
-}
-
-
-void StencilToGPUPass::getDependentDialects(DialectRegistry& registry) const {
-    registry.insert<arith::ArithmeticDialect,
-                    memref::MemRefDialect,
-                    stencil::StencilDialect,
-                    gpu::GPUDialect>();
-}
-
-
-void StencilToGPUPass::runOnOperation() {
-    ConversionTarget target(getContext());
-    target.addLegalDialect<gpu::GPUDialect>();
-    target.addLegalDialect<arith::ArithmeticDialect>();
-    target.addLegalDialect<memref::MemRefDialect>();
-    target.addLegalDialect<stencil::StencilDialect>();
-    target.addIllegalOp<stencil::LaunchKernelOp>();
-
-    RewritePatternSet patterns(&getContext());
-    patterns.add<LaunchKernelLoweringGPULaunch>(&getContext());
 
     if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {
         signalPassFailure();

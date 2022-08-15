@@ -1,9 +1,8 @@
 #include "Lowering.hpp"
 
 #include "LoweringPasses.hpp"
-#include "PrintToLLVMPass.hpp"
-#include "StencilLoweringPasses.hpp"
 
+#include <Conversion/Passes.hpp>
 #include <StencilDialect/StencilDialect.hpp>
 
 #include <mlir/Conversion/Passes.h>
@@ -29,18 +28,10 @@ mlir::ModuleOp CloneModule(mlir::ModuleOp original) {
     ;
 }
 
-
-void ApplyLowerToSCFLoops(mlir::MLIRContext& context, mlir::ModuleOp& op) {
+void ApplyLowerToStd(mlir::MLIRContext& context, mlir::ModuleOp& op, bool launchToGpu = false) {
     mlir::PassManager passManager(&context);
-    passManager.addPass(std::make_unique<StencilToSCFPass>());
-    ThrowIfFailed(passManager.run(op), "Failed to lower to Affine.");
-}
-
-
-void ApplyLowerToFunc(mlir::MLIRContext& context, mlir::ModuleOp& op) {
-    mlir::PassManager passManager(&context);
-    passManager.addPass(std::make_unique<StencilToFuncPass>());
-    passManager.addPass(std::make_unique<PrintToLLVMPass>());
+    passManager.addPass(createStencilToStdPass(launchToGpu));
+    passManager.addPass(createStencilPrintToLLVMPass());
     ThrowIfFailed(passManager.run(op), "Failed to lower to Func.");
 }
 
@@ -86,13 +77,9 @@ auto LowerToLLVMCPU(mlir::MLIRContext& context, const mlir::ModuleOp& module)
     pm.addPass(mlir::bufferization::createOneShotBufferizePass(bufferizationOptions));
     ThrowIfFailed(pm.run(mutableModule), "Bufferization #1 failed");
 
-    ApplyLowerToSCFLoops(context, mutableModule);
+    ApplyLowerToStd(context, mutableModule);
     ApplyCleanupPasses(context, mutableModule);
-    stages.push_back({ "Loops", CloneModule(mutableModule) });
-
-    ApplyLowerToFunc(context, mutableModule);
-    ApplyCleanupPasses(context, mutableModule);
-    stages.push_back({ "Func", CloneModule(mutableModule) });
+    stages.push_back({ "Standard mix", CloneModule(mutableModule) });
 
     ThrowIfFailed(pm.run(mutableModule), "Bufferization #2 failed");
 
@@ -103,12 +90,6 @@ auto LowerToLLVMCPU(mlir::MLIRContext& context, const mlir::ModuleOp& module)
     return stages;
 }
 
-void ApplyLowerToGPU(mlir::MLIRContext& context, mlir::ModuleOp& op) {
-    mlir::PassManager passManager(&context);
-    passManager.addPass(std::make_unique<StencilToGPUPass>());
-    ThrowIfFailed(passManager.run(op), "Failed to lower to GPU.");
-}
-
 #include <mlir/Conversion/GPUToVulkan/ConvertGPUToVulkanPass.h>
 #include <mlir/Dialect/GPU/Transforms/Passes.h>
 
@@ -117,7 +98,7 @@ auto LowerToLLVMGPU(mlir::MLIRContext& context, const mlir::ModuleOp& module)
     std::vector<std::pair<std::string, mlir::ModuleOp>> stages;
     auto mutableModule = CloneModule(module);
 
-    ApplyLowerToGPU(context, mutableModule);
+    ApplyLowerToStd(context, mutableModule, true);
     ApplyCleanupPasses(context, mutableModule);
     stages.push_back({ "GPU", CloneModule(mutableModule) });
 
