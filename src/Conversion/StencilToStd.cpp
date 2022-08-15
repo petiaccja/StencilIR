@@ -36,10 +36,10 @@
 
 using namespace mlir;
 
-struct KernelLowering : public OpRewritePattern<stencil::KernelOp> {
-    using OpRewritePattern<stencil::KernelOp>::OpRewritePattern;
+struct StencilOpLowering : public OpRewritePattern<stencil::StencilOp> {
+    using OpRewritePattern<stencil::StencilOp>::OpRewritePattern;
 
-    LogicalResult matchAndRewrite(stencil::KernelOp op, PatternRewriter& rewriter) const override final {
+    LogicalResult matchAndRewrite(stencil::StencilOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
 
         const int64_t numDims = op.getNumDimensions().getSExtValue();
@@ -66,7 +66,7 @@ struct KernelLowering : public OpRewritePattern<stencil::KernelOp> {
     }
 };
 
-struct KernelReturnLowering : public OpRewritePattern<stencil::ReturnOp> {
+struct ReturnOpLowering : public OpRewritePattern<stencil::ReturnOp> {
     using OpRewritePattern<stencil::ReturnOp>::OpRewritePattern;
 
     LogicalResult matchAndRewrite(stencil::ReturnOp op, PatternRewriter& rewriter) const override {
@@ -77,10 +77,10 @@ struct KernelReturnLowering : public OpRewritePattern<stencil::ReturnOp> {
     }
 };
 
-struct LaunchKernelLoweringBase : public OpRewritePattern<stencil::LaunchKernelOp> {
-    using OpRewritePattern<stencil::LaunchKernelOp>::OpRewritePattern;
+struct LaunchKernelLoweringBase : public OpRewritePattern<stencil::ApplyOp> {
+    using OpRewritePattern<stencil::ApplyOp>::OpRewritePattern;
 
-    static auto CreateLoopBody(stencil::LaunchKernelOp op, OpBuilder& builder, Location loc, ValueRange loopVars) {
+    static auto CreateLoopBody(stencil::ApplyOp op, OpBuilder& builder, Location loc, ValueRange loopVars) {
         // Insert a kernel invocation within the loop
         std::vector<Type> resultTypes;
         for (const auto& target : op.getTargets()) {
@@ -89,7 +89,7 @@ struct LaunchKernelLoweringBase : public OpRewritePattern<stencil::LaunchKernelO
             resultTypes.push_back(type.dyn_cast<MemRefType>().getElementType());
         }
 
-        auto call = builder.create<stencil::InvokeKernelOp>(loc, resultTypes, op.getCallee(), loopVars, op.getArguments());
+        auto call = builder.create<stencil::InvokeStencilOp>(loc, resultTypes, op.getCallee(), loopVars, op.getArguments());
 
         // Store return values to targets
         const auto results = call.getResults();
@@ -103,7 +103,7 @@ struct LaunchKernelLoweringBase : public OpRewritePattern<stencil::LaunchKernelO
         }
     };
 
-    static auto GetGridSize(stencil::LaunchKernelOp op, OpBuilder& builder, Location loc)
+    static auto GetGridSize(stencil::ApplyOp op, OpBuilder& builder, Location loc)
         -> std::vector<Value> {
         const int64_t numDims = op.getGridDim().size();
         std::vector<Value> ubValues;
@@ -114,10 +114,10 @@ struct LaunchKernelLoweringBase : public OpRewritePattern<stencil::LaunchKernelO
     }
 };
 
-struct LaunchKernelLoweringSCF : LaunchKernelLoweringBase {
+struct ApplyOpLoweringSCF : LaunchKernelLoweringBase {
     using LaunchKernelLoweringBase::LaunchKernelLoweringBase;
 
-    LogicalResult matchAndRewrite(stencil::LaunchKernelOp op, PatternRewriter& rewriter) const override final {
+    LogicalResult matchAndRewrite(stencil::ApplyOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
         const int64_t numDims = op.getGridDim().size();
 
@@ -135,10 +135,10 @@ struct LaunchKernelLoweringSCF : LaunchKernelLoweringBase {
 };
 
 
-struct LaunchKernelLoweringGPULaunch : LaunchKernelLoweringBase {
+struct ApplyOpLoweringGPULaunch : LaunchKernelLoweringBase {
     using LaunchKernelLoweringBase::LaunchKernelLoweringBase;
 
-    LogicalResult matchAndRewrite(stencil::LaunchKernelOp op, PatternRewriter& rewriter) const override final {
+    LogicalResult matchAndRewrite(stencil::ApplyOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
         const int64_t numDims = op.getGridDim().size();
 
@@ -201,10 +201,10 @@ struct LaunchKernelLoweringGPULaunch : LaunchKernelLoweringBase {
 };
 
 
-struct InvokeKernelLowering : public OpRewritePattern<stencil::InvokeKernelOp> {
-    using OpRewritePattern<stencil::InvokeKernelOp>::OpRewritePattern;
+struct InvokeStencilLowering : public OpRewritePattern<stencil::InvokeStencilOp> {
+    using OpRewritePattern<stencil::InvokeStencilOp>::OpRewritePattern;
 
-    LogicalResult matchAndRewrite(stencil::InvokeKernelOp op, PatternRewriter& rewriter) const override {
+    LogicalResult matchAndRewrite(stencil::InvokeStencilOp op, PatternRewriter& rewriter) const override {
         Location loc = op->getLoc();
 
         auto MakeIndex = [&rewriter, &loc](int64_t value) {
@@ -231,7 +231,7 @@ struct InvokeKernelLowering : public OpRewritePattern<stencil::InvokeKernelOp> {
 };
 
 
-struct IndexLowering : public OpRewritePattern<stencil::IndexOp> {
+struct IndexOpLowering : public OpRewritePattern<stencil::IndexOp> {
     using OpRewritePattern<stencil::IndexOp>::OpRewritePattern;
 
     LogicalResult match(stencil::IndexOp op) const override {
@@ -252,7 +252,7 @@ struct IndexLowering : public OpRewritePattern<stencil::IndexOp> {
     }
 };
 
-struct JumpLowering : public OpRewritePattern<stencil::JumpOp> {
+struct JumpOpLowering : public OpRewritePattern<stencil::JumpOp> {
     using OpRewritePattern<stencil::JumpOp>::OpRewritePattern;
 
     LogicalResult matchAndRewrite(stencil::JumpOp op, PatternRewriter& rewriter) const override final {
@@ -282,7 +282,7 @@ struct JumpLowering : public OpRewritePattern<stencil::JumpOp> {
     }
 };
 
-struct SampleLowering : public OpRewritePattern<stencil::SampleOp> {
+struct SampleOpLowering : public OpRewritePattern<stencil::SampleOp> {
     using OpRewritePattern<stencil::SampleOp>::OpRewritePattern;
 
     LogicalResult matchAndRewrite(stencil::SampleOp op, PatternRewriter& rewriter) const override final {
@@ -310,7 +310,7 @@ struct SampleLowering : public OpRewritePattern<stencil::SampleOp> {
 };
 
 
-struct JumpIndirectLowering : public OpRewritePattern<stencil::JumpIndirectOp> {
+struct JumpIndirectOpLowering : public OpRewritePattern<stencil::JumpIndirectOp> {
     using OpRewritePattern<stencil::JumpIndirectOp>::OpRewritePattern;
 
     LogicalResult matchAndRewrite(stencil::JumpIndirectOp op, PatternRewriter& rewriter) const override final {
@@ -340,7 +340,7 @@ struct JumpIndirectLowering : public OpRewritePattern<stencil::JumpIndirectOp> {
 };
 
 
-struct SampleIndirectLowering : public OpRewritePattern<stencil::SampleIndirectOp> {
+struct SampleIndirectOpLowering : public OpRewritePattern<stencil::SampleIndirectOp> {
     using OpRewritePattern<stencil::SampleIndirectOp>::OpRewritePattern;
 
     LogicalResult matchAndRewrite(stencil::SampleIndirectOp op, PatternRewriter& rewriter) const override final {
@@ -377,21 +377,21 @@ void StencilToStdPass::runOnOperation() {
     target.addLegalOp<stencil::PrintOp>();
 
     RewritePatternSet patterns(&getContext());
-    patterns.add<KernelLowering>(&getContext());
-    patterns.add<KernelReturnLowering>(&getContext());
-    patterns.add<InvokeKernelLowering>(&getContext());
+    patterns.add<StencilOpLowering>(&getContext());
+    patterns.add<ReturnOpLowering>(&getContext());
+    patterns.add<InvokeStencilLowering>(&getContext());
     if (launchToGpu) {
-        patterns.add<LaunchKernelLoweringGPULaunch>(&getContext());
+        patterns.add<ApplyOpLoweringGPULaunch>(&getContext());
     }
     else {
-        patterns.add<LaunchKernelLoweringSCF>(&getContext());
+        patterns.add<ApplyOpLoweringSCF>(&getContext());
     }
 
-    patterns.add<IndexLowering>(&getContext());
-    patterns.add<JumpLowering>(&getContext());
-    patterns.add<SampleLowering>(&getContext());
-    patterns.add<JumpIndirectLowering>(&getContext());
-    patterns.add<SampleIndirectLowering>(&getContext());
+    patterns.add<IndexOpLowering>(&getContext());
+    patterns.add<JumpOpLowering>(&getContext());
+    patterns.add<SampleOpLowering>(&getContext());
+    patterns.add<JumpIndirectOpLowering>(&getContext());
+    patterns.add<SampleIndirectOpLowering>(&getContext());
 
     if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {
         signalPassFailure();

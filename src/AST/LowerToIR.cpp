@@ -174,7 +174,7 @@ struct ASTToMLIRRules {
     mlir::OpBuilder& builder;
     SymbolTable<std::string, mlir::Value>& symbolTable;
     std::optional<mlir::ModuleOp>& moduleOp;
-    std::shared_ptr<const ast::Kernel>& currentFunc;
+    std::shared_ptr<const ast::Stencil>& currentFunc;
 
     template <class Func>
     void InsertInBlock(mlir::Block& block, Func func) const {
@@ -276,8 +276,8 @@ struct ASTToMLIRRules {
     // Structure
     //--------------------------------------------------------------------------
 
-    auto operator()(const ASTToMLIRTranformer& tf, const ast::Kernel& node) const -> std::vector<mlir::Value> {
-        currentFunc = std::dynamic_pointer_cast<const ast::Kernel>(node.shared_from_this());
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::Stencil& node) const -> std::vector<mlir::Value> {
+        currentFunc = std::dynamic_pointer_cast<const ast::Stencil>(node.shared_from_this());
 
         // Create operation
         std::vector<mlir::Type> inputTypes{};
@@ -290,13 +290,13 @@ struct ASTToMLIRRules {
         }
         const auto functionType = builder.getFunctionType(mlir::TypeRange{ inputTypes }, mlir::TypeRange{ resultTypes });
         const auto loc = ConvertLocation(builder, node.location);
-        auto KernelOp = builder.create<stencil::KernelOp>(loc,
+        auto StencilOp = builder.create<stencil::StencilOp>(loc,
                                                           node.name,
                                                           functionType,
                                                           mlir::APInt(64, node.numDimensions));
 
         // Create function body
-        auto& kernelFuncBlock = *KernelOp.addEntryBlock();
+        auto& kernelFuncBlock = *StencilOp.addEntryBlock();
 
         symbolTable.Push();
         for (size_t i = 0; i < node.parameters.size(); ++i) {
@@ -314,7 +314,7 @@ struct ASTToMLIRRules {
         return {};
     }
 
-    auto operator()(const ASTToMLIRTranformer& tf, const ast::KernelReturn& node) const -> std::vector<mlir::Value> {
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::Return& node) const -> std::vector<mlir::Value> {
         const auto loc = ConvertLocation(builder, node.location);
         std::vector<mlir::Value> values;
         for (const auto& value : node.values) {
@@ -326,7 +326,7 @@ struct ASTToMLIRRules {
         return {};
     }
 
-    auto operator()(const ASTToMLIRTranformer& tf, const ast::Launch& node) const -> std::vector<mlir::Value> {
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::Apply& node) const -> std::vector<mlir::Value> {
         const auto callee = mlir::StringRef(node.callee);
 
         std::vector<mlir::Value> gridDim;
@@ -344,7 +344,7 @@ struct ASTToMLIRRules {
             operands.push_back(tf(*argument).front());
         }
 
-        builder.create<stencil::LaunchKernelOp>(ConvertLocation(builder, node.location),
+        builder.create<stencil::ApplyOp>(ConvertLocation(builder, node.location),
                                                 callee,
                                                 mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ gridDim } },
                                                 mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ targets } },
@@ -464,7 +464,7 @@ mlir::ModuleOp LowerToIR(mlir::MLIRContext& context, const ast::Module& node) {
     mlir::OpBuilder builder{ &context };
     SymbolTable<std::string, mlir::Value> symbolTable;
     std::optional<mlir::ModuleOp> moduleOp;
-    std::shared_ptr<const ast::Kernel> currentFunc;
+    std::shared_ptr<const ast::Stencil> currentFunc;
     ASTToMLIRTranformer transformer;
     ASTToMLIRRules rules{ builder, symbolTable, moduleOp, currentFunc };
 
@@ -475,9 +475,9 @@ mlir::ModuleOp LowerToIR(mlir::MLIRContext& context, const ast::Module& node) {
     transformer.AddNodeTransformer<ast::ReshapeField>(rules);
 
     transformer.AddNodeTransformer<ast::Module>(rules);
-    transformer.AddNodeTransformer<ast::Kernel>(rules);
-    transformer.AddNodeTransformer<ast::KernelReturn>(rules);
-    transformer.AddNodeTransformer<ast::Launch>(rules);
+    transformer.AddNodeTransformer<ast::Stencil>(rules);
+    transformer.AddNodeTransformer<ast::Return>(rules);
+    transformer.AddNodeTransformer<ast::Apply>(rules);
     transformer.AddNodeTransformer<ast::SymbolRef>(rules);
 
     transformer.AddNodeTransformer<ast::Index>(rules);

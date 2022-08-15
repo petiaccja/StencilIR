@@ -38,8 +38,8 @@ struct Parameter {
     types::Type type;
 };
 
-struct Kernel : Node {
-    explicit Kernel(std::string name,
+struct Stencil : Node {
+    explicit Stencil(std::string name,
                         std::vector<Parameter> parameters,
                         std::vector<types::Type> results,
                         std::vector<std::shared_ptr<Statement>> body,
@@ -53,15 +53,15 @@ struct Kernel : Node {
     size_t numDimensions;
 };
 
-struct KernelReturn : Statement {
-    explicit KernelReturn(std::vector<std::shared_ptr<Expression>> values = {},
+struct Return : Statement {
+    explicit Return(std::vector<std::shared_ptr<Expression>> values = {},
                           std::optional<Location> loc = {})
         : Statement(loc), values(values) {}
     std::vector<std::shared_ptr<Expression>> values;
 };
 
-struct Launch : Statement {
-    explicit Launch(std::string callee,
+struct Apply : Statement {
+    explicit Apply(std::string callee,
                           std::vector<std::shared_ptr<Expression>> gridDim,
                           std::vector<std::shared_ptr<Expression>> arguments = {},
                           std::vector<std::shared_ptr<Expression>> targets = {},
@@ -75,12 +75,12 @@ struct Launch : Statement {
 
 struct Module : Node {
     explicit Module(std::vector<std::shared_ptr<Node>> body,
-                    std::vector<std::shared_ptr<Kernel>> kernels = {},
+                    std::vector<std::shared_ptr<Stencil>> kernels = {},
                     std::vector<Parameter> parameters = {},
                     std::optional<Location> loc = {})
         : Node(loc), body(body), kernels(kernels), parameters(parameters) {}
     std::vector<std::shared_ptr<Node>> body;
-    std::vector<std::shared_ptr<Kernel>> kernels;
+    std::vector<std::shared_ptr<Stencil>> kernels;
     std::vector<Parameter> parameters;
 };
 

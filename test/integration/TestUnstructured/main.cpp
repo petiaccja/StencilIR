@@ -29,9 +29,9 @@ std::shared_ptr<ast::Module> CreateLaplacian() {
     auto sum = ast::sub(ast::mul(sampleLeft, weightLeft),
                         ast::mul(sampleRight, weightRight));
 
-    auto ret = ast::kernel_return({ sum });
+    auto ret = ast::return_({ sum });
 
-    auto kernel = ast::kernel("edge_diffs",
+    auto kernel = ast::stencil("edge_diffs",
                               {
                                   { "cellK", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
                                   { "edgeToCell", types::FieldType{ types::FundamentalType::SSIZE, 2 } },
@@ -46,7 +46,7 @@ std::shared_ptr<ast::Module> CreateLaplacian() {
     auto numEdges = ast::symref("numEdges");
     auto numLevels = ast::symref("numLevels");
 
-    auto kernelLaunch = ast::launch(kernel->name,
+    auto kernelLaunch = ast::apply(kernel->name,
                                     { numEdges, numLevels },
                                     { cellK, edgeToCell, cellWeights },
                                     { outEdgeK });

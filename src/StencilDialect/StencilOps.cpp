@@ -18,10 +18,10 @@ using namespace mlir;
 using namespace stencil;
 
 //------------------------------------------------------------------------------
-// KernelOp
+// StencilOp
 //------------------------------------------------------------------------------
 
-ParseResult KernelOp::parse(OpAsmParser& parser, OperationState& result) {
+ParseResult StencilOp::parse(OpAsmParser& parser, OperationState& result) {
     auto buildFuncType =
         [](Builder& builder, ArrayRef<Type> argTypes, ArrayRef<Type> results,
            function_interface_impl::VariadicFlag,
@@ -31,22 +31,22 @@ ParseResult KernelOp::parse(OpAsmParser& parser, OperationState& result) {
         parser, result, /*allowVariadic=*/false, buildFuncType);
 }
 
-void KernelOp::print(OpAsmPrinter& p) {
+void StencilOp::print(OpAsmPrinter& p) {
     function_interface_impl::printFunctionOp(p, *this, /*isVariadic=*/false);
 }
 
 
 //------------------------------------------------------------------------------
-// LaunchKernelOp
+// ApplyOp
 //------------------------------------------------------------------------------
 
-LogicalResult LaunchKernelOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
+LogicalResult ApplyOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
     // Check that the callee attribute was specified.
     auto fnAttr = (*this)->getAttrOfType<FlatSymbolRefAttr>("callee");
     if (!fnAttr) {
         return emitOpError("requires a 'callee' symbol reference attribute");
     }
-    KernelOp fn = symbolTable.lookupNearestSymbolFrom<KernelOp>(*this, fnAttr);
+    StencilOp fn = symbolTable.lookupNearestSymbolFrom<StencilOp>(*this, fnAttr);
     if (!fn) {
         return emitOpError() << "'" << fnAttr.getValue()
                              << "' does not reference a valid function";
@@ -92,11 +92,11 @@ LogicalResult LaunchKernelOp::verifySymbolUses(SymbolTableCollection& symbolTabl
     return success();
 }
 
-FunctionType LaunchKernelOp::getCalleeType() {
+FunctionType ApplyOp::getCalleeType() {
     return FunctionType::get(getContext(), getOperandTypes(), getTargetTypes());
 }
 
-mlir::TypeRange LaunchKernelOp::getTargetTypes() {
+mlir::TypeRange ApplyOp::getTargetTypes() {
     llvm::ArrayRef<mlir::Type> targetTypes;
     for (const auto& target : getTargets()) {
         const auto targetType = target.getType();
@@ -111,15 +111,15 @@ mlir::TypeRange LaunchKernelOp::getTargetTypes() {
 
 
 //------------------------------------------------------------------------------
-// InvokeKernelOp
+// InvokeStencilOp
 //------------------------------------------------------------------------------
 
-LogicalResult InvokeKernelOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
+LogicalResult InvokeStencilOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
     // Check that the callee attribute was specified.
     auto fnAttr = (*this)->getAttrOfType<FlatSymbolRefAttr>("callee");
     if (!fnAttr)
         return emitOpError("requires a 'callee' symbol reference attribute");
-    KernelOp fn = symbolTable.lookupNearestSymbolFrom<KernelOp>(*this, fnAttr);
+    StencilOp fn = symbolTable.lookupNearestSymbolFrom<StencilOp>(*this, fnAttr);
     if (!fn)
         return emitOpError() << "'" << fnAttr.getValue()
                              << "' does not reference a valid function";
@@ -149,7 +149,7 @@ LogicalResult InvokeKernelOp::verifySymbolUses(SymbolTableCollection& symbolTabl
     return success();
 }
 
-FunctionType InvokeKernelOp::getCalleeType() {
+FunctionType InvokeStencilOp::getCalleeType() {
     std::vector<Type> argumentTypes;
     for (const auto& arg : getArguments()) {
         argumentTypes.push_back(arg.getType());

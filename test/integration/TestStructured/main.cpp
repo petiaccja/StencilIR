@@ -23,9 +23,9 @@ std::shared_ptr<ast::Module> CreateLaplacian() {
     };
 
     auto sum = ast::add(samples[0], ast::add(samples[1], ast::add(samples[2], ast::add(samples[3], samples[4]))));
-    auto ret = ast::kernel_return({ sum });
+    auto ret = ast::return_({ sum });
 
-    auto kernel = ast::kernel("laplacian",
+    auto kernel = ast::stencil("laplacian",
                               { { "field", types::FieldType{ types::FundamentalType::FLOAT32, 2 } } },
                               { types::FundamentalType::FLOAT32 },
                               { ret },
@@ -37,14 +37,14 @@ std::shared_ptr<ast::Module> CreateLaplacian() {
     auto sizeX = ast::symref("sizeX");
     auto sizeY = ast::symref("sizeY");
 
-    auto kernelLaunch = ast::launch(kernel->name,
+    auto kernelLaunch = ast::apply(kernel->name,
                                     { sizeX, sizeY },
                                     { inputField },
                                     { output });
 
     // Module
     auto moduleBody = std::vector<std::shared_ptr<ast::Node>>{ kernelLaunch };
-    auto moduleKernels = std::vector<std::shared_ptr<ast::Kernel>>{ kernel };
+    auto moduleKernels = std::vector<std::shared_ptr<ast::Stencil>>{ kernel };
 
     return ast::module_({ kernelLaunch },
                         { kernel },

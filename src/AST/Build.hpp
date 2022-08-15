@@ -18,30 +18,30 @@ inline auto symref(std::string name,
     return std::make_shared<SymbolRef>(name, loc);
 }
 
-inline auto kernel(std::string name,
+inline auto stencil(std::string name,
                    std::vector<Parameter> parameters,
                    std::vector<types::Type> results,
                    std::vector<std::shared_ptr<Statement>> body,
                    size_t numDimensions,
                    std::optional<Location> loc = {}) {
-    return std::make_shared<Kernel>(name, parameters, results, body, numDimensions, loc);
+    return std::make_shared<Stencil>(name, parameters, results, body, numDimensions, loc);
 }
 
-inline auto kernel_return(std::vector<std::shared_ptr<Expression>> values = {},
+inline auto return_(std::vector<std::shared_ptr<Expression>> values = {},
                           std::optional<Location> loc = {}) {
-    return std::make_shared<KernelReturn>(values, loc);
+    return std::make_shared<Return>(values, loc);
 }
 
-inline auto launch(std::string callee,
+inline auto apply(std::string callee,
                    std::vector<std::shared_ptr<Expression>> gridDim,
                    std::vector<std::shared_ptr<Expression>> arguments = {},
                    std::vector<std::shared_ptr<Expression>> targets = {},
                    std::optional<Location> loc = {}) {
-    return std::make_shared<Launch>(callee, gridDim, arguments, targets, loc);
+    return std::make_shared<Apply>(callee, gridDim, arguments, targets, loc);
 }
 
 inline auto module_(std::vector<std::shared_ptr<Node>> body,
-                    std::vector<std::shared_ptr<Kernel>> kernels = {},
+                    std::vector<std::shared_ptr<Stencil>> kernels = {},
                     std::vector<Parameter> parameters = {},
                     std::optional<Location> loc = {}) {
     return std::make_shared<Module>(body, kernels, parameters, loc);
@@ -49,7 +49,7 @@ inline auto module_(std::vector<std::shared_ptr<Node>> body,
 
 
 //------------------------------------------------------------------------------
-// Kernel intrinsics
+// Stencil intrinsics
 //------------------------------------------------------------------------------
 
 inline auto index(std::optional<Location> loc = {}) {
