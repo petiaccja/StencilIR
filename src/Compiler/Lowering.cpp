@@ -6,6 +6,9 @@
 
 #include <StencilDialect/StencilDialect.hpp>
 
+#include <mlir/Conversion/Passes.h>
+#include <mlir/Dialect/Bufferization/Transforms/OneShotAnalysis.h>
+#include <mlir/Dialect/Bufferization/Transforms/Passes.h>
 #include <mlir/Pass/Pass.h>
 #include <mlir/Pass/PassManager.h>
 #include <mlir/Transforms/LocationSnapshot.h>
@@ -41,15 +44,10 @@ void ApplyLowerToFunc(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     ThrowIfFailed(passManager.run(op), "Failed to lower to Func.");
 }
 
-void ApplyLowerToCf(mlir::MLIRContext& context, mlir::ModuleOp& op) {
-    mlir::PassManager passManager(&context);
-    passManager.addPass(std::make_unique<ScfToCfPass>());
-    ThrowIfFailed(passManager.run(op), "Failed to lower to ControlFlow.");
-}
-
 
 void ApplyLowerToLLVM(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     mlir::PassManager passManager(&context);
+    passManager.addPass(mlir::createConvertSCFToCFPass());
     passManager.addPass(std::make_unique<StdToLLVMPass>());
     ThrowIfFailed(passManager.run(op), "Failed to lower to LLVM IR.");
 }
@@ -80,6 +78,14 @@ auto LowerToLLVMCPU(mlir::MLIRContext& context, const mlir::ModuleOp& module)
     std::vector<std::pair<std::string, mlir::ModuleOp>> stages;
     auto mutableModule = CloneModule(module);
 
+    mlir::PassManager pm(&context);
+    mlir::bufferization::OneShotBufferizationOptions bufferizationOptions;
+    bufferizationOptions.allowReturnAllocs = false;
+    bufferizationOptions.createDeallocs = false;
+    bufferizationOptions.defaultMemorySpace = 0;
+    pm.addPass(mlir::bufferization::createOneShotBufferizePass(bufferizationOptions));
+    ThrowIfFailed(pm.run(mutableModule), "Bufferization #1 failed");
+
     ApplyLowerToSCFLoops(context, mutableModule);
     ApplyCleanupPasses(context, mutableModule);
     stages.push_back({ "Loops", CloneModule(mutableModule) });
@@ -88,9 +94,7 @@ auto LowerToLLVMCPU(mlir::MLIRContext& context, const mlir::ModuleOp& module)
     ApplyCleanupPasses(context, mutableModule);
     stages.push_back({ "Func", CloneModule(mutableModule) });
 
-    ApplyLowerToCf(context, mutableModule);
-    ApplyCleanupPasses(context, mutableModule);
-    stages.push_back({ "ControlFlow", CloneModule(mutableModule) });
+    ThrowIfFailed(pm.run(mutableModule), "Bufferization #2 failed");
 
     ApplyLowerToLLVM(context, mutableModule);
     ApplyCleanupPasses(context, mutableModule);
@@ -119,8 +123,8 @@ auto LowerToLLVMGPU(mlir::MLIRContext& context, const mlir::ModuleOp& module)
 
     mlir::PassManager pm(&context);
     pm.addPass(mlir::createGpuKernelOutliningPass());
-    
-    //pm.addPass(mlir::createConvertGpuLaunchFuncToVulkanLaunchFuncPass());
+
+    // pm.addPass(mlir::createConvertGpuLaunchFuncToVulkanLaunchFuncPass());
     ThrowIfFailed(pm.run(mutableModule), "Could not lower GPU to Vulkan launch");
     stages.push_back({ "Vulkan", CloneModule(mutableModule) });
 

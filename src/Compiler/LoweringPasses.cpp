@@ -39,29 +39,6 @@
 using namespace mlir;
 
 
-void ScfToCfPass::getDependentDialects(DialectRegistry& registry) const {
-    registry.insert<scf::SCFDialect,
-                    arith::ArithmeticDialect,
-                    func::FuncDialect,
-                    cf::ControlFlowDialect>();
-}
-
-void ScfToCfPass::runOnOperation() {
-    ConversionTarget target(getContext());
-    target.addLegalDialect<cf::ControlFlowDialect>();
-    target.addLegalDialect<arith::ArithmeticDialect>();
-    target.addLegalDialect<func::FuncDialect>();
-    target.addIllegalDialect<scf::SCFDialect>();
-
-    RewritePatternSet patterns(&getContext());
-    populateSCFToControlFlowConversionPatterns(patterns);
-
-    if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {
-        signalPassFailure();
-    }
-}
-
-
 void StdToLLVMPass::getDependentDialects(DialectRegistry& registry) const {
     registry.insert<arith::ArithmeticDialect,
                     func::FuncDialect,
