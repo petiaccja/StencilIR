@@ -1,0 +1,3 @@
+add_subdirectory(TestGpu)
+add_subdirectory(TestStructured)
+add_subdirectory(TestUnstructured)
