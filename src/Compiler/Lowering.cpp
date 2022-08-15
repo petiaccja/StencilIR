@@ -27,9 +27,9 @@ mlir::ModuleOp CloneModule(mlir::ModuleOp original) {
 }
 
 
-void ApplyLowerToAffine(mlir::MLIRContext& context, mlir::ModuleOp& op) {
+void ApplyLowerToSCFLoops(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     mlir::PassManager passManager(&context);
-    passManager.addPass(std::make_unique<StencilToAffinePass>());
+    passManager.addPass(std::make_unique<StencilToSCFPass>());
     ThrowIfFailed(passManager.run(op), "Failed to lower to Affine.");
 }
 
@@ -40,14 +40,6 @@ void ApplyLowerToFunc(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     passManager.addPass(std::make_unique<PrintToLLVMPass>());
     ThrowIfFailed(passManager.run(op), "Failed to lower to Func.");
 }
-
-
-void ApplyLowerToScf(mlir::MLIRContext& context, mlir::ModuleOp& op) {
-    mlir::PassManager passManager(&context);
-    passManager.addPass(std::make_unique<AffineToScfPass>());
-    ThrowIfFailed(passManager.run(op), "Failed to lower to SCF.");
-}
-
 
 void ApplyLowerToCf(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     mlir::PassManager passManager(&context);
@@ -88,17 +80,13 @@ auto LowerToLLVMCPU(mlir::MLIRContext& context, const mlir::ModuleOp& module)
     std::vector<std::pair<std::string, mlir::ModuleOp>> stages;
     auto mutableModule = CloneModule(module);
 
-    ApplyLowerToAffine(context, mutableModule);
+    ApplyLowerToSCFLoops(context, mutableModule);
     ApplyCleanupPasses(context, mutableModule);
-    stages.push_back({ "Affine", CloneModule(mutableModule) });
+    stages.push_back({ "Loops", CloneModule(mutableModule) });
 
     ApplyLowerToFunc(context, mutableModule);
     ApplyCleanupPasses(context, mutableModule);
     stages.push_back({ "Func", CloneModule(mutableModule) });
-
-    ApplyLowerToScf(context, mutableModule);
-    ApplyCleanupPasses(context, mutableModule);
-    stages.push_back({ "SCF", CloneModule(mutableModule) });
 
     ApplyLowerToCf(context, mutableModule);
     ApplyCleanupPasses(context, mutableModule);

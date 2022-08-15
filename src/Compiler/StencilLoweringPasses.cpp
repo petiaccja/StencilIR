@@ -3,26 +3,24 @@
 #include <StencilDialect/StencilDialect.hpp>
 #include <StencilDialect/StencilOps.hpp>
 
-#include "llvm/ADT/ArrayRef.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/IR/AffineExpr.h"
-#include "mlir/IR/AffineMap.h"
-#include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/Dialect.h"
-#include "mlir/IR/FunctionInterfaces.h"
-#include "mlir/IR/TypeRange.h"
-#include "mlir/IR/Types.h"
-#include "mlir/IR/Value.h"
-#include "mlir/IR/ValueRange.h"
-#include "mlir/Support/LLVM.h"
 #include <llvm/ADT/APFloat.h>
-#include <mlir/Dialect/Affine/IR/AffineOps.h>
+#include <llvm/ADT/ArrayRef.h>
+#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/Dialect/GPU/IR/GPUDialect.h>
+#include <mlir/Dialect/MemRef/IR/MemRef.h>
+#include <mlir/Dialect/SCF/IR/SCF.h>
 #include <mlir/IR/BuiltinAttributes.h>
+#include <mlir/IR/BuiltinTypes.h>
+#include <mlir/IR/Dialect.h>
+#include <mlir/IR/FunctionInterfaces.h>
 #include <mlir/IR/Location.h>
 #include <mlir/IR/PatternMatch.h>
+#include <mlir/IR/TypeRange.h>
+#include <mlir/IR/Types.h>
+#include <mlir/IR/Value.h>
+#include <mlir/IR/ValueRange.h>
+#include <mlir/Support/LLVM.h>
 #include <mlir/Support/LogicalResult.h>
 #include <mlir/Transforms/DialectConversion.h>
 
@@ -101,7 +99,7 @@ struct LaunchKernelLoweringBase : public OpRewritePattern<stencil::LaunchKernelO
         assert(results.size() == targets.size());
 
         for (size_t resultIdx = 0; resultIdx < numResults; ++resultIdx) {
-            builder.create<AffineStoreOp>(loc, results[resultIdx], targets[resultIdx], loopVars);
+            builder.create<memref::StoreOp>(loc, results[resultIdx], targets[resultIdx], loopVars);
         }
     };
 
@@ -116,7 +114,7 @@ struct LaunchKernelLoweringBase : public OpRewritePattern<stencil::LaunchKernelO
     }
 };
 
-struct LaunchKernelLoweringAffineLoop : LaunchKernelLoweringBase {
+struct LaunchKernelLoweringSCF : LaunchKernelLoweringBase {
     using LaunchKernelLoweringBase::LaunchKernelLoweringBase;
 
     LogicalResult matchAndRewrite(stencil::LaunchKernelOp op, PatternRewriter& rewriter) const override final {
@@ -125,48 +123,17 @@ struct LaunchKernelLoweringAffineLoop : LaunchKernelLoweringBase {
 
         const auto ubValues = GetGridSize(op, rewriter, loc);
         const auto lbValues = std::vector<Value>(numDims, rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0)));
-        const std::vector<int64_t> steps(numDims, 1);
+        const std::vector<Value> steps(numDims, rewriter.create<arith::ConstantIndexOp>(loc, 1));
 
-        buildAffineLoopNest(rewriter, loc, lbValues, ubValues, steps, [&op](auto... args) { CreateLoopBody(op, args...); });
+        scf::buildLoopNest(rewriter, loc, lbValues, ubValues, steps, [&op](OpBuilder& builder, Location loc, ValueRange loopVars) {
+            CreateLoopBody(op, builder, loc, loopVars);
+        });
         rewriter.eraseOp(op);
 
         return success();
     }
 };
 
-struct LaunchKernelLoweringAffineParallel : LaunchKernelLoweringBase {
-    using LaunchKernelLoweringBase::LaunchKernelLoweringBase;
-
-    LogicalResult matchAndRewrite(stencil::LaunchKernelOp op, PatternRewriter& rewriter) const override final {
-        Location loc = op->getLoc();
-        const int64_t numDims = op.getGridDim().size();
-
-        const auto ubValues = GetGridSize(op, rewriter, loc);
-        const auto lbValues = std::vector<Value>(numDims, rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0)));
-        const std::vector<int64_t> steps(numDims, 1);
-
-        std::vector<AffineExpr> affineDims = {};
-        for (ptrdiff_t i = 0; i < numDims; ++i) {
-            affineDims.push_back(rewriter.getAffineDimExpr(i));
-        }
-        std::vector<AffineMap> affineMaps = {};
-        for (ptrdiff_t i = 0; i < numDims; ++i) {
-            affineMaps.push_back(AffineMap::get(numDims, 0, affineDims[i]));
-        }
-        std::array<Type, 0> resultTypes{};
-        std::vector<arith::AtomicRMWKind> reductions = {};
-
-        auto parallelOp = rewriter.create<AffineParallelOp>(loc, resultTypes, reductions, affineMaps, lbValues, affineMaps, ubValues, steps);
-        auto& parallelBlock = *parallelOp.getBody();
-        auto loopVars = parallelBlock.getArguments();
-        rewriter.setInsertionPointToStart(&parallelBlock);
-        CreateLoopBody(op, rewriter, loc, loopVars);
-
-        rewriter.eraseOp(op);
-
-        return success();
-    }
-};
 
 struct LaunchKernelLoweringGPULaunch : LaunchKernelLoweringBase {
     using LaunchKernelLoweringBase::LaunchKernelLoweringBase;
@@ -396,21 +363,21 @@ struct SampleIndirectLowering : public OpRewritePattern<stencil::SampleIndirectO
 };
 
 
-void StencilToAffinePass::getDependentDialects(DialectRegistry& registry) const {
-    registry.insert<arith::ArithmeticDialect, AffineDialect, memref::MemRefDialect>();
+void StencilToSCFPass::getDependentDialects(DialectRegistry& registry) const {
+    registry.insert<arith::ArithmeticDialect, scf::SCFDialect, memref::MemRefDialect>();
 }
 
 
-void StencilToAffinePass::runOnOperation() {
+void StencilToSCFPass::runOnOperation() {
     ConversionTarget target(getContext());
-    target.addLegalDialect<AffineDialect>();
+    target.addLegalDialect<scf::SCFDialect>();
     target.addLegalDialect<arith::ArithmeticDialect>();
     target.addLegalDialect<memref::MemRefDialect>();
     target.addLegalDialect<stencil::StencilDialect>();
     target.addIllegalOp<stencil::LaunchKernelOp>();
 
     RewritePatternSet patterns(&getContext());
-    patterns.add<LaunchKernelLoweringAffineLoop>(&getContext(), 1, ArrayRef<StringRef>{});
+    patterns.add<LaunchKernelLoweringSCF>(&getContext(), 1, ArrayRef<StringRef>{});
 
     if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {
         signalPassFailure();
@@ -419,13 +386,12 @@ void StencilToAffinePass::runOnOperation() {
 
 
 void StencilToFuncPass::getDependentDialects(DialectRegistry& registry) const {
-    registry.insert<arith::ArithmeticDialect, AffineDialect, memref::MemRefDialect>();
+    registry.insert<arith::ArithmeticDialect, func::FuncDialect, memref::MemRefDialect>();
 }
 
 
 void StencilToFuncPass::runOnOperation() {
     ConversionTarget target(getContext());
-    target.addLegalDialect<AffineDialect>();
     target.addLegalDialect<arith::ArithmeticDialect>();
     target.addLegalDialect<func::FuncDialect>();
     target.addLegalDialect<memref::MemRefDialect>();
@@ -451,7 +417,6 @@ void StencilToFuncPass::runOnOperation() {
 
 void StencilToGPUPass::getDependentDialects(DialectRegistry& registry) const {
     registry.insert<arith::ArithmeticDialect,
-                    AffineDialect,
                     memref::MemRefDialect,
                     stencil::StencilDialect,
                     gpu::GPUDialect>();
@@ -460,7 +425,6 @@ void StencilToGPUPass::getDependentDialects(DialectRegistry& registry) const {
 
 void StencilToGPUPass::runOnOperation() {
     ConversionTarget target(getContext());
-    target.addLegalDialect<AffineDialect>();
     target.addLegalDialect<gpu::GPUDialect>();
     target.addLegalDialect<arith::ArithmeticDialect>();
     target.addLegalDialect<memref::MemRefDialect>();

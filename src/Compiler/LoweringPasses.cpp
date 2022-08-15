@@ -38,30 +38,6 @@
 
 using namespace mlir;
 
-void AffineToScfPass::getDependentDialects(DialectRegistry& registry) const {
-    registry.insert<AffineDialect,
-                    scf::SCFDialect,
-                    arith::ArithmeticDialect,
-                    cf::ControlFlowDialect,
-                    memref::MemRefDialect>();
-}
-
-void AffineToScfPass::runOnOperation() {
-    ConversionTarget target(getContext());
-    target.addLegalDialect<scf::SCFDialect>();
-    target.addLegalDialect<arith::ArithmeticDialect>();
-    target.addLegalDialect<cf::ControlFlowDialect>();
-    target.addLegalDialect<memref::MemRefDialect>();
-    target.addIllegalDialect<AffineDialect>();
-
-    RewritePatternSet patterns(&getContext());
-    populateAffineToStdConversionPatterns(patterns);
-
-    if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {
-        signalPassFailure();
-    }
-}
-
 
 void ScfToCfPass::getDependentDialects(DialectRegistry& registry) const {
     registry.insert<scf::SCFDialect,

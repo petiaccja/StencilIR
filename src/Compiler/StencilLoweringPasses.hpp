@@ -6,7 +6,7 @@
 #include <mlir/Transforms/DialectConversion.h>
 
 
-class StencilToAffinePass : public mlir::PassWrapper<StencilToAffinePass, mlir::OperationPass<mlir::ModuleOp>> {
+class StencilToSCFPass : public mlir::PassWrapper<StencilToSCFPass, mlir::OperationPass<mlir::ModuleOp>> {
 public:
     void getDependentDialects(mlir::DialectRegistry& registry) const override;
     void runOnOperation() override final;
