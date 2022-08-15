@@ -224,6 +224,7 @@ struct LaunchKernelLoweringGPULaunch : LaunchKernelLoweringBase {
         // Calculate absolute indices from threadIdx.? and blockIdx.?
         // Add affine::IfOp to halt threads outside bounds
         // Add affine::ForOp loops if dimension is larger than three
+        rewriter.create<arith::ConstantIndexOp>(loc, 0);
         rewriter.create<gpu::TerminatorOp>(loc);
 
         rewriter.eraseOp(op);

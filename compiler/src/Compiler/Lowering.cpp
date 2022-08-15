@@ -117,6 +117,9 @@ void ApplyLowerToGPU(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     ThrowIfFailed(passManager.run(op), "Failed to lower to GPU.");
 }
 
+#include <mlir/Conversion/GPUToVulkan/ConvertGPUToVulkanPass.h>
+#include <mlir/Dialect/GPU/Transforms/Passes.h>
+
 auto LowerToLLVMGPU(mlir::MLIRContext& context, const mlir::ModuleOp& module)
     -> std::vector<std::pair<std::string, mlir::ModuleOp>> {
     std::vector<std::pair<std::string, mlir::ModuleOp>> stages;
@@ -125,6 +128,13 @@ auto LowerToLLVMGPU(mlir::MLIRContext& context, const mlir::ModuleOp& module)
     ApplyLowerToGPU(context, mutableModule);
     ApplyCleanupPasses(context, mutableModule);
     stages.push_back({ "GPU", CloneModule(mutableModule) });
+
+    mlir::PassManager pm(&context);
+    pm.addPass(mlir::createGpuKernelOutliningPass());
+    
+    //pm.addPass(mlir::createConvertGpuLaunchFuncToVulkanLaunchFuncPass());
+    ThrowIfFailed(pm.run(mutableModule), "Could not lower GPU to Vulkan launch");
+    stages.push_back({ "Vulkan", CloneModule(mutableModule) });
 
     return stages;
 }

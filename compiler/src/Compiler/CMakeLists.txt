@@ -63,4 +63,7 @@ target_link_libraries(Compiler
     MLIRAffineToStandard
     MLIRAffineTransforms
     MLIRLinalgToStandard
+
+    MLIRGPUToVulkanTransforms
+    MLIRGPUTransforms
 )
