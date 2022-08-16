@@ -135,7 +135,7 @@ struct ApplyOpLoweringSCF : LaunchKernelLoweringBase {
         scf::buildLoopNest(rewriter, loc, lbValues, ubValues, steps, [&op](OpBuilder& builder, Location loc, ValueRange loopVars) {
             CreateLoopBody(op, builder, loc, loopVars);
         });
-        rewriter.eraseOp(op);
+        rewriter.replaceOp(op, op.getOutputs());
 
         return success();
     }
@@ -201,7 +201,7 @@ struct ApplyOpLoweringGPULaunch : LaunchKernelLoweringBase {
         rewriter.create<arith::ConstantIndexOp>(loc, 0);
         rewriter.create<gpu::TerminatorOp>(loc);
 
-        rewriter.eraseOp(op);
+        rewriter.replaceOp(op, op.getOutputs());
 
         return success();
     }
