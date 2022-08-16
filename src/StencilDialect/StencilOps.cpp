@@ -52,13 +52,17 @@ LogicalResult ApplyOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
                              << "' does not reference a valid function";
     }
 
-    // Verify that the operand and result types match the callee.
+    // Verify that outputs have same types as result types.
+    if (getResultTypes().size() != getOutputs().size()) {
+        return emitOpError("number of result types must equal number of output operands");
+    }
 
+    // Verify that the operand and result types match the callee.
     auto fnType = fn.getFunctionType();
     const size_t numCalleeParams = fnType.getNumInputs();
     const size_t numCalleeResults = fnType.getNumResults();
-    const size_t numArgs = getArguments().size();
-    const size_t numTargets = getTargets().size();
+    const size_t numArgs = getInputs().size();
+    const size_t numTargets = getOutputs().size();
     if (numCalleeParams != numArgs) {
         return emitOpError("number of arguments must match number of operands of callee");
     }
@@ -67,23 +71,23 @@ LogicalResult ApplyOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
     }
 
     for (unsigned i = 0, e = fnType.getNumInputs(); i != e; ++i) {
-        if (getArguments()[i].getType() != fnType.getInput(i)) {
+        if (getInputs()[i].getType() != fnType.getInput(i)) {
             return emitOpError("operand type mismatch: expected operand type ")
                    << fnType.getInput(i) << ", but provided "
-                   << getArguments()[i].getType() << " for operand number " << i;
+                   << getOutputs()[i].getType() << " for operand number " << i;
         }
     }
 
-    if (fnType.getNumResults() != getTargets().size()) {
+    if (fnType.getNumResults() != getOutputs().size()) {
         return emitOpError("incorrect number of results for callee");
     }
 
     for (unsigned i = 0, e = fnType.getNumResults(); i != e; ++i) {
         mlir::Type calleeResultType = fnType.getResult(i);
-        mlir::MemRefType targetType = getTargets()[i].getType().dyn_cast<mlir::MemRefType>();
+        mlir::ShapedType targetType = getOutputs()[i].getType().dyn_cast<mlir::ShapedType>();
         if (targetType.getElementType() != calleeResultType) {
             auto diag = emitOpError("result type mismatch at index ") << i;
-            diag.attachNote() << "      op result types: " << getTargetTypes();
+            diag.attachNote() << "      op result types: " << getResultTypes();
             diag.attachNote() << "function result types: " << fnType.getResults();
             return diag;
         }
@@ -91,24 +95,6 @@ LogicalResult ApplyOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
 
     return success();
 }
-
-FunctionType ApplyOp::getCalleeType() {
-    return FunctionType::get(getContext(), getOperandTypes(), getTargetTypes());
-}
-
-mlir::TypeRange ApplyOp::getTargetTypes() {
-    llvm::ArrayRef<mlir::Type> targetTypes;
-    for (const auto& target : getTargets()) {
-        const auto targetType = target.getType();
-        const auto memrefType = targetType.dyn_cast<mlir::MemRefType>();
-        const auto elementType = memrefType.getElementType();
-        targetTypes.vec().push_back(elementType);
-    }
-
-    return { targetTypes };
-}
-
-
 
 //------------------------------------------------------------------------------
 // InvokeStencilOp

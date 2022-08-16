@@ -40,11 +40,11 @@ struct Parameter {
 
 struct Stencil : Node {
     explicit Stencil(std::string name,
-                        std::vector<Parameter> parameters,
-                        std::vector<types::Type> results,
-                        std::vector<std::shared_ptr<Statement>> body,
-                        size_t numDimensions,
-                        std::optional<Location> loc = {})
+                     std::vector<Parameter> parameters,
+                     std::vector<types::Type> results,
+                     std::vector<std::shared_ptr<Statement>> body,
+                     size_t numDimensions,
+                     std::optional<Location> loc = {})
         : Node(loc), name(name), parameters(parameters), results(results), body(body), numDimensions(numDimensions) {}
     std::string name;
     std::vector<Parameter> parameters;
@@ -55,22 +55,20 @@ struct Stencil : Node {
 
 struct Return : Statement {
     explicit Return(std::vector<std::shared_ptr<Expression>> values = {},
-                          std::optional<Location> loc = {})
+                    std::optional<Location> loc = {})
         : Statement(loc), values(values) {}
     std::vector<std::shared_ptr<Expression>> values;
 };
 
 struct Apply : Statement {
     explicit Apply(std::string callee,
-                          std::vector<std::shared_ptr<Expression>> gridDim,
-                          std::vector<std::shared_ptr<Expression>> arguments = {},
-                          std::vector<std::shared_ptr<Expression>> targets = {},
-                          std::optional<Location> loc = {})
-        : Statement(loc), callee(callee), gridDim(gridDim), arguments(arguments), targets(targets) {}
+                   std::vector<std::shared_ptr<Expression>> arguments,
+                   std::vector<std::shared_ptr<Expression>> targets,
+                   std::optional<Location> loc = {})
+        : Statement(loc), callee(callee), inputs(arguments), outputs(targets) {}
     std::string callee;
-    std::vector<std::shared_ptr<Expression>> gridDim;
-    std::vector<std::shared_ptr<Expression>> arguments;
-    std::vector<std::shared_ptr<Expression>> targets;
+    std::vector<std::shared_ptr<Expression>> inputs;
+    std::vector<std::shared_ptr<Expression>> outputs;
 };
 
 struct Module : Node {

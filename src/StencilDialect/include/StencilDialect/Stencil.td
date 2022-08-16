@@ -83,7 +83,7 @@ def StencilOp : Stencil_Op<"stencil", [
     //===------------------------------------------------------------------===//
 
     /// Allow the dialect prefix to be omitted.
-    static mlir::StringRef getDefaultDialect() { return "func"; }
+    static mlir::StringRef getDefaultDialect() { return "stencil"; }
 
     //===------------------------------------------------------------------===//
     // SymbolOpInterface Methods
@@ -105,33 +105,25 @@ def StencilOp : Stencil_Op<"stencil", [
 
 
 def ApplyOp : Stencil_Op<"apply", [
-  CallOpInterface, MemRefsNormalizable, AttrSizedOperandSegments,
+  MemRefsNormalizable, AttrSizedOperandSegments,
   DeclareOpInterfaceMethods<SymbolUserOpInterface>
 ]> {
-  let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<Index>:$grid_dim, Variadic<AnyMemRef>:$targets, Variadic<AnyType>:$arguments);
+  let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<AnyType>:$inputs, Variadic<AnyShaped>:$outputs);
+  let results = (outs Variadic<AnyShaped>:$results);
 
-  let extraClassDeclaration = [{
-    mlir::FunctionType getCalleeType();
-
-    /// Get the argument operands to the called function.
-    operand_range getArgOperands() {
-      return {arg_operand_begin(), arg_operand_end()};
-    }
-
-    operand_iterator arg_operand_begin() { return operand_begin(); }
-    operand_iterator arg_operand_end() { return operand_end(); }
-
-    /// Return the callee of this operation.
-    mlir::CallInterfaceCallable getCallableForCallee() {
-      return (*this)->getAttrOfType<mlir::SymbolRefAttr>("callee");
-    }
-
-    mlir::TypeRange getTargetTypes();
-  }];
+  let builders = [
+    OpBuilder<(ins "::llvm::StringRef":$callee, "::mlir::ValueRange":$inputs, "::mlir::ValueRange":$outputs), [{
+      ::std::vector<::mlir::Type> types;
+      for (const auto& output : outputs) {
+        types.push_back(output.getType());
+      }
+      build($_builder, $_state, types, callee, inputs, outputs);
+    }]>
+  ];
 
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = [{
-    $callee `<``<``<` $grid_dim `>``>``>` `(` `(` $arguments `)` `->` `(` $targets `)` `)` attr-dict `:` functional-type($arguments, $targets)
+    $callee `(` $inputs `to` $outputs  `)` attr-dict `:` functional-type(operands, $results)
   }];
   let summary = "Launch a kernel on a multi-dimensional grid, like CUDA or compute shaders.";
   let description = [{

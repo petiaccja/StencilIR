@@ -6,6 +6,7 @@
 #include <Compiler/Lowering.hpp>
 #include <Execution/Execution.hpp>
 
+#include <iomanip>
 #include <iostream>
 #include <numeric>
 #include <string_view>
@@ -32,34 +33,29 @@ std::shared_ptr<ast::Module> CreateLaplacian() {
     auto ret = ast::return_({ sum });
 
     auto kernel = ast::stencil("edge_diffs",
-                              {
-                                  { "cellK", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-                                  { "edgeToCell", types::FieldType{ types::FundamentalType::SSIZE, 2 } },
-                                  { "cellWeights", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-                              },
-                              { types::FundamentalType::FLOAT32 },
-                              { ret },
-                              2);
+                               {
+                                   { "cellK", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
+                                   { "edgeToCell", types::FieldType{ types::FundamentalType::SSIZE, 2 } },
+                                   { "cellWeights", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
+                               },
+                               { types::FundamentalType::FLOAT32 },
+                               { ret },
+                               2);
 
     // Main function logic
     auto outEdgeK = ast::symref("outEdgeK");
-    auto numEdges = ast::symref("numEdges");
-    auto numLevels = ast::symref("numLevels");
 
-    auto kernelLaunch = ast::apply(kernel->name,
-                                    { numEdges, numLevels },
-                                    { cellK, edgeToCell, cellWeights },
-                                    { outEdgeK });
+    auto applyStencil = ast::apply(kernel->name,
+                                   { cellK, edgeToCell, cellWeights },
+                                   { outEdgeK });
 
-    return ast::module_({ kernelLaunch },
+    return ast::module_({ applyStencil },
                         { kernel },
                         {
                             { "cellK", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
                             { "edgeToCell", types::FieldType{ types::FundamentalType::SSIZE, 2 } },
                             { "cellWeights", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
                             { "outEdgeK", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-                            { "numEdges", types::FundamentalType::SSIZE },
-                            { "numLevels", types::FundamentalType::SSIZE },
                         });
 }
 
@@ -87,19 +83,19 @@ void RunLaplacian(JitRunner& runner) {
     MemRef<ptrdiff_t, 2> edgeToCellMem{ edgeToCell.data(), edgeToCell.data(), 0, { numEdges, 2 }, { 1, numEdges } };
     MemRef<float, 2> cellWeightsMem{ cellWeights.data(), cellWeights.data(), 0, { numEdges, 2 }, { 1, numEdges } };
 
-    runner.InvokeFunction("main", cellKMem, edgeToCellMem, cellWeightsMem, edgeKMem, numEdges, numLevels);
+    runner.InvokeFunction("main", cellKMem, edgeToCellMem, cellWeightsMem, edgeKMem);
 
     std::cout << "Input:" << std::endl;
     for (size_t level = 0; level < numLevels; ++level) {
         for (size_t cell = 0; cell < numCells; ++cell) {
-            std::cout << cellK[level * numCells + cell] << "\t";
+            std::cout << std::setprecision(4) << cellK[level * numCells + cell] << "\t";
         }
         std::cout << std::endl;
     }
     std::cout << "\nOutput:" << std::endl;
     for (size_t level = 0; level < numLevels; ++level) {
         for (size_t edge = 0; edge < numEdges; ++edge) {
-            std::cout << edgeK[level * numEdges + edge] << "\t";
+            std::cout << std::setprecision(4) << edgeK[level * numEdges + edge] << "\t";
         }
         std::cout << std::endl;
     }

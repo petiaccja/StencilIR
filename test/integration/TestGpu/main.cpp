@@ -21,29 +21,24 @@ std::shared_ptr<ast::Module> CreateDdx() {
     const auto ddx = ast::sub(sright, sleft);
     auto ret = ast::return_({ ddx });
     auto kernel = ast::stencil("ddx",
-                              { { "field", types::FieldType{ types::FundamentalType::FLOAT32, 2 } } },
-                              { types::FundamentalType::FLOAT32 },
-                              { ret },
-                              2);
+                               { { "field", types::FieldType{ types::FundamentalType::FLOAT32, 2 } } },
+                               { types::FundamentalType::FLOAT32 },
+                               { ret },
+                               2);
 
     // Main function logic
     auto inputField = ast::symref("input");
     auto output = ast::symref("out");
-    auto sizeX = ast::symref("sizeX");
-    auto sizeY = ast::symref("sizeY");
 
     auto kernelLaunch = ast::apply(kernel->name,
-                                    { sizeX, sizeY },
-                                    { inputField },
-                                    { output });
+                                   { inputField },
+                                   { output });
 
     return ast::module_({ kernelLaunch },
                         { kernel },
                         {
                             { "input", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
                             { "out", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-                            { "sizeX", types::FundamentalType::SSIZE },
-                            { "sizeY", types::FundamentalType::SSIZE },
                         });
 }
 

@@ -6,6 +6,7 @@
 #include <Compiler/Lowering.hpp>
 #include <Execution/Execution.hpp>
 
+#include <iomanip>
 #include <iostream>
 #include <string_view>
 
@@ -26,33 +27,28 @@ std::shared_ptr<ast::Module> CreateLaplacian() {
     auto ret = ast::return_({ sum });
 
     auto kernel = ast::stencil("laplacian",
-                              { { "field", types::FieldType{ types::FundamentalType::FLOAT32, 2 } } },
-                              { types::FundamentalType::FLOAT32 },
-                              { ret },
-                              2);
+                               { { "field", types::FieldType{ types::FundamentalType::FLOAT32, 2 } } },
+                               { types::FundamentalType::FLOAT32 },
+                               { ret },
+                               2);
 
     // Main function logic
-    auto inputField = ast::symref("input");
+    auto input = ast::symref("input");
     auto output = ast::symref("out");
-    auto sizeX = ast::symref("sizeX");
-    auto sizeY = ast::symref("sizeY");
 
-    auto kernelLaunch = ast::apply(kernel->name,
-                                    { sizeX, sizeY },
-                                    { inputField },
-                                    { output });
+    auto applyStencil = ast::apply(kernel->name,
+                                   { input },
+                                   { output });
 
     // Module
-    auto moduleBody = std::vector<std::shared_ptr<ast::Node>>{ kernelLaunch };
+    auto moduleBody = std::vector<std::shared_ptr<ast::Node>>{ applyStencil };
     auto moduleKernels = std::vector<std::shared_ptr<ast::Stencil>>{ kernel };
 
-    return ast::module_({ kernelLaunch },
+    return ast::module_({ applyStencil },
                         { kernel },
                         {
                             { "input", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
                             { "out", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-                            { "sizeX", types::FundamentalType::SSIZE },
-                            { "sizeY", types::FundamentalType::SSIZE },
                         });
 }
 
@@ -74,19 +70,19 @@ void RunLaplacian(JitRunner& runner) {
         }
     }
 
-    runner.InvokeFunction("main", input, output, domainSizeX, domainSizeY);
+    runner.InvokeFunction("main", input, output);
 
     std::cout << "Input:" << std::endl;
     for (size_t y = 0; y < inputSizeY; ++y) {
         for (size_t x = 0; x < inputSizeX; ++x) {
-            std::cout << inputBuffer[y * inputSizeX + x] << "\t";
+            std::cout << std::setprecision(4) << inputBuffer[y * inputSizeX + x] << "\t";
         }
         std::cout << std::endl;
     }
     std::cout << "\nOutput:" << std::endl;
     for (size_t y = 0; y < inputSizeY; ++y) {
         for (size_t x = 0; x < inputSizeX; ++x) {
-            std::cout << outputBuffer[y * inputSizeX + x] << "\t";
+            std::cout << std::setprecision(4) << outputBuffer[y * inputSizeX + x] << "\t";
         }
         std::cout << std::endl;
     }

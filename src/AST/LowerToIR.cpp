@@ -291,9 +291,9 @@ struct ASTToMLIRRules {
         const auto functionType = builder.getFunctionType(mlir::TypeRange{ inputTypes }, mlir::TypeRange{ resultTypes });
         const auto loc = ConvertLocation(builder, node.location);
         auto StencilOp = builder.create<stencil::StencilOp>(loc,
-                                                          node.name,
-                                                          functionType,
-                                                          mlir::APInt(64, node.numDimensions));
+                                                            node.name,
+                                                            functionType,
+                                                            mlir::APInt(64, node.numDimensions));
 
         // Create function body
         auto& kernelFuncBlock = *StencilOp.addEntryBlock();
@@ -329,26 +329,20 @@ struct ASTToMLIRRules {
     auto operator()(const ASTToMLIRTranformer& tf, const ast::Apply& node) const -> std::vector<mlir::Value> {
         const auto callee = mlir::StringRef(node.callee);
 
-        std::vector<mlir::Value> gridDim;
-        for (auto& gridAxis : node.gridDim) {
-            gridDim.push_back(tf(*gridAxis).front());
+        std::vector<mlir::Value> outputs;
+        for (auto& target : node.outputs) {
+            outputs.push_back(tf(*target).front());
         }
 
-        std::vector<mlir::Value> targets;
-        for (auto& target : node.targets) {
-            targets.push_back(tf(*target).front());
-        }
-
-        std::vector<mlir::Value> operands;
-        for (auto& argument : node.arguments) {
-            operands.push_back(tf(*argument).front());
+        std::vector<mlir::Value> inputs;
+        for (auto& argument : node.inputs) {
+            inputs.push_back(tf(*argument).front());
         }
 
         builder.create<stencil::ApplyOp>(ConvertLocation(builder, node.location),
-                                                callee,
-                                                mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ gridDim } },
-                                                mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ targets } },
-                                                mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ operands } });
+                                         callee,
+                                         mlir::ValueRange{ inputs },
+                                         mlir::ValueRange{ outputs });
 
         return {};
     }

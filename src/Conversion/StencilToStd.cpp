@@ -83,32 +83,39 @@ struct LaunchKernelLoweringBase : public OpRewritePattern<stencil::ApplyOp> {
     static auto CreateLoopBody(stencil::ApplyOp op, OpBuilder& builder, Location loc, ValueRange loopVars) {
         // Insert a kernel invocation within the loop
         std::vector<Type> resultTypes;
-        for (const auto& target : op.getTargets()) {
+        for (const auto& target : op.getOutputs()) {
             auto type = target.getType();
             assert(type.isa<MemRefType>());
             resultTypes.push_back(type.dyn_cast<MemRefType>().getElementType());
         }
 
-        auto call = builder.create<stencil::InvokeStencilOp>(loc, resultTypes, op.getCallee(), loopVars, op.getArguments());
+        auto call = builder.create<stencil::InvokeStencilOp>(loc, resultTypes, op.getCallee(), loopVars, op.getInputs());
 
         // Store return values to targets
         const auto results = call.getResults();
-        const auto targets = op.getTargets();
+        const auto outputs = op.getOutputs();
         const auto numResults = results.size();
 
-        assert(results.size() == targets.size());
+        assert(results.size() == outputs.size());
 
         for (size_t resultIdx = 0; resultIdx < numResults; ++resultIdx) {
-            builder.create<memref::StoreOp>(loc, results[resultIdx], targets[resultIdx], loopVars);
+            builder.create<memref::StoreOp>(loc, results[resultIdx], outputs[resultIdx], loopVars);
         }
     };
 
-    static auto GetGridSize(stencil::ApplyOp op, OpBuilder& builder, Location loc)
+    static int64_t GetDimension(stencil::ApplyOp op) {
+        const auto& output0 = op.getOutputs()[0];
+        const auto& type0 = output0.getType().cast<mlir::ShapedType>();
+        return type0.getRank();
+    }
+
+    static auto GetOutputSize(stencil::ApplyOp op, OpBuilder& builder, Location loc)
         -> std::vector<Value> {
-        const int64_t numDims = op.getGridDim().size();
+        const auto& output0 = op.getOutputs()[0];
+        const int64_t numDims = GetDimension(op);
         std::vector<Value> ubValues;
-        for (ptrdiff_t boundIdx = 0; boundIdx < numDims; ++boundIdx) {
-            ubValues.push_back(op.getGridDim()[boundIdx]);
+        for (ptrdiff_t dimIdx = 0; dimIdx < numDims; ++dimIdx) {
+            ubValues.push_back(builder.create<memref::DimOp>(loc, output0, dimIdx));
         }
         return ubValues;
     }
@@ -119,9 +126,9 @@ struct ApplyOpLoweringSCF : LaunchKernelLoweringBase {
 
     LogicalResult matchAndRewrite(stencil::ApplyOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
-        const int64_t numDims = op.getGridDim().size();
+        const int64_t numDims = GetDimension(op);
 
-        const auto ubValues = GetGridSize(op, rewriter, loc);
+        const auto ubValues = GetOutputSize(op, rewriter, loc);
         const auto lbValues = std::vector<Value>(numDims, rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0)));
         const std::vector<Value> steps(numDims, rewriter.create<arith::ConstantIndexOp>(loc, 1));
 
@@ -140,9 +147,9 @@ struct ApplyOpLoweringGPULaunch : LaunchKernelLoweringBase {
 
     LogicalResult matchAndRewrite(stencil::ApplyOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
-        const int64_t numDims = op.getGridDim().size();
+        const int64_t numDims = GetDimension(op);
 
-        const auto domainSizes = GetGridSize(op, rewriter, loc);
+        const auto domainSizes = GetOutputSize(op, rewriter, loc);
 
         const auto blockSizes = [numDims]() -> std::array<int64_t, 3> {
             switch (numDims) {
@@ -364,7 +371,10 @@ struct SampleIndirectOpLowering : public OpRewritePattern<stencil::SampleIndirec
 
 
 void StencilToStdPass::getDependentDialects(DialectRegistry& registry) const {
-    registry.insert<arith::ArithmeticDialect, func::FuncDialect, memref::MemRefDialect>();
+    registry.insert<arith::ArithmeticDialect,
+                    func::FuncDialect,
+                    memref::MemRefDialect,
+                    scf::SCFDialect>();
 }
 
 
@@ -373,6 +383,7 @@ void StencilToStdPass::runOnOperation() {
     target.addLegalDialect<arith::ArithmeticDialect>();
     target.addLegalDialect<func::FuncDialect>();
     target.addLegalDialect<memref::MemRefDialect>();
+    target.addLegalDialect<scf::SCFDialect>();
     target.addIllegalDialect<stencil::StencilDialect>();
     target.addLegalOp<stencil::PrintOp>();
 

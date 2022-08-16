@@ -33,11 +33,10 @@ inline auto return_(std::vector<std::shared_ptr<Expression>> values = {},
 }
 
 inline auto apply(std::string callee,
-                   std::vector<std::shared_ptr<Expression>> gridDim,
-                   std::vector<std::shared_ptr<Expression>> arguments = {},
-                   std::vector<std::shared_ptr<Expression>> targets = {},
+                   std::vector<std::shared_ptr<Expression>> inputs = {},
+                   std::vector<std::shared_ptr<Expression>> outputs = {},
                    std::optional<Location> loc = {}) {
-    return std::make_shared<Apply>(callee, gridDim, arguments, targets, loc);
+    return std::make_shared<Apply>(callee, inputs, outputs, loc);
 }
 
 inline auto module_(std::vector<std::shared_ptr<Node>> body,
