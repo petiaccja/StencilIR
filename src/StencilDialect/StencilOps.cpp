@@ -1,12 +1,13 @@
 #include "StencilOps.hpp"
 
-#include "llvm/ADT/ArrayRef.h"
-#include "mlir/IR/TypeRange.h"
-#include "mlir/IR/Types.h"
-#include "mlir/IR/ValueRange.h"
-#include "mlir/Support/LLVM.h"
+#include <llvm/ADT/ArrayRef.h>
 #include <mlir/IR/Builders.h>
 #include <mlir/IR/BuiltinTypes.h>
+#include <mlir/IR/TypeRange.h>
+#include <mlir/IR/Types.h>
+#include <mlir/IR/ValueRange.h>
+#include <mlir/Interfaces/ViewLikeInterface.h>
+#include <mlir/Support/LLVM.h>
 
 // clang-format: off
 #define GET_OP_CLASSES
@@ -91,6 +92,80 @@ LogicalResult ApplyOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
             diag.attachNote() << "function result types: " << fnType.getResults();
             return diag;
         }
+    }
+
+    return success();
+}
+
+
+void ApplyOp::build(::mlir::OpBuilder& odsBuilder,
+                    ::mlir::OperationState& odsState,
+                    ::llvm::StringRef callee,
+                    ::mlir::ValueRange inputs,
+                    ::mlir::ValueRange outputs) {
+    return build(odsBuilder,
+                 odsState,
+                 outputs.getTypes(),
+                 callee,
+                 inputs,
+                 outputs,
+                 ::mlir::ValueRange{},
+                 odsBuilder.getI64ArrayAttr({}));
+}
+
+
+void ApplyOp::build(::mlir::OpBuilder& odsBuilder,
+                    ::mlir::OperationState& odsState,
+                    ::llvm::StringRef callee,
+                    ::mlir::ValueRange inputs,
+                    ::mlir::ValueRange outputs,
+                    ::llvm::ArrayRef<int64_t> static_offsets) {
+    return build(odsBuilder,
+                 odsState,
+                 outputs.getTypes(),
+                 callee,
+                 inputs,
+                 outputs,
+                 ::mlir::ValueRange{},
+                 odsBuilder.getI64ArrayAttr(static_offsets));
+}
+
+
+void ApplyOp::build(::mlir::OpBuilder& odsBuilder,
+                    ::mlir::OperationState& odsState,
+                    ::llvm::StringRef callee,
+                    ::mlir::ValueRange inputs,
+                    ::mlir::ValueRange outputs,
+                    ::mlir::ValueRange offsets) {
+    return build(odsBuilder,
+                 odsState,
+                 outputs.getTypes(),
+                 callee,
+                 inputs,
+                 outputs,
+                 offsets,
+                 odsBuilder.getI64ArrayAttr({}));
+}
+
+::mlir::LogicalResult ApplyOp::verify() {
+    const auto& outputTypes = getOutputs().getTypes();
+    const auto& resultTypes = getResultTypes();
+
+    // Same number of output operands and results
+    if (outputTypes.size() != resultTypes.size()) {
+        return emitOpError("must have equal number of output operands as results");
+    }
+
+    // Same types of output operands and results
+    for (size_t i = 0; i < outputTypes.size(); ++i) {
+        if (outputTypes[i].getTypeID() != resultTypes[i].getTypeID()) {
+            return emitOpError("output operand must have the same types as results");
+        }
+    }
+
+    // Either static or dynamic offsets
+    if (!getOffsets().empty() && !getStaticOffsets().empty()) {
+        return emitOpError("cannot have both static and dynamic offsets");
     }
 
     return success();

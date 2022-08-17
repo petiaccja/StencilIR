@@ -2,6 +2,7 @@ include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/Interfaces/ViewLikeInterface.td"
 include "mlir/IR/EnumAttr.td"
 include "mlir/IR/FunctionInterfaces.td"
 include "mlir/IR/OpAsmInterface.td"
@@ -108,22 +109,23 @@ def ApplyOp : Stencil_Op<"apply", [
   MemRefsNormalizable, AttrSizedOperandSegments,
   DeclareOpInterfaceMethods<SymbolUserOpInterface>
 ]> {
-  let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<AnyType>:$inputs, Variadic<AnyShaped>:$outputs);
+  let arguments = (ins FlatSymbolRefAttr:$callee,
+                   Variadic<AnyType>:$inputs,
+                   Variadic<AnyShaped>:$outputs,
+                   Variadic<Index>:$offsets,
+                   I64ArrayAttr:$static_offsets);
   let results = (outs Variadic<AnyShaped>:$results);
 
   let builders = [
-    OpBuilder<(ins "::llvm::StringRef":$callee, "::mlir::ValueRange":$inputs, "::mlir::ValueRange":$outputs), [{
-      ::std::vector<::mlir::Type> types;
-      for (const auto& output : outputs) {
-        types.push_back(output.getType());
-      }
-      build($_builder, $_state, types, callee, inputs, outputs);
-    }]>
+    OpBuilder<(ins "::llvm::StringRef":$callee, "::mlir::ValueRange":$inputs, "::mlir::ValueRange":$outputs)>,
+    OpBuilder<(ins "::llvm::StringRef":$callee, "::mlir::ValueRange":$inputs, "::mlir::ValueRange":$outputs, "::llvm::ArrayRef<int64_t>":$static_offsets)>,
+    OpBuilder<(ins "::llvm::StringRef":$callee, "::mlir::ValueRange":$inputs, "::mlir::ValueRange":$outputs, "::mlir::ValueRange":$offsets)>
   ];
 
+  let hasVerifier = 1;
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = [{
-    $callee `(` $inputs `to` $outputs  `)` attr-dict `:` functional-type(operands, $results)
+    $callee `(` $inputs `)` `->` $outputs `,` `offsets` `` `:` custom<OperandsOrIntegersSizesList>($offsets, $static_offsets) attr-dict `:` functional-type(operands, $results)
   }];
   let summary = "Launch a kernel on a multi-dimensional grid, like CUDA or compute shaders.";
   let description = [{

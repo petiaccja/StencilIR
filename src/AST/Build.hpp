@@ -19,24 +19,33 @@ inline auto symref(std::string name,
 }
 
 inline auto stencil(std::string name,
-                   std::vector<Parameter> parameters,
-                   std::vector<types::Type> results,
-                   std::vector<std::shared_ptr<Statement>> body,
-                   size_t numDimensions,
-                   std::optional<Location> loc = {}) {
+                    std::vector<Parameter> parameters,
+                    std::vector<types::Type> results,
+                    std::vector<std::shared_ptr<Statement>> body,
+                    size_t numDimensions,
+                    std::optional<Location> loc = {}) {
     return std::make_shared<Stencil>(name, parameters, results, body, numDimensions, loc);
 }
 
 inline auto return_(std::vector<std::shared_ptr<Expression>> values = {},
-                          std::optional<Location> loc = {}) {
+                    std::optional<Location> loc = {}) {
     return std::make_shared<Return>(values, loc);
 }
 
 inline auto apply(std::string callee,
-                   std::vector<std::shared_ptr<Expression>> inputs = {},
-                   std::vector<std::shared_ptr<Expression>> outputs = {},
-                   std::optional<Location> loc = {}) {
-    return std::make_shared<Apply>(callee, inputs, outputs, loc);
+                  std::vector<std::shared_ptr<Expression>> inputs,
+                  std::vector<std::shared_ptr<Expression>> outputs,
+                  std::vector<std::shared_ptr<Expression>> offsets,
+                  std::optional<Location> loc = {}) {
+    return std::make_shared<Apply>(callee, inputs, outputs, offsets, loc);
+}
+
+inline auto apply(std::string callee,
+                  std::vector<std::shared_ptr<Expression>> inputs,
+                  std::vector<std::shared_ptr<Expression>> outputs,
+                  std::vector<int64_t> static_offsets = {},
+                  std::optional<Location> loc = {}) {
+    return std::make_shared<Apply>(callee, inputs, outputs, static_offsets, loc);
 }
 
 inline auto module_(std::vector<std::shared_ptr<Node>> body,

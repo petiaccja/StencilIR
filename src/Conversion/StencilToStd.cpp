@@ -81,15 +81,37 @@ struct LaunchKernelLoweringBase : public OpRewritePattern<stencil::ApplyOp> {
     using OpRewritePattern<stencil::ApplyOp>::OpRewritePattern;
 
     static auto CreateLoopBody(stencil::ApplyOp op, OpBuilder& builder, Location loc, ValueRange loopVars) {
-        // Insert a kernel invocation within the loop
+        // Get invocation result types from ApplyOp result tensors.
         std::vector<Type> resultTypes;
-        for (const auto& target : op.getOutputs()) {
-            auto type = target.getType();
-            assert(type.isa<MemRefType>());
-            resultTypes.push_back(type.dyn_cast<MemRefType>().getElementType());
+        for (const auto& type : op->getResultTypes()) {
+            mlir::ShapedType shapedType = type.dyn_cast<ShapedType>();
+            assert(shapedType);
+            resultTypes.push_back(shapedType.getElementType());
         }
 
-        auto call = builder.create<stencil::InvokeStencilOp>(loc, resultTypes, op.getCallee(), loopVars, op.getInputs());
+        // Offset loopVars
+        std::vector<Value> offsetLoopVars;
+        if (!op.getOffsets().empty()) {
+            auto offsetIt = op.getOffsets().begin();
+            for (const auto& loopVar : loopVars) {
+                offsetLoopVars.push_back(builder.create<arith::AddIOp>(loc, loopVar, *offsetIt++));
+            }
+        }
+        else if (!op.getStaticOffsets().empty()) {
+            auto offsetIt = op.getStaticOffsets().getAsRange<IntegerAttr>().begin();
+            for (const auto& loopVar : loopVars) {
+                auto attr = *offsetIt++;
+                Value staticOffset = builder.create<arith::ConstantIndexOp>(loc, attr.getInt());
+                offsetLoopVars.push_back(builder.create<arith::AddIOp>(loc, loopVar, staticOffset));
+            }
+        }
+        else {
+            for (const auto& loopVar : loopVars) {
+                offsetLoopVars.push_back(loopVar);
+            }
+        }
+
+        auto call = builder.create<stencil::InvokeStencilOp>(loc, resultTypes, op.getCallee(), offsetLoopVars, op.getInputs());
 
         // Store return values to targets
         const auto results = call.getResults();

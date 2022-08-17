@@ -339,10 +339,25 @@ struct ASTToMLIRRules {
             inputs.push_back(tf(*argument).front());
         }
 
-        builder.create<stencil::ApplyOp>(ConvertLocation(builder, node.location),
-                                         callee,
-                                         mlir::ValueRange{ inputs },
-                                         mlir::ValueRange{ outputs });
+        std::vector<mlir::Value> offsets;
+        for (auto& offset : node.offsets) {
+            offsets.push_back(tf(*offset).front());
+        }
+
+        if (!offsets.empty()) {
+            builder.create<stencil::ApplyOp>(ConvertLocation(builder, node.location),
+                                             callee,
+                                             inputs,
+                                             outputs,
+                                             offsets);
+        }
+        else {
+            builder.create<stencil::ApplyOp>(ConvertLocation(builder, node.location),
+                                             callee,
+                                             inputs,
+                                             outputs,
+                                             node.static_offsets);
+        }
 
         return {};
     }

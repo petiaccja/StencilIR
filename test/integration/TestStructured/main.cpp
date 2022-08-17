@@ -38,7 +38,8 @@ std::shared_ptr<ast::Module> CreateLaplacian() {
 
     auto applyStencil = ast::apply(kernel->name,
                                    { input },
-                                   { output });
+                                   { output },
+                                   { 1, 1 });
 
     // Module
     auto moduleBody = std::vector<std::shared_ptr<ast::Node>>{ applyStencil };
@@ -56,12 +57,12 @@ std::shared_ptr<ast::Module> CreateLaplacian() {
 void RunLaplacian(JitRunner& runner) {
     constexpr ptrdiff_t inputSizeX = 9;
     constexpr ptrdiff_t inputSizeY = 7;
-    constexpr ptrdiff_t domainSizeX = inputSizeX - 2;
-    constexpr ptrdiff_t domainSizeY = inputSizeY - 2;
-    std::array<float, inputSizeX * inputSizeY> outputBuffer;
+    constexpr ptrdiff_t outputSizeX = inputSizeX - 2;
+    constexpr ptrdiff_t outputSizeY = inputSizeY - 2;
     std::array<float, inputSizeX * inputSizeY> inputBuffer;
-    MemRef<float, 2> output{ outputBuffer.data(), outputBuffer.data(), inputSizeX + 1, { domainSizeX, domainSizeY }, { 1, inputSizeX } };
-    MemRef<float, 2> input{ inputBuffer.data(), inputBuffer.data(), inputSizeX + 1, { domainSizeX, domainSizeY }, { 1, inputSizeX } };
+    std::array<float, outputSizeX * outputSizeY> outputBuffer;
+    MemRef<float, 2> input{ inputBuffer.data(), inputBuffer.data(), 0, { inputSizeX, inputSizeY }, { 1, inputSizeX } };
+    MemRef<float, 2> output{ outputBuffer.data(), outputBuffer.data(), 0, { outputSizeX, outputSizeY }, { 1, outputSizeX } };
     std::ranges::fill(outputBuffer, 0);
 
     for (size_t y = 0; y < inputSizeY; ++y) {
@@ -80,9 +81,9 @@ void RunLaplacian(JitRunner& runner) {
         std::cout << std::endl;
     }
     std::cout << "\nOutput:" << std::endl;
-    for (size_t y = 0; y < inputSizeY; ++y) {
-        for (size_t x = 0; x < inputSizeX; ++x) {
-            std::cout << std::setprecision(4) << outputBuffer[y * inputSizeX + x] << "\t";
+    for (size_t y = 0; y < outputSizeY; ++y) {
+        for (size_t x = 0; x < outputSizeX; ++x) {
+            std::cout << std::setprecision(4) << outputBuffer[y * outputSizeX + x] << "\t";
         }
         std::cout << std::endl;
     }
