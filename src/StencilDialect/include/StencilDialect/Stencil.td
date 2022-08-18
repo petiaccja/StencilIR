@@ -183,7 +183,7 @@ def ReturnOp : Stencil_Op<"return", [
 
 
 def IndexOp : Stencil_Op<"index", [NoSideEffect, HasParent<"StencilOp">]> {
-  let results = (outs AnyMemRef:$index);
+  let results = (outs AnyVector:$index);
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = "attr-dict `:` type($index)";
   let summary = "Get the index of this kernel in the grid.";
@@ -191,8 +191,8 @@ def IndexOp : Stencil_Op<"index", [NoSideEffect, HasParent<"StencilOp">]> {
 
 
 def JumpOp : Stencil_Op<"jump", [NoSideEffect, HasParent<"StencilOp">]> {
-  let arguments = (ins AnyMemRef:$input_index, I64ArrayAttr:$offset);
-  let results = (outs AnyMemRef:$offseted_index);
+  let arguments = (ins AnyVector:$input_index, I64ArrayAttr:$offset);
+  let results = (outs AnyVector:$offseted_index);
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = "$input_index `,` $offset attr-dict `:` functional-type($input_index, $offseted_index)";
   let summary = "Move an index by a constant offset.";
@@ -200,7 +200,7 @@ def JumpOp : Stencil_Op<"jump", [NoSideEffect, HasParent<"StencilOp">]> {
 
 
 def SampleOp : Stencil_Op<"sample", [NoSideEffect, HasParent<"StencilOp">]> {
-  let arguments = (ins AnyMemRef:$field, AnyMemRef:$index);
+  let arguments = (ins AnyShaped:$field, AnyVector:$index);
   let results = (outs AnyType:$sampled_value);
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = "$field`[` $index `]` attr-dict `:` functional-type(operands, $sampled_value)";
@@ -209,8 +209,8 @@ def SampleOp : Stencil_Op<"sample", [NoSideEffect, HasParent<"StencilOp">]> {
 
 
 def JumpIndirectOp : Stencil_Op<"jump_indirect", [NoSideEffect, HasParent<"StencilOp">]> {
-  let arguments = (ins AnyMemRef:$input_index, IndexAttr:$dimension, AnyMemRef:$map, Index:$map_element);
-  let results = (outs AnyMemRef:$offseted_index);
+  let arguments = (ins AnyVector:$input_index, IndexAttr:$dimension, AnyShaped:$map, Index:$map_element);
+  let results = (outs AnyVector:$offseted_index);
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = "$input_index `[` $dimension `]``,` $map `[` $map_element `]` attr-dict `:` functional-type(operands, $offseted_index)";
   let summary = "Use a connectivity map to modify the index.";
@@ -227,7 +227,7 @@ def JumpIndirectOp : Stencil_Op<"jump_indirect", [NoSideEffect, HasParent<"Stenc
 
 
 def SampleIndirectOp : Stencil_Op<"sample_indirect", [NoSideEffect, HasParent<"StencilOp">]> {
-  let arguments = (ins AnyMemRef:$index, IndexAttr:$dimension, AnyMemRef:$field, Index:$field_element);
+  let arguments = (ins AnyVector:$index, IndexAttr:$dimension, AnyShaped:$field, Index:$field_element);
   let results = (outs AnyType:$field_value);
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = "$field`[` $index`[`$dimension`]``,` $field_element `]` attr-dict `:` functional-type(operands, $field_value)";

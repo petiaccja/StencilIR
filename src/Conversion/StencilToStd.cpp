@@ -10,6 +10,7 @@
 #include <mlir/Dialect/GPU/IR/GPUDialect.h>
 #include <mlir/Dialect/MemRef/IR/MemRef.h>
 #include <mlir/Dialect/SCF/IR/SCF.h>
+#include <mlir/Dialect/Vector/IR/VectorOps.h>
 #include <mlir/IR/BuiltinAttributes.h>
 #include <mlir/IR/BuiltinTypes.h>
 #include <mlir/IR/Dialect.h>
@@ -45,7 +46,7 @@ struct StencilOpLowering : public OpRewritePattern<stencil::StencilOp> {
         const int64_t numDims = op.getNumDimensions().getSExtValue();
 
         std::vector<mlir::Type> functionParamTypes;
-        const auto indexType = MemRefType::get({ numDims }, rewriter.getIndexType());
+        const auto indexType = VectorType::get({ numDims }, rewriter.getIndexType());
         functionParamTypes.push_back(indexType);
         for (auto& argument : op.getArgumentTypes()) {
             functionParamTypes.push_back(argument);
@@ -77,7 +78,7 @@ struct ReturnOpLowering : public OpRewritePattern<stencil::ReturnOp> {
     }
 };
 
-struct LaunchKernelLoweringBase : public OpRewritePattern<stencil::ApplyOp> {
+struct ApplyOpLoweringBase : public OpRewritePattern<stencil::ApplyOp> {
     using OpRewritePattern<stencil::ApplyOp>::OpRewritePattern;
 
     static auto CreateLoopBody(stencil::ApplyOp op, OpBuilder& builder, Location loc, ValueRange loopVars) {
@@ -143,8 +144,8 @@ struct LaunchKernelLoweringBase : public OpRewritePattern<stencil::ApplyOp> {
     }
 };
 
-struct ApplyOpLoweringSCF : LaunchKernelLoweringBase {
-    using LaunchKernelLoweringBase::LaunchKernelLoweringBase;
+struct ApplyOpLoweringSCF : ApplyOpLoweringBase {
+    using ApplyOpLoweringBase::ApplyOpLoweringBase;
 
     LogicalResult matchAndRewrite(stencil::ApplyOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
@@ -164,8 +165,8 @@ struct ApplyOpLoweringSCF : LaunchKernelLoweringBase {
 };
 
 
-struct ApplyOpLoweringGPULaunch : LaunchKernelLoweringBase {
-    using LaunchKernelLoweringBase::LaunchKernelLoweringBase;
+struct ApplyOpLoweringGPULaunch : ApplyOpLoweringBase {
+    using ApplyOpLoweringBase::ApplyOpLoweringBase;
 
     LogicalResult matchAndRewrite(stencil::ApplyOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
@@ -236,14 +237,17 @@ struct InvokeStencilLowering : public OpRewritePattern<stencil::InvokeStencilOp>
     LogicalResult matchAndRewrite(stencil::InvokeStencilOp op, PatternRewriter& rewriter) const override {
         Location loc = op->getLoc();
 
-        auto MakeIndex = [&rewriter, &loc](int64_t value) {
-            return rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(value));
+        auto ConstantIndex = [&rewriter, &loc](int64_t value) {
+            return rewriter.create<arith::ConstantIndexOp>(loc, value);
         };
 
-        const int64_t numDims = op.getIndices().size();
-        auto index = rewriter.create<memref::AllocaOp>(loc, MemRefType::get({ numDims }, rewriter.getIndexType()));
-        for (ptrdiff_t dimIdx = 0; dimIdx < numDims; ++dimIdx) {
-            rewriter.create<memref::StoreOp>(loc, op.getIndices()[dimIdx], index, ValueRange{ MakeIndex(dimIdx) });
+        const auto indices = op.getIndices();
+        const size_t numDims = indices.size();
+
+        mlir::Type indexType = VectorType::get({ int64_t(numDims) }, rewriter.getIndexType());
+        Value index = rewriter.create<vector::SplatOp>(loc, indexType, ConstantIndex(0));
+        for (size_t dimIdx = 0; dimIdx < numDims; ++dimIdx) {
+            index = rewriter.create<vector::InsertElementOp>(loc, indices[dimIdx], index, ConstantIndex(dimIdx));
         }
 
         std::vector<Value> operands;
@@ -287,23 +291,25 @@ struct JumpOpLowering : public OpRewritePattern<stencil::JumpOp> {
     LogicalResult matchAndRewrite(stencil::JumpOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
 
+        auto ConstantIndex = [&rewriter, &loc](int64_t value) {
+            return rewriter.create<arith::ConstantIndexOp>(loc, value);
+        };
+
         Value index = op.getInputIndex();
+
         std::vector<int64_t> offsets;
         for (const auto& offset : op.getOffset().getAsRange<IntegerAttr>()) {
             offsets.push_back(offset.getInt());
         }
+        const size_t numDims = offsets.size();
 
-        assert(index.getType().isa<MemRefType>());
-        const auto indexType = index.getType().dyn_cast<MemRefType>();
-
-        Value result = rewriter.create<memref::AllocaOp>(loc, indexType);
-        for (size_t dimIdx = 0; dimIdx < offsets.size(); ++dimIdx) {
-            std::array accessIndex = { Value(rewriter.create<arith::ConstantIndexOp>(loc, dimIdx)) };
-            Value original = rewriter.create<memref::LoadOp>(loc, index, accessIndex);
-            Value offset = rewriter.create<arith::ConstantIndexOp>(loc, offsets[dimIdx]);
-            Value sum = rewriter.create<arith::AddIOp>(loc, original, offset);
-            rewriter.create<memref::StoreOp>(loc, sum, result, accessIndex);
+        const auto indexType = index.getType();
+        Value offset = rewriter.create<vector::SplatOp>(loc, indexType, ConstantIndex(0));
+        for (size_t dimIdx = 0; dimIdx < numDims; ++dimIdx) {
+            offset = rewriter.create<vector::InsertElementOp>(loc, ConstantIndex(offsets[dimIdx]), offset, ConstantIndex(dimIdx));
         }
+
+        Value result = rewriter.create<arith::AddIOp>(loc, index, offset);
 
         rewriter.replaceOp(op, result);
 
@@ -320,15 +326,13 @@ struct SampleOpLowering : public OpRewritePattern<stencil::SampleOp> {
         Value index = op.getIndex();
         Value field = op.getField();
 
-        assert(index.getType().isa<MemRefType>());
-        const auto indexType = index.getType().dyn_cast<MemRefType>();
+        const auto indexType = index.getType().dyn_cast<VectorType>();
         const auto numDims = indexType.getShape()[0];
-        assert(numDims != ShapedType::kDynamicSize);
 
         std::vector<Value> indices;
         for (ptrdiff_t dimIdx = 0; dimIdx < numDims; ++dimIdx) {
-            std::array loadIndex = { Value(rewriter.create<arith::ConstantIndexOp>(loc, dimIdx)) };
-            indices.push_back(rewriter.create<memref::LoadOp>(loc, index, loadIndex));
+            Value loadIndex = rewriter.create<arith::ConstantIndexOp>(loc, dimIdx);
+            indices.push_back(rewriter.create<vector::ExtractElementOp>(loc, index, loadIndex));
         }
 
         Value value = rewriter.create<memref::LoadOp>(loc, field, indices);
@@ -347,20 +351,15 @@ struct JumpIndirectOpLowering : public OpRewritePattern<stencil::JumpIndirectOp>
 
         auto inputIndex = op.getInputIndex();
         const auto dimension = op.getDimension().getSExtValue();
-        std::array<Value, 1> dimIndices = { rewriter.create<arith::ConstantIndexOp>(loc, dimension) };
-        Value inputIndexElem = rewriter.create<memref::LoadOp>(loc, inputIndex, dimIndices);
+        Value dimIndex = { rewriter.create<arith::ConstantIndexOp>(loc, dimension) };
+        Value inputIndexElem = rewriter.create<vector::ExtractElementOp>(loc, inputIndex, dimIndex);
 
         auto map = op.getMap();
         auto mapElement = op.getMapElement();
         std::array<Value, 2> mapIndices = { inputIndexElem, mapElement };
         Value newIndexElem = rewriter.create<memref::LoadOp>(loc, map, mapIndices);
 
-        assert(inputIndex.getType().isa<MemRefType>());
-        const auto indexType = inputIndex.getType().dyn_cast<MemRefType>();
-
-        Value outputIndex = rewriter.create<memref::AllocaOp>(loc, indexType);
-        rewriter.create<memref::CopyOp>(loc, inputIndex, outputIndex);
-        rewriter.create<memref::StoreOp>(loc, newIndexElem, outputIndex, dimIndices);
+        Value outputIndex = rewriter.create<vector::InsertElementOp>(loc, newIndexElem, inputIndex, dimIndex);
 
         rewriter.replaceOp(op, outputIndex);
 
@@ -377,8 +376,8 @@ struct SampleIndirectOpLowering : public OpRewritePattern<stencil::SampleIndirec
 
         auto inputIndex = op.getIndex();
         const auto dimension = op.getDimension().getSExtValue();
-        std::array<Value, 1> dimIndices = { rewriter.create<arith::ConstantIndexOp>(loc, dimension) };
-        Value inputIndexElem = rewriter.create<memref::LoadOp>(loc, inputIndex, dimIndices);
+        Value dimIndex = { rewriter.create<arith::ConstantIndexOp>(loc, dimension) };
+        Value inputIndexElem = rewriter.create<vector::ExtractElementOp>(loc, inputIndex, dimIndex);
 
         auto field = op.getField();
         auto fieldElement = op.getFieldElement();
@@ -396,6 +395,7 @@ void StencilToStdPass::getDependentDialects(DialectRegistry& registry) const {
     registry.insert<arith::ArithmeticDialect,
                     func::FuncDialect,
                     memref::MemRefDialect,
+                    vector::VectorDialect,
                     scf::SCFDialect>();
 }
 
@@ -406,6 +406,7 @@ void StencilToStdPass::runOnOperation() {
     target.addLegalDialect<func::FuncDialect>();
     target.addLegalDialect<memref::MemRefDialect>();
     target.addLegalDialect<scf::SCFDialect>();
+    target.addLegalDialect<vector::VectorDialect>();
     target.addIllegalDialect<stencil::StencilDialect>();
     target.addLegalOp<stencil::PrintOp>();
 

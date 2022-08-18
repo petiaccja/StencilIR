@@ -412,7 +412,7 @@ struct ASTToMLIRRules {
         const auto loc = ConvertLocation(builder, node.location);
 
         const int64_t numDims = currentFunc->numDimensions;
-        const auto indexType = mlir::MemRefType::get({ numDims }, builder.getIndexType());
+        const auto indexType = mlir::VectorType::get({ numDims }, builder.getIndexType());
 
         auto op = builder.create<stencil::IndexOp>(loc, indexType);
         return { op.getIndex() };
@@ -432,10 +432,10 @@ struct ASTToMLIRRules {
         const auto index = tf(*node.index).front();
 
         auto fieldType = field.getType();
-        if (!fieldType.isa<mlir::MemRefType>()) {
+        if (!fieldType.isa<mlir::ShapedType>()) {
             throw std::invalid_argument("SampleOp must be used to sample fields.");
         }
-        auto elementType = fieldType.dyn_cast<mlir::MemRefType>().getElementType();
+        auto elementType = fieldType.dyn_cast<mlir::ShapedType>().getElementType();
 
         auto op = builder.create<stencil::SampleOp>(loc, elementType, field, index);
         return { op.getSampledValue() };
@@ -459,10 +459,10 @@ struct ASTToMLIRRules {
         auto fieldElement = tf(*node.fieldElement).front();
 
         auto fieldType = field.getType();
-        if (!fieldType.isa<mlir::MemRefType>()) {
+        if (!fieldType.isa<mlir::ShapedType>()) {
             throw std::invalid_argument("SampleIndirectOp must be used to sample fields.");
         }
-        auto elementType = fieldType.dyn_cast<mlir::MemRefType>().getElementType();
+        auto elementType = fieldType.dyn_cast<mlir::ShapedType>().getElementType();
 
         auto op = builder.create<stencil::SampleIndirectOp>(loc, elementType, index, dimension, field, fieldElement);
         return { op.getFieldValue() };

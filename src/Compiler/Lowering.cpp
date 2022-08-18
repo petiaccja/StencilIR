@@ -32,7 +32,7 @@ void ApplyLowerToStd(mlir::MLIRContext& context, mlir::ModuleOp& op, bool launch
     mlir::PassManager passManager(&context);
     passManager.addPass(createStencilToStdPass(launchToGpu));
     passManager.addPass(createStencilPrintToLLVMPass());
-    ThrowIfFailed(passManager.run(op), "Failed to lower to Func.");
+    ThrowIfFailed(passManager.run(op), "Failed to lower to Standard.");
 }
 
 

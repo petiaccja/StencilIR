@@ -15,6 +15,7 @@
 #include <mlir/Conversion/LLVMCommon/TypeConverter.h>
 #include <mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h>
 #include <mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h>
+#include <mlir/Conversion/VectorToLLVM/ConvertVectorToLLVM.h>
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
 #include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 #include <mlir/Dialect/ControlFlow/IR/ControlFlow.h>
@@ -24,6 +25,7 @@
 #include <mlir/Dialect/MemRef/IR/MemRef.h>
 #include <mlir/Dialect/SCF/IR/SCF.h>
 #include <mlir/Dialect/Tensor/IR/Tensor.h>
+#include <mlir/Dialect/Vector/IR/VectorOps.h>
 #include <mlir/IR/BuiltinAttributes.h>
 #include <mlir/IR/BuiltinOps.h>
 #include <mlir/IR/BuiltinTypes.h>
@@ -44,6 +46,7 @@ void StdToLLVMPass::getDependentDialects(DialectRegistry& registry) const {
                     func::FuncDialect,
                     cf::ControlFlowDialect,
                     memref::MemRefDialect,
+                    vector::VectorDialect,
                     LLVM::LLVMDialect>();
 }
 
@@ -58,6 +61,7 @@ void StdToLLVMPass::runOnOperation() {
     arith::populateArithmeticToLLVMConversionPatterns(typeConverter, patterns);
     cf::populateControlFlowToLLVMConversionPatterns(typeConverter, patterns);
     populateFuncToLLVMConversionPatterns(typeConverter, patterns);
+    populateVectorToLLVMConversionPatterns(typeConverter, patterns);
 
     if (failed(applyFullConversion(getOperation(), target, std::move(patterns)))) {
         signalPassFailure();
