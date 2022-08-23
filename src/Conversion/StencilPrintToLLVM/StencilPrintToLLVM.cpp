@@ -1,7 +1,6 @@
 #include "StencilPrintToLLVM.hpp"
 
-#include <StencilDialect/StencilDialect.hpp>
-#include <StencilDialect/StencilOps.hpp>
+#include <Dialect/Stencil/IR/StencilOps.hpp>
 
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/Sequence.h>

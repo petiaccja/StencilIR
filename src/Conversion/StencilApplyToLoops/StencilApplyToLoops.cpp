@@ -1,7 +1,6 @@
 #include "StencilApplyToLoops.hpp"
 
-#include <StencilDialect/StencilDialect.hpp>
-#include <StencilDialect/StencilOps.hpp>
+#include <Dialect/Stencil/IR/StencilOps.hpp>
 
 #include <llvm/ADT/ArrayRef.h>
 #include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>

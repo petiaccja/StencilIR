@@ -15,16 +15,14 @@ add_library(StencilDialect STATIC)
 
 target_sources(StencilDialect
     PRIVATE
-        StencilDialect.cpp
-        StencilDialect.hpp
-        StencilOps.cpp
-        StencilOps.hpp
-        BufferizableOpInterfaceImpl.cpp
-        BufferizableOpInterfaceImpl.hpp
+        IR/StencilOps.cpp
+        IR/StencilOps.hpp
+        Transforms/BufferizableOpInterfaceImpl.cpp
+        Transforms/BufferizableOpInterfaceImpl.hpp
 )
 
 target_include_directories(StencilDialect PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/include)
-target_include_directories(StencilDialect INTERFACE ${CMAKE_CURRENT_LIST_DIR}/..)
+target_include_directories(StencilDialect INTERFACE ${CMAKE_CURRENT_LIST_DIR}/../..)
 
 target_include_directories(StencilDialect PUBLIC ${LLVM_INCLUDE_DIRS})
 target_include_directories(StencilDialect PUBLIC ${MLIR_INCLUDE_DIRS})

@@ -1,7 +1,6 @@
 #include "LoweringPasses.hpp"
 
-#include <StencilDialect/StencilDialect.hpp>
-#include <StencilDialect/StencilOps.hpp>
+#include <Dialect/Stencil/IR/StencilOps.hpp>
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"

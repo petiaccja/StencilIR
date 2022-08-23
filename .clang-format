@@ -55,7 +55,7 @@ IncludeBlocks: Regroup
 IncludeCategories:
   - Regex:           '(<|")(llvm|mlir)/'
     Priority:        3
-  - Regex:           '(<|")(AST|Compiler|StencilDialect|Execution|Conversion)/'
+  - Regex:           '(<|")(AST|Compiler|Dialect|Execution|Conversion)/'
     Priority:        2
   - Regex:           '<([[:alnum:].]|_)+>'
     Priority:        4

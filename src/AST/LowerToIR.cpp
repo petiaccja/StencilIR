@@ -3,8 +3,7 @@
 #include <AST/AST.hpp>
 #include <AST/Node.hpp>
 #include <AST/Types.hpp>
-#include <StencilDialect/StencilDialect.hpp>
-#include <StencilDialect/StencilOps.hpp>
+#include <Dialect/Stencil/IR/StencilOps.hpp>
 
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/ScopedHashTable.h>

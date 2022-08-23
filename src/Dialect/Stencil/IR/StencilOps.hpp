@@ -14,7 +14,9 @@
 #include <mlir/Interfaces/ControlFlowInterfaces.h>
 #include <mlir/Interfaces/InferTypeOpInterface.h>
 #include <mlir/Interfaces/SideEffectInterfaces.h>
+
 // clang-format: off
+#include <Stencil/IR/StencilDialect.h.inc>
 #define GET_OP_CLASSES
-#include <StencilDialect/Stencil.h.inc>
+#include <Stencil/IR/Stencil.h.inc>
 // clang-format: on

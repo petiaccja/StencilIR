@@ -1,5 +1,5 @@
 add_subdirectory(AST)
-add_subdirectory(StencilDialect)
+add_subdirectory(Dialect)
 add_subdirectory(Compiler)
 add_subdirectory(Execution)
 add_subdirectory(Conversion)

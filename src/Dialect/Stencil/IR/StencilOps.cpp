@@ -10,9 +10,18 @@
 #include <mlir/Support/LLVM.h>
 
 // clang-format: off
+#include <Stencil/IR/StencilDialect.cpp.inc>
 #define GET_OP_CLASSES
-#include <StencilDialect/Stencil.cpp.inc>
+#include <Stencil/IR/Stencil.cpp.inc>
 // clang-format: on
+
+
+void stencil::StencilDialect::initialize() {
+    addOperations<
+#define GET_OP_LIST
+#include <Stencil/IR/Stencil.cpp.inc>
+        >();
+}
 
 
 using namespace mlir;

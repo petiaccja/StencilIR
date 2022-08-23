@@ -3,8 +3,7 @@
 #include "LoweringPasses.hpp"
 
 #include <Conversion/Passes.hpp>
-#include <StencilDialect/BufferizableOpInterfaceImpl.hpp>
-#include <StencilDialect/StencilDialect.hpp>
+#include <Dialect/Stencil/Transforms/BufferizableOpInterfaceImpl.hpp>
 
 #include <mlir/Conversion/Passes.h>
 #include <mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h>
@@ -79,7 +78,7 @@ void ApplyLocationSnapshot(mlir::MLIRContext& context, mlir::ModuleOp& op) {
 }
 
 void ApplyBufferization(mlir::MLIRContext& context, mlir::ModuleOp& module) {
-        // Bufferization
+    // Bufferization
     mlir::DialectRegistry registry;
     mlir::bufferization::func_ext::registerBufferizableOpInterfaceExternalModels(registry);
     stencil::registerBufferizableOpInterfaceExternalModels(registry);
