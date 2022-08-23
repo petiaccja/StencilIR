@@ -1,5 +1,5 @@
 #include <AST/ASTBuilding.hpp>
-#include <AST/LowerToIR.hpp>
+#include <AST/GenerateIR.hpp>
 #include <Compiler/Lowering.hpp>
 #include <Execution/Execution.hpp>
 
@@ -115,7 +115,7 @@ int main() {
 
     std::shared_ptr<ast::Module> ast = CreateLaplacian();
     try {
-        mlir::ModuleOp module = LowerToIR(context, *ast);
+        mlir::ModuleOp module = GenerateIR(context, *ast);
         ApplyLocationSnapshot(context, module);
         DumpIR(StringizeIR(module), "Stencil original");
         ApplyCleanupPasses(context, module);

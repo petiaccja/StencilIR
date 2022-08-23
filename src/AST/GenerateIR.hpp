@@ -7,4 +7,4 @@
 #include <mlir/IR/MLIRContext.h>
 
 
-mlir::ModuleOp LowerToIR(mlir::MLIRContext& context, const ast::Module& node);
+mlir::ModuleOp GenerateIR(mlir::MLIRContext& context, const ast::Module& node);
