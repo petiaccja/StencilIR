@@ -1,8 +1,5 @@
-#include <AST/AST.hpp>
-#include <AST/Build.hpp>
+#include <AST/ASTBuilding.hpp>
 #include <AST/LowerToIR.hpp>
-#include <AST/Node.hpp>
-#include <AST/Types.hpp>
 #include <Compiler/Lowering.hpp>
 #include <Execution/Execution.hpp>
 

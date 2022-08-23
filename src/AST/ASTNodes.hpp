@@ -1,12 +1,12 @@
 #pragma once
 
-#include "Node.hpp"
-#include "Types.hpp"
+#include "ASTTypes.hpp"
 
 #include <array>
 #include <memory>
 #include <optional>
 #include <utility>
+#include <vector>
 
 namespace ast {
 
@@ -14,9 +14,24 @@ namespace ast {
 // Basics
 //------------------------------------------------------------------------------
 
+struct Location {
+    std::string file;
+    int line;
+    int col;
+};
+
+
+struct Node : std::enable_shared_from_this<Node> {
+    virtual ~Node() = default;
+    Node(std::optional<Location> loc = {}) : location(loc) {}
+    std::optional<Location> location;
+};
+
+
 struct Statement : Node {
     using Node::Node;
 };
+
 
 struct Expression : Statement {
     using Statement::Statement;

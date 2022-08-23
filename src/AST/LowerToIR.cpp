@@ -1,8 +1,10 @@
 #include "LowerToIR.hpp"
 
-#include <AST/AST.hpp>
-#include <AST/Node.hpp>
-#include <AST/Types.hpp>
+#include "ASTNodes.hpp"
+#include "ASTTypes.hpp"
+// #include "IRGenerator.hpp"
+// #include "SymbolTable.hpp"
+
 #include <Dialect/Stencil/IR/StencilOps.hpp>
 
 #include <llvm/ADT/ArrayRef.h>
