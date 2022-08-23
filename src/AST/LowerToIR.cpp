@@ -6,32 +6,32 @@
 #include <StencilDialect/StencilDialect.hpp>
 #include <StencilDialect/StencilOps.hpp>
 
-#include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/StringRef.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/IR/AffineExpr.h"
-#include "mlir/IR/AffineMap.h"
-#include "mlir/IR/Attributes.h"
-#include "mlir/IR/Block.h"
-#include "mlir/IR/BuiltinAttributeInterfaces.h"
-#include "mlir/IR/BuiltinAttributes.h"
-#include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/OpImplementation.h"
-#include "mlir/IR/SymbolTable.h"
-#include "mlir/IR/TypeRange.h"
-#include "mlir/IR/Types.h"
-#include "mlir/IR/Value.h"
-#include "mlir/IR/ValueRange.h"
+#include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/ScopedHashTable.h>
+#include <llvm/ADT/StringRef.h>
 #include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
+#include <mlir/Dialect/Bufferization/IR/Bufferization.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/Dialect/MemRef/IR/MemRef.h>
+#include <mlir/Dialect/Tensor/IR/Tensor.h>
+#include <mlir/IR/AffineExpr.h>
+#include <mlir/IR/AffineMap.h>
+#include <mlir/IR/Attributes.h>
+#include <mlir/IR/Block.h>
 #include <mlir/IR/Builders.h>
+#include <mlir/IR/BuiltinAttributeInterfaces.h>
+#include <mlir/IR/BuiltinAttributes.h>
 #include <mlir/IR/BuiltinOps.h>
+#include <mlir/IR/BuiltinTypes.h>
 #include <mlir/IR/Location.h>
 #include <mlir/IR/MLIRContext.h>
+#include <mlir/IR/OpImplementation.h>
 #include <mlir/IR/Operation.h>
+#include <mlir/IR/SymbolTable.h>
+#include <mlir/IR/TypeRange.h>
+#include <mlir/IR/Types.h>
+#include <mlir/IR/Value.h>
+#include <mlir/IR/ValueRange.h>
 #include <mlir/Support/LLVM.h>
 
 #include <algorithm>
@@ -135,9 +135,17 @@ mlir::Location ConvertLocation(mlir::OpBuilder& builder, const std::optional<ast
     return builder.getUnknownLoc();
 }
 
-mlir::Type ConvertType(mlir::OpBuilder& builder, types::Type type) {
+struct TypeConversionOptions {
+    enum {
+        TENSOR,
+        MEMREF,
+    } bufferType = MEMREF;
+};
+
+mlir::Type ConvertType(mlir::OpBuilder& builder, types::Type type, const TypeConversionOptions& options = {}) {
     struct {
         mlir::OpBuilder& builder;
+        const TypeConversionOptions& options;
         mlir::Type operator()(const types::FundamentalType& type) const {
             switch (type.type) {
                 case types::FundamentalType::SINT8: return builder.getIntegerType(8, true);
@@ -164,9 +172,14 @@ mlir::Type ConvertType(mlir::OpBuilder& builder, types::Type type) {
             std::vector<int64_t> strides(type.numDimensions, mlir::ShapedType::kDynamicStrideOrOffset);
             auto strideMap = mlir::makeStridedLinearLayoutMap(strides, offset, builder.getContext());
 
-            return mlir::MemRefType::get(shape, elementType, strideMap);
+            if (options.bufferType == TypeConversionOptions::MEMREF) {
+                return mlir::MemRefType::get(shape, elementType, strideMap);
+            }
+            else {
+                return mlir::RankedTensorType::get(shape, elementType);
+            }
         }
-    } visitor{ builder };
+    } visitor{ builder, options };
     return std::visit(visitor, type);
 }
 
@@ -174,12 +187,12 @@ struct ASTToMLIRRules {
     mlir::OpBuilder& builder;
     SymbolTable<std::string, mlir::Value>& symbolTable;
     std::optional<mlir::ModuleOp>& moduleOp;
-    std::shared_ptr<const ast::Kernel>& currentFunc;
+    std::shared_ptr<const ast::Stencil>& currentFunc;
 
     template <class Func>
     void InsertInBlock(mlir::Block& block, Func func) const {
         auto previousInsertionPoint = builder.saveInsertionPoint();
-        builder.setInsertionPointToStart(&block);
+        builder.setInsertionPointToEnd(&block);
         func();
         builder.restoreInsertionPoint(previousInsertionPoint);
     }
@@ -276,27 +289,31 @@ struct ASTToMLIRRules {
     // Structure
     //--------------------------------------------------------------------------
 
-    auto operator()(const ASTToMLIRTranformer& tf, const ast::Kernel& node) const -> std::vector<mlir::Value> {
-        currentFunc = std::dynamic_pointer_cast<const ast::Kernel>(node.shared_from_this());
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::Stencil& node) const -> std::vector<mlir::Value> {
+        currentFunc = std::dynamic_pointer_cast<const ast::Stencil>(node.shared_from_this());
+
+        const TypeConversionOptions typeOptions = {
+            .bufferType = TypeConversionOptions::TENSOR
+        };
 
         // Create operation
         std::vector<mlir::Type> inputTypes{};
         for (auto& param : node.parameters) {
-            inputTypes.push_back(ConvertType(builder, param.type));
+            inputTypes.push_back(ConvertType(builder, param.type, typeOptions));
         }
         std::vector<mlir::Type> resultTypes{};
         for (auto& result : node.results) {
-            resultTypes.push_back(ConvertType(builder, result));
+            resultTypes.push_back(ConvertType(builder, result, typeOptions));
         }
         const auto functionType = builder.getFunctionType(mlir::TypeRange{ inputTypes }, mlir::TypeRange{ resultTypes });
         const auto loc = ConvertLocation(builder, node.location);
-        auto KernelOp = builder.create<stencil::KernelOp>(loc,
-                                                          node.name,
-                                                          functionType,
-                                                          mlir::APInt(64, node.numDimensions));
+        auto StencilOp = builder.create<stencil::StencilOp>(loc,
+                                                            node.name,
+                                                            functionType,
+                                                            mlir::APInt(64, node.numDimensions));
 
         // Create function body
-        auto& kernelFuncBlock = *KernelOp.addEntryBlock();
+        auto& kernelFuncBlock = *StencilOp.addEntryBlock();
 
         symbolTable.Push();
         for (size_t i = 0; i < node.parameters.size(); ++i) {
@@ -314,7 +331,7 @@ struct ASTToMLIRRules {
         return {};
     }
 
-    auto operator()(const ASTToMLIRTranformer& tf, const ast::KernelReturn& node) const -> std::vector<mlir::Value> {
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::Return& node) const -> std::vector<mlir::Value> {
         const auto loc = ConvertLocation(builder, node.location);
         std::vector<mlir::Value> values;
         for (const auto& value : node.values) {
@@ -326,29 +343,30 @@ struct ASTToMLIRRules {
         return {};
     }
 
-    auto operator()(const ASTToMLIRTranformer& tf, const ast::Launch& node) const -> std::vector<mlir::Value> {
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::Apply& node) const -> std::vector<mlir::Value> {
         const auto callee = mlir::StringRef(node.callee);
 
-        std::vector<mlir::Value> gridDim;
-        for (auto& gridAxis : node.gridDim) {
-            gridDim.push_back(tf(*gridAxis).front());
+        std::vector<mlir::Value> outputs;
+        for (auto& target : node.outputs) {
+            outputs.push_back(tf(*target).front());
         }
 
-        std::vector<mlir::Value> targets;
-        for (auto& target : node.targets) {
-            targets.push_back(tf(*target).front());
+        std::vector<mlir::Value> inputs;
+        for (auto& argument : node.inputs) {
+            inputs.push_back(tf(*argument).front());
         }
 
-        std::vector<mlir::Value> operands;
-        for (auto& argument : node.arguments) {
-            operands.push_back(tf(*argument).front());
+        std::vector<mlir::Value> offsets;
+        for (auto& offset : node.offsets) {
+            offsets.push_back(tf(*offset).front());
         }
 
-        builder.create<stencil::LaunchKernelOp>(ConvertLocation(builder, node.location),
-                                                callee,
-                                                mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ gridDim } },
-                                                mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ targets } },
-                                                mlir::ValueRange{ llvm::ArrayRef<mlir::Value>{ operands } });
+        builder.create<stencil::ApplyOp>(ConvertLocation(builder, node.location),
+                                         callee,
+                                         inputs,
+                                         outputs,
+                                         offsets,
+                                         node.static_offsets);
 
         return {};
     }
@@ -357,7 +375,12 @@ struct ASTToMLIRRules {
         auto moduleOp = builder.create<mlir::ModuleOp>(ConvertLocation(builder, node.location));
         this->moduleOp = moduleOp;
 
+        auto loc = ConvertLocation(builder, node.location);
         builder.setInsertionPointToEnd(moduleOp.getBody());
+
+        const TypeConversionOptions typeOptions = {
+            .bufferType = TypeConversionOptions::TENSOR
+        };
 
         // Render kernels
         for (auto& kernel : node.kernels) {
@@ -367,23 +390,32 @@ struct ASTToMLIRRules {
         // Create a main function.
         std::vector<mlir::Type> inputTypes{};
         for (auto& param : node.parameters) {
-            inputTypes.push_back(ConvertType(builder, param.type));
+            inputTypes.push_back(ConvertType(builder, param.type, typeOptions));
         }
         const auto mainFuncType = builder.getFunctionType(mlir::TypeRange{ inputTypes }, mlir::TypeRange{});
-        auto mainFuncOp = builder.create<mlir::func::FuncOp>(builder.getUnknownLoc(), "main", mainFuncType);
+        auto mainFuncOp = builder.create<mlir::func::FuncOp>(loc, "main", mainFuncType);
 
         // Create body.
         mlir::Block& mainBlock = *mainFuncOp.addEntryBlock();
         symbolTable.Push();
         for (size_t i = 0; i < node.parameters.size(); ++i) {
-            symbolTable.Insert(node.parameters[i].name, mainBlock.getArgument(i));
+            auto blockArg = mainBlock.getArgument(i);
+            if (blockArg.getType().isa<mlir::MemRefType>()) {
+                InsertInBlock(mainBlock, [&] {
+                    auto tensorValue = builder.create<mlir::bufferization::ToTensorOp>(loc, blockArg);
+                    symbolTable.Insert(node.parameters[i].name, tensorValue);
+                });
+            }
+            else {
+                symbolTable.Insert(node.parameters[i].name, blockArg);
+            }
         }
 
         InsertInBlock(mainBlock, [&] {
             for (auto& statement : node.body) {
                 tf(*statement);
             }
-            builder.create<mlir::func::ReturnOp>(builder.getUnknownLoc());
+            builder.create<mlir::func::ReturnOp>(loc);
         });
 
         symbolTable.Pop();
@@ -403,7 +435,7 @@ struct ASTToMLIRRules {
         const auto loc = ConvertLocation(builder, node.location);
 
         const int64_t numDims = currentFunc->numDimensions;
-        const auto indexType = mlir::MemRefType::get({ numDims }, builder.getIndexType());
+        const auto indexType = mlir::VectorType::get({ numDims }, builder.getIndexType());
 
         auto op = builder.create<stencil::IndexOp>(loc, indexType);
         return { op.getIndex() };
@@ -423,10 +455,10 @@ struct ASTToMLIRRules {
         const auto index = tf(*node.index).front();
 
         auto fieldType = field.getType();
-        if (!fieldType.isa<mlir::MemRefType>()) {
+        if (!fieldType.isa<mlir::ShapedType>()) {
             throw std::invalid_argument("SampleOp must be used to sample fields.");
         }
-        auto elementType = fieldType.dyn_cast<mlir::MemRefType>().getElementType();
+        auto elementType = fieldType.dyn_cast<mlir::ShapedType>().getElementType();
 
         auto op = builder.create<stencil::SampleOp>(loc, elementType, field, index);
         return { op.getSampledValue() };
@@ -450,13 +482,43 @@ struct ASTToMLIRRules {
         auto fieldElement = tf(*node.fieldElement).front();
 
         auto fieldType = field.getType();
-        if (!fieldType.isa<mlir::MemRefType>()) {
+        if (!fieldType.isa<mlir::ShapedType>()) {
             throw std::invalid_argument("SampleIndirectOp must be used to sample fields.");
         }
-        auto elementType = fieldType.dyn_cast<mlir::MemRefType>().getElementType();
+        auto elementType = fieldType.dyn_cast<mlir::ShapedType>().getElementType();
 
         auto op = builder.create<stencil::SampleIndirectOp>(loc, elementType, index, dimension, field, fieldElement);
         return { op.getFieldValue() };
+    }
+
+    //--------------------------------------------------------------------------
+    // Tensor
+    //--------------------------------------------------------------------------
+
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::Dim& node) const -> std::vector<mlir::Value> {
+        auto loc = ConvertLocation(builder, node.location);
+        const mlir::Value tensor = tf(*node.field).front();
+        const mlir::Value index = tf(*node.index).front();
+        if (tensor.getType().isa<mlir::MemRefType>()) {
+            return { builder.create<mlir::memref::DimOp>(loc, tensor, index) };
+        }
+        else {
+            return { builder.create<mlir::tensor::DimOp>(loc, tensor, index) };
+        }
+    }
+
+    auto operator()(const ASTToMLIRTranformer& tf, const ast::AllocTensor& node) const -> std::vector<mlir::Value> {
+        auto loc = ConvertLocation(builder, node.location);
+
+        const auto elementType = ConvertType(builder, node.elementType);
+        std::vector<mlir::Value> sizes;
+        std::vector<int64_t> shape;
+        for (const auto& size : node.sizes) {
+            sizes.push_back(tf(*size).front());
+            shape.push_back(mlir::ShapedType::kDynamicSize);
+        }
+        const auto type = mlir::RankedTensorType::get(shape, elementType);
+        return { builder.create<mlir::bufferization::AllocTensorOp>(loc, type, sizes) };
     }
 };
 
@@ -464,7 +526,7 @@ mlir::ModuleOp LowerToIR(mlir::MLIRContext& context, const ast::Module& node) {
     mlir::OpBuilder builder{ &context };
     SymbolTable<std::string, mlir::Value> symbolTable;
     std::optional<mlir::ModuleOp> moduleOp;
-    std::shared_ptr<const ast::Kernel> currentFunc;
+    std::shared_ptr<const ast::Stencil> currentFunc;
     ASTToMLIRTranformer transformer;
     ASTToMLIRRules rules{ builder, symbolTable, moduleOp, currentFunc };
 
@@ -472,12 +534,11 @@ mlir::ModuleOp LowerToIR(mlir::MLIRContext& context, const ast::Module& node) {
     transformer.AddNodeTransformer<ast::Add>(rules);
     transformer.AddNodeTransformer<ast::Sub>(rules);
     transformer.AddNodeTransformer<ast::Mul>(rules);
-    transformer.AddNodeTransformer<ast::ReshapeField>(rules);
 
     transformer.AddNodeTransformer<ast::Module>(rules);
-    transformer.AddNodeTransformer<ast::Kernel>(rules);
-    transformer.AddNodeTransformer<ast::KernelReturn>(rules);
-    transformer.AddNodeTransformer<ast::Launch>(rules);
+    transformer.AddNodeTransformer<ast::Stencil>(rules);
+    transformer.AddNodeTransformer<ast::Return>(rules);
+    transformer.AddNodeTransformer<ast::Apply>(rules);
     transformer.AddNodeTransformer<ast::SymbolRef>(rules);
 
     transformer.AddNodeTransformer<ast::Index>(rules);
@@ -497,10 +558,16 @@ mlir::ModuleOp LowerToIR(mlir::MLIRContext& context, const ast::Module& node) {
     transformer.AddNodeTransformer<ast::Constant<uint32_t>>(rules);
     transformer.AddNodeTransformer<ast::Constant<uint64_t>>(rules);
 
+    transformer.AddNodeTransformer<ast::ReshapeField>(rules);
+    transformer.AddNodeTransformer<ast::AllocTensor>(rules);
+    transformer.AddNodeTransformer<ast::Dim>(rules);
+
     context.getOrLoadDialect<mlir::func::FuncDialect>();
     context.getOrLoadDialect<mlir::arith::ArithmeticDialect>();
     context.getOrLoadDialect<mlir::memref::MemRefDialect>();
     context.getOrLoadDialect<stencil::StencilDialect>();
+    context.getOrLoadDialect<mlir::bufferization::BufferizationDialect>();
+    context.getOrLoadDialect<mlir::tensor::TensorDialect>();
 
     transformer(node);
     return moduleOp.value();

@@ -19,31 +19,26 @@ std::shared_ptr<ast::Module> CreateDdx() {
     const auto sleft = ast::sample(field, left);
     const auto sright = ast::sample(field, right);
     const auto ddx = ast::sub(sright, sleft);
-    auto ret = ast::kernel_return({ ddx });
-    auto kernel = ast::kernel("ddx",
-                              { { "field", types::FieldType{ types::FundamentalType::FLOAT32, 2 } } },
-                              { types::FundamentalType::FLOAT32 },
-                              { ret },
-                              2);
+    auto ret = ast::return_({ ddx });
+    auto kernel = ast::stencil("ddx",
+                               { { "field", types::FieldType{ types::FundamentalType::FLOAT32, 2 } } },
+                               { types::FundamentalType::FLOAT32 },
+                               { ret },
+                               2);
 
     // Main function logic
     auto inputField = ast::symref("input");
     auto output = ast::symref("out");
-    auto sizeX = ast::symref("sizeX");
-    auto sizeY = ast::symref("sizeY");
 
-    auto kernelLaunch = ast::launch(kernel->name,
-                                    { sizeX, sizeY },
-                                    { inputField },
-                                    { output });
+    auto kernelLaunch = ast::apply(kernel->name,
+                                   { inputField },
+                                   { output });
 
     return ast::module_({ kernelLaunch },
                         { kernel },
                         {
                             { "input", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
                             { "out", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-                            { "sizeX", types::FundamentalType::SSIZE },
-                            { "sizeY", types::FundamentalType::SSIZE },
                         });
 }
 

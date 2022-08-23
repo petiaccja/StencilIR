@@ -4,9 +4,13 @@
 #include "StencilToStd.hpp"
 
 
-inline auto createStencilToStdPass(bool launchToGpu = false) {
+inline auto createStencilToLoopFuncPass() {
+    auto pass = std::make_unique<StencilToLoopFuncPass>();
+    return pass;
+}
+
+inline auto createStencilToStdPass() {
     auto pass = std::make_unique<StencilToStdPass>();
-    pass->launchToGpu = launchToGpu;
     return pass;
 }
 

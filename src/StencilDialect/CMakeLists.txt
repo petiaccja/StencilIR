@@ -19,6 +19,8 @@ target_sources(StencilDialect
         StencilDialect.hpp
         StencilOps.cpp
         StencilOps.hpp
+        BufferizableOpInterfaceImpl.cpp
+        BufferizableOpInterfaceImpl.hpp
 )
 
 target_include_directories(StencilDialect PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/include)

@@ -6,6 +6,9 @@
 #include <Compiler/Lowering.hpp>
 #include <Execution/Execution.hpp>
 
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <string_view>
 
@@ -23,36 +26,32 @@ std::shared_ptr<ast::Module> CreateLaplacian() {
     };
 
     auto sum = ast::add(samples[0], ast::add(samples[1], ast::add(samples[2], ast::add(samples[3], samples[4]))));
-    auto ret = ast::kernel_return({ sum });
+    auto ret = ast::return_({ sum });
 
-    auto kernel = ast::kernel("laplacian",
-                              { { "field", types::FieldType{ types::FundamentalType::FLOAT32, 2 } } },
-                              { types::FundamentalType::FLOAT32 },
-                              { ret },
-                              2);
+    auto kernel = ast::stencil("laplacian",
+                               { { "field", types::FieldType{ types::FundamentalType::FLOAT32, 2 } } },
+                               { types::FundamentalType::FLOAT32 },
+                               { ret },
+                               2);
 
     // Main function logic
-    auto inputField = ast::symref("input");
+    auto input = ast::symref("input");
     auto output = ast::symref("out");
-    auto sizeX = ast::symref("sizeX");
-    auto sizeY = ast::symref("sizeY");
 
-    auto kernelLaunch = ast::launch(kernel->name,
-                                    { sizeX, sizeY },
-                                    { inputField },
-                                    { output });
+    auto applyStencil = ast::apply(kernel->name,
+                                   { input },
+                                   { output },
+                                   { 1, 1 });
 
     // Module
-    auto moduleBody = std::vector<std::shared_ptr<ast::Node>>{ kernelLaunch };
-    auto moduleKernels = std::vector<std::shared_ptr<ast::Kernel>>{ kernel };
+    auto moduleBody = std::vector<std::shared_ptr<ast::Node>>{ applyStencil };
+    auto moduleKernels = std::vector<std::shared_ptr<ast::Stencil>>{ kernel };
 
-    return ast::module_({ kernelLaunch },
+    return ast::module_({ applyStencil },
                         { kernel },
                         {
                             { "input", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
                             { "out", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-                            { "sizeX", types::FundamentalType::SSIZE },
-                            { "sizeY", types::FundamentalType::SSIZE },
                         });
 }
 
@@ -60,12 +59,12 @@ std::shared_ptr<ast::Module> CreateLaplacian() {
 void RunLaplacian(JitRunner& runner) {
     constexpr ptrdiff_t inputSizeX = 9;
     constexpr ptrdiff_t inputSizeY = 7;
-    constexpr ptrdiff_t domainSizeX = inputSizeX - 2;
-    constexpr ptrdiff_t domainSizeY = inputSizeY - 2;
-    std::array<float, inputSizeX * inputSizeY> outputBuffer;
+    constexpr ptrdiff_t outputSizeX = inputSizeX - 2;
+    constexpr ptrdiff_t outputSizeY = inputSizeY - 2;
     std::array<float, inputSizeX * inputSizeY> inputBuffer;
-    MemRef<float, 2> output{ outputBuffer.data(), outputBuffer.data(), inputSizeX + 1, { domainSizeX, domainSizeY }, { 1, inputSizeX } };
-    MemRef<float, 2> input{ inputBuffer.data(), inputBuffer.data(), inputSizeX + 1, { domainSizeX, domainSizeY }, { 1, inputSizeX } };
+    std::array<float, outputSizeX * outputSizeY> outputBuffer;
+    MemRef<float, 2> input{ inputBuffer.data(), inputBuffer.data(), 0, { inputSizeX, inputSizeY }, { 1, inputSizeX } };
+    MemRef<float, 2> output{ outputBuffer.data(), outputBuffer.data(), 0, { outputSizeX, outputSizeY }, { 1, outputSizeX } };
     std::ranges::fill(outputBuffer, 0);
 
     for (size_t y = 0; y < inputSizeY; ++y) {
@@ -74,32 +73,43 @@ void RunLaplacian(JitRunner& runner) {
         }
     }
 
-    runner.InvokeFunction("main", input, output, domainSizeX, domainSizeY);
+    runner.InvokeFunction("main", input, output);
 
     std::cout << "Input:" << std::endl;
     for (size_t y = 0; y < inputSizeY; ++y) {
         for (size_t x = 0; x < inputSizeX; ++x) {
-            std::cout << inputBuffer[y * inputSizeX + x] << "\t";
+            std::cout << std::setprecision(4) << inputBuffer[y * inputSizeX + x] << "\t";
         }
         std::cout << std::endl;
     }
     std::cout << "\nOutput:" << std::endl;
-    for (size_t y = 0; y < inputSizeY; ++y) {
-        for (size_t x = 0; x < inputSizeX; ++x) {
-            std::cout << outputBuffer[y * inputSizeX + x] << "\t";
+    for (size_t y = 0; y < outputSizeY; ++y) {
+        for (size_t x = 0; x < outputSizeX; ++x) {
+            std::cout << std::setprecision(4) << outputBuffer[y * outputSizeX + x] << "\t";
         }
         std::cout << std::endl;
     }
 }
 
-void DumpIR(mlir::ModuleOp ir, std::string_view name = {}) {
-    if (!name.empty()) {
-        std::cout << name << ":\n"
-                  << std::endl;
-    }
-    ir->dump();
-    std::cout << "\n"
-              << std::endl;
+std::string StringizeIR(mlir::ModuleOp ir) {
+    std::string s;
+    llvm::raw_string_ostream ss{ s };
+    ir->print(ss, mlir::OpPrintingFlags{}.elideLargeElementsAttrs());
+    return s;
+}
+
+void DumpIR(std::string_view ir, std::string_view name) {
+    assert(!name.empty());
+    std::string fname;
+    std::transform(name.begin(), name.end(), std::back_inserter(fname), [](char c) {
+        if (std::ispunct(c) || std::isspace(c)) {
+            c = '_';
+        }
+        return std::tolower(c);
+    });
+    auto tempfile = std::filesystem::temp_directory_path() / (fname + ".mlir");
+    std::ofstream of(tempfile, std::ios::trunc);
+    of << ir;
 }
 
 
@@ -110,21 +120,19 @@ int main() {
     try {
         mlir::ModuleOp module = LowerToIR(context, *ast);
         ApplyLocationSnapshot(context, module);
-        DumpIR(module, "Stencil original");
+        DumpIR(StringizeIR(module), "Stencil original");
         ApplyCleanupPasses(context, module);
-        DumpIR(module, "Stencil cleaned");
+        DumpIR(StringizeIR(module), "Stencil cleaned");
 
         auto llvmCpuStages = LowerToLLVMCPU(context, module);
         for (auto& stage : llvmCpuStages) {
-            DumpIR(stage.second, stage.first);
+            DumpIR(StringizeIR(stage.second), stage.first);
         }
 
         constexpr int optLevel = 3;
         JitRunner jitRunner{ llvmCpuStages.back().second, optLevel };
 
-        std::cout << "LLVM IR:\n"
-                  << jitRunner.LLVMIR() << "\n"
-                  << std::endl;
+        DumpIR(jitRunner.LLVMIR(), "LLVM IR");
 
         RunLaplacian(jitRunner);
     }

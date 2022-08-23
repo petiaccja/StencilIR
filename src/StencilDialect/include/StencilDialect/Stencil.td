@@ -2,6 +2,7 @@ include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/Interfaces/ViewLikeInterface.td"
 include "mlir/IR/EnumAttr.td"
 include "mlir/IR/FunctionInterfaces.td"
 include "mlir/IR/OpAsmInterface.td"
@@ -20,8 +21,8 @@ class Stencil_Op<string mnemonic, list<Trait> traits = []> :
     Op<Stencil_Dialect, mnemonic, traits>;
 
 
-def KernelOp : Stencil_Op<"kernel", [
-  AffineScope, AutomaticAllocationScope, CallableOpInterface,
+def StencilOp : Stencil_Op<"stencil", [
+  AffineScope, AutomaticAllocationScope,
   FunctionOpInterface, IsolatedFromAbove, OpAsmOpInterface, Symbol
 ]> {
   let arguments = (ins
@@ -31,11 +32,11 @@ def KernelOp : Stencil_Op<"kernel", [
   );
   let regions = (region AnyRegion:$body);
   let extraClassDeclaration = [{
-    static KernelOp create(mlir::Location location, mlir::StringRef name, mlir::FunctionType type,
+    static StencilOp create(mlir::Location location, mlir::StringRef name, mlir::FunctionType type,
                          llvm::ArrayRef<mlir::NamedAttribute> attrs = {});
-    static KernelOp create(mlir::Location location, mlir::StringRef name, mlir::FunctionType type,
+    static StencilOp create(mlir::Location location, mlir::StringRef name, mlir::FunctionType type,
                          mlir::Operation::dialect_attr_range attrs);
-    static KernelOp create(mlir::Location location, mlir::StringRef name, mlir::FunctionType type,
+    static StencilOp create(mlir::Location location, mlir::StringRef name, mlir::FunctionType type,
                          llvm::ArrayRef<mlir::NamedAttribute> attrs,
                          llvm::ArrayRef<mlir::DictionaryAttr> argAttrs);
 
@@ -46,27 +47,14 @@ def KernelOp : Stencil_Op<"kernel", [
     /// included in the new function. Replaces references to cloned sub-values
     /// with the corresponding value that is copied, and adds those mappings to
     /// the mapper.
-    KernelOp clone(mlir::BlockAndValueMapping &mapper);
-    KernelOp clone();
+    StencilOp clone(mlir::BlockAndValueMapping &mapper);
+    StencilOp clone();
 
     /// Clone the internal blocks and attributes from this function into dest.
     /// Any cloned blocks are appended to the back of dest. This function
     /// asserts that the attributes of the current function and dest are
     /// compatible.
-    void cloneInto(KernelOp dest, mlir::BlockAndValueMapping &mapper);
-
-    //===------------------------------------------------------------------===//
-    // CallableOpInterface
-    //===------------------------------------------------------------------===//
-
-    /// Returns the region on the current operation that is callable. This may
-    /// return null in the case of an external callable object, e.g. an external
-    /// function.
-    ::mlir::Region *getCallableRegion() { return isExternal() ? nullptr : &getBody(); }
-
-    /// Returns the results types that the callable region produces when
-    /// executed.
-    llvm::ArrayRef<mlir::Type> getCallableResults() { return getFunctionType().getResults(); }
+    void cloneInto(StencilOp dest, mlir::BlockAndValueMapping &mapper);
 
     //===------------------------------------------------------------------===//
     // FunctionOpInterface Methods
@@ -83,7 +71,7 @@ def KernelOp : Stencil_Op<"kernel", [
     //===------------------------------------------------------------------===//
 
     /// Allow the dialect prefix to be omitted.
-    static mlir::StringRef getDefaultDialect() { return "func"; }
+    static mlir::StringRef getDefaultDialect() { return "stencil"; }
 
     //===------------------------------------------------------------------===//
     // SymbolOpInterface Methods
@@ -104,34 +92,30 @@ def KernelOp : Stencil_Op<"kernel", [
 }
 
 
-def LaunchKernelOp : Stencil_Op<"launch_kernel", [
-  CallOpInterface, MemRefsNormalizable, AttrSizedOperandSegments,
+def ApplyOp : Stencil_Op<"apply", [
+  MemRefsNormalizable,
+  AttrSizedOperandSegments,
+  DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
   DeclareOpInterfaceMethods<SymbolUserOpInterface>
 ]> {
-  let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<Index>:$grid_dim, Variadic<AnyMemRef>:$targets, Variadic<AnyType>:$arguments);
+  let arguments = (ins FlatSymbolRefAttr:$callee,
+                   Variadic<AnyType>:$inputs,
+                   Variadic<AnyShaped>:$outputs,
+                   Variadic<Index>:$offsets,
+                   I64ArrayAttr:$static_offsets);
+  let results = (outs Variadic<AnyShaped>:$results);
 
-  let extraClassDeclaration = [{
-    mlir::FunctionType getCalleeType();
+  let builders = [
+    OpBuilder<(ins "::llvm::StringRef":$callee, "::mlir::ValueRange":$inputs, "::mlir::ValueRange":$outputs)>,
+    OpBuilder<(ins "::llvm::StringRef":$callee, "::mlir::ValueRange":$inputs, "::mlir::ValueRange":$outputs, "::llvm::ArrayRef<int64_t>":$static_offsets)>,
+    OpBuilder<(ins "::llvm::StringRef":$callee, "::mlir::ValueRange":$inputs, "::mlir::ValueRange":$outputs, "::mlir::ValueRange":$offsets)>,
+    OpBuilder<(ins "::llvm::StringRef":$callee, "::mlir::ValueRange":$inputs, "::mlir::ValueRange":$outputs, "::mlir::ValueRange":$offsets, "::llvm::ArrayRef<int64_t>":$static_offsets)>
+  ];
 
-    /// Get the argument operands to the called function.
-    operand_range getArgOperands() {
-      return {arg_operand_begin(), arg_operand_end()};
-    }
-
-    operand_iterator arg_operand_begin() { return operand_begin(); }
-    operand_iterator arg_operand_end() { return operand_end(); }
-
-    /// Return the callee of this operation.
-    mlir::CallInterfaceCallable getCallableForCallee() {
-      return (*this)->getAttrOfType<mlir::SymbolRefAttr>("callee");
-    }
-
-    mlir::TypeRange getTargetTypes();
-  }];
-
+  let hasVerifier = 1;
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = [{
-    $callee `<``<``<` $grid_dim `>``>``>` `(` `(` $arguments `)` `->` `(` $targets `)` `)` attr-dict `:` functional-type($arguments, $targets)
+    $callee `(` $inputs `)` `->` $outputs `,` `offsets` `` `:` custom<OperandsOrIntegersSizesList>($offsets, $static_offsets) attr-dict `:` functional-type(operands, $results)
   }];
   let summary = "Launch a kernel on a multi-dimensional grid, like CUDA or compute shaders.";
   let description = [{
@@ -145,9 +129,9 @@ def LaunchKernelOp : Stencil_Op<"launch_kernel", [
 }
 
 
-def InvokeKernelOp : Stencil_Op<"invoke_kernel", [
-  CallOpInterface, MemRefsNormalizable, AttrSizedOperandSegments,
-  DeclareOpInterfaceMethods<SymbolUserOpInterface>, NoSideEffect
+def InvokeStencilOp : Stencil_Op<"invoke_stencil", [
+  MemRefsNormalizable, AttrSizedOperandSegments,
+  DeclareOpInterfaceMethods<SymbolUserOpInterface>
 ]> {
   let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<Index>:$indices, Variadic<AnyType>:$arguments);
   let results = (outs Variadic<AnyType>);
@@ -176,7 +160,7 @@ def InvokeKernelOp : Stencil_Op<"invoke_kernel", [
 
 
 def ReturnOp : Stencil_Op<"return", [
-  ReturnLike, Terminator, MemRefsNormalizable, NoSideEffect, HasParent<"KernelOp">
+  ReturnLike, Terminator, MemRefsNormalizable, NoSideEffect, HasParent<"StencilOp">
 ]> {
   let arguments = (ins Variadic<AnyType>:$arguments);
   let builders = [OpBuilder<(ins), [{
@@ -188,25 +172,25 @@ def ReturnOp : Stencil_Op<"return", [
 }
 
 
-def IndexOp : Stencil_Op<"index", [NoSideEffect, HasParent<"KernelOp">]> {
-  let results = (outs AnyMemRef:$index);
+def IndexOp : Stencil_Op<"index", [NoSideEffect, HasParent<"StencilOp">]> {
+  let results = (outs AnyVector:$index);
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = "attr-dict `:` type($index)";
   let summary = "Get the index of this kernel in the grid.";
 }
 
 
-def JumpOp : Stencil_Op<"jump", [NoSideEffect, HasParent<"KernelOp">]> {
-  let arguments = (ins AnyMemRef:$input_index, I64ArrayAttr:$offset);
-  let results = (outs AnyMemRef:$offseted_index);
+def JumpOp : Stencil_Op<"jump", [NoSideEffect]> {
+  let arguments = (ins AnyVector:$input_index, I64ArrayAttr:$offset);
+  let results = (outs AnyVector:$offseted_index);
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = "$input_index `,` $offset attr-dict `:` functional-type($input_index, $offseted_index)";
   let summary = "Move an index by a constant offset.";
 }
 
 
-def SampleOp : Stencil_Op<"sample", [NoSideEffect, HasParent<"KernelOp">]> {
-  let arguments = (ins AnyMemRef:$field, AnyMemRef:$index);
+def SampleOp : Stencil_Op<"sample", [MemoryEffects<[MemRead]>]> {
+  let arguments = (ins AnyShaped:$field, AnyVector:$index);
   let results = (outs AnyType:$sampled_value);
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = "$field`[` $index `]` attr-dict `:` functional-type(operands, $sampled_value)";
@@ -214,9 +198,9 @@ def SampleOp : Stencil_Op<"sample", [NoSideEffect, HasParent<"KernelOp">]> {
 }
 
 
-def JumpIndirectOp : Stencil_Op<"jump_indirect", [NoSideEffect, HasParent<"KernelOp">]> {
-  let arguments = (ins AnyMemRef:$input_index, IndexAttr:$dimension, AnyMemRef:$map, Index:$map_element);
-  let results = (outs AnyMemRef:$offseted_index);
+def JumpIndirectOp : Stencil_Op<"jump_indirect", [MemoryEffects<[MemRead]>]> {
+  let arguments = (ins AnyVector:$input_index, IndexAttr:$dimension, AnyShaped:$map, Index:$map_element);
+  let results = (outs AnyVector:$offseted_index);
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = "$input_index `[` $dimension `]``,` $map `[` $map_element `]` attr-dict `:` functional-type(operands, $offseted_index)";
   let summary = "Use a connectivity map to modify the index.";
@@ -232,8 +216,8 @@ def JumpIndirectOp : Stencil_Op<"jump_indirect", [NoSideEffect, HasParent<"Kerne
 }
 
 
-def SampleIndirectOp : Stencil_Op<"sample_indirect", [NoSideEffect, HasParent<"KernelOp">]> {
-  let arguments = (ins AnyMemRef:$index, IndexAttr:$dimension, AnyMemRef:$field, Index:$field_element);
+def SampleIndirectOp : Stencil_Op<"sample_indirect", [MemoryEffects<[MemRead]>]> {
+  let arguments = (ins AnyVector:$index, IndexAttr:$dimension, AnyShaped:$field, Index:$field_element);
   let results = (outs AnyType:$field_value);
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = "$field`[` $index`[`$dimension`]``,` $field_element `]` attr-dict `:` functional-type(operands, $field_value)";
