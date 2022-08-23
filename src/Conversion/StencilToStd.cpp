@@ -391,7 +391,7 @@ struct SampleIndirectOpLowering : public OpRewritePattern<stencil::SampleIndirec
 };
 
 
-void StencilToStdPass::getDependentDialects(DialectRegistry& registry) const {
+void StencilToLoopFuncPass::getDependentDialects(DialectRegistry& registry) const {
     registry.insert<arith::ArithmeticDialect,
                     func::FuncDialect,
                     memref::MemRefDialect,
@@ -399,6 +399,42 @@ void StencilToStdPass::getDependentDialects(DialectRegistry& registry) const {
                     scf::SCFDialect>();
 }
 
+
+void StencilToLoopFuncPass::runOnOperation() {
+    ConversionTarget target(getContext());
+    target.addLegalDialect<arith::ArithmeticDialect>();
+    target.addLegalDialect<func::FuncDialect>();
+    target.addLegalDialect<memref::MemRefDialect>();
+    target.addLegalDialect<scf::SCFDialect>();
+    target.addLegalDialect<vector::VectorDialect>();
+
+    target.addIllegalOp<stencil::StencilOp>();
+    target.addIllegalOp<stencil::ReturnOp>();
+    target.addIllegalOp<stencil::InvokeStencilOp>();
+    target.addIllegalOp<stencil::ApplyOp>();
+    target.addIllegalOp<stencil::IndexOp>();
+
+    target.addLegalOp<stencil::PrintOp>();
+
+    RewritePatternSet patterns(&getContext());
+    patterns.add<StencilOpLowering>(&getContext());
+    patterns.add<ReturnOpLowering>(&getContext());
+    patterns.add<InvokeStencilLowering>(&getContext());
+    patterns.add<ApplyOpLoweringSCF>(&getContext());
+    patterns.add<IndexOpLowering>(&getContext());
+
+    if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {
+        signalPassFailure();
+    }
+}
+
+void StencilToStdPass::getDependentDialects(DialectRegistry& registry) const {
+    registry.insert<arith::ArithmeticDialect,
+                    func::FuncDialect,
+                    memref::MemRefDialect,
+                    vector::VectorDialect,
+                    scf::SCFDialect>();
+}
 
 void StencilToStdPass::runOnOperation() {
     ConversionTarget target(getContext());
@@ -414,12 +450,7 @@ void StencilToStdPass::runOnOperation() {
     patterns.add<StencilOpLowering>(&getContext());
     patterns.add<ReturnOpLowering>(&getContext());
     patterns.add<InvokeStencilLowering>(&getContext());
-    if (launchToGpu) {
-        patterns.add<ApplyOpLoweringGPULaunch>(&getContext());
-    }
-    else {
-        patterns.add<ApplyOpLoweringSCF>(&getContext());
-    }
+    patterns.add<ApplyOpLoweringSCF>(&getContext());
 
     patterns.add<IndexOpLowering>(&getContext());
     patterns.add<JumpOpLowering>(&getContext());

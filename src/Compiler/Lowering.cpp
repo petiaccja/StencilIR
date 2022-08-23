@@ -35,9 +35,16 @@ mlir::ModuleOp CloneModule(mlir::ModuleOp original) {
     ;
 }
 
-void ApplyLowerToStd(mlir::MLIRContext& context, mlir::ModuleOp& op, bool launchToGpu = false) {
+void ApplyLowerToLoopFunc(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     mlir::PassManager passManager(&context);
-    passManager.addPass(createStencilToStdPass(launchToGpu));
+    passManager.addPass(createStencilToLoopFuncPass());
+    passManager.addPass(createStencilPrintToLLVMPass());
+    ThrowIfFailed(passManager.run(op), "Failed to lower to Standard.");
+}
+
+void ApplyLowerToStd(mlir::MLIRContext& context, mlir::ModuleOp& op) {
+    mlir::PassManager passManager(&context);
+    passManager.addPass(createStencilToStdPass());
     passManager.addPass(createStencilPrintToLLVMPass());
     ThrowIfFailed(passManager.run(op), "Failed to lower to Standard.");
 }
@@ -117,6 +124,10 @@ auto LowerToLLVMCPU(mlir::MLIRContext& context, const mlir::ModuleOp& module)
     ApplyBufferization(context, mutableModule);
     stages.push_back({ "Bufferized", CloneModule(mutableModule) });
 
+    ApplyLowerToLoopFunc(context, mutableModule);
+    ApplyCleanupPasses(context, mutableModule);
+    stages.push_back({ "Loops and func", CloneModule(mutableModule) });
+
     ApplyLowerToStd(context, mutableModule);
     ApplyCleanupPasses(context, mutableModule);
     stages.push_back({ "Standard mix", CloneModule(mutableModule) });
@@ -136,7 +147,7 @@ auto LowerToLLVMGPU(mlir::MLIRContext& context, const mlir::ModuleOp& module)
     std::vector<std::pair<std::string, mlir::ModuleOp>> stages;
     auto mutableModule = CloneModule(module);
 
-    ApplyLowerToStd(context, mutableModule, true);
+    ApplyLowerToStd(context, mutableModule);
     ApplyCleanupPasses(context, mutableModule);
     stages.push_back({ "GPU", CloneModule(mutableModule) });
 
