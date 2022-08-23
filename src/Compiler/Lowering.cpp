@@ -71,18 +71,13 @@ void ApplyLocationSnapshot(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     ThrowIfFailed(passManager.run(op), "Failed to snapshot locations.");
 }
 
-auto LowerToLLVMCPU(mlir::MLIRContext& context, const mlir::ModuleOp& module)
-    -> std::vector<std::pair<std::string, mlir::ModuleOp>> {
-    std::vector<std::pair<std::string, mlir::ModuleOp>> stages;
-    auto mutableModule = CloneModule(module);
-
-    // Bufferization
+void ApplyBufferization(mlir::MLIRContext& context, mlir::ModuleOp& module) {
+        // Bufferization
     mlir::DialectRegistry registry;
     mlir::bufferization::func_ext::registerBufferizableOpInterfaceExternalModels(registry);
     stencil::registerBufferizableOpInterfaceExternalModels(registry);
     context.appendDialectRegistry(registry);
 
-    mlir::PassManager pm(&context);
     mlir::bufferization::OneShotBufferizationOptions bufferizationOptions;
     bufferizationOptions.allowUnknownOps = false;
     bufferizationOptions.allowReturnAllocs = false;
@@ -99,6 +94,7 @@ auto LowerToLLVMCPU(mlir::MLIRContext& context, const mlir::ModuleOp& module)
     mlir::bufferization::OneShotBufferizationOptions indepBufferizationOptions = bufferizationOptions;
     indepBufferizationOptions.opFilter.denyOperation<mlir::func::FuncOp>();
 
+    mlir::PassManager pm(&context);
     pm.addPass(mlir::bufferization::createOneShotBufferizePass(funcBufferizationOptions));
     pm.addPass(mlir::bufferization::createOneShotBufferizePass(indepBufferizationOptions));
     pm.addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createBufferizationBufferizePass());
@@ -109,8 +105,16 @@ auto LowerToLLVMCPU(mlir::MLIRContext& context, const mlir::ModuleOp& module)
     pm.addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createBufferDeallocationPass());
 
     pm.enableVerifier(false);
-    ThrowIfFailed(pm.run(mutableModule), "Bufferization failed");
-    ThrowIfFailed(mutableModule.verify(), "Bufferization failed");
+    ThrowIfFailed(pm.run(module), "Bufferization failed");
+    ThrowIfFailed(module.verify(), "Bufferization failed");
+}
+
+auto LowerToLLVMCPU(mlir::MLIRContext& context, const mlir::ModuleOp& module)
+    -> std::vector<std::pair<std::string, mlir::ModuleOp>> {
+    std::vector<std::pair<std::string, mlir::ModuleOp>> stages;
+    auto mutableModule = CloneModule(module);
+
+    ApplyBufferization(context, mutableModule);
     stages.push_back({ "Bufferized", CloneModule(mutableModule) });
 
     ApplyLowerToStd(context, mutableModule);
