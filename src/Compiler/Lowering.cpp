@@ -37,14 +37,14 @@ mlir::ModuleOp CloneModule(mlir::ModuleOp original) {
 
 void ApplyLowerToLoopFunc(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     mlir::PassManager passManager(&context);
-    passManager.addPass(createStencilToLoopFuncPass());
+    passManager.addPass(createStencilApplyToLoopsPass());
     passManager.addPass(createStencilPrintToLLVMPass());
     ThrowIfFailed(passManager.run(op), "Failed to lower to Standard.");
 }
 
 void ApplyLowerToStd(mlir::MLIRContext& context, mlir::ModuleOp& op) {
     mlir::PassManager passManager(&context);
-    passManager.addPass(createStencilToStdPass());
+    passManager.addPass(createStencilOpsToStandardPass());
     passManager.addPass(createStencilPrintToLLVMPass());
     ThrowIfFailed(passManager.run(op), "Failed to lower to Standard.");
 }

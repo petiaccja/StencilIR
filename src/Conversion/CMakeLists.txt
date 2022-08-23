@@ -11,10 +11,12 @@ add_library(Conversion)
 
 target_sources(Conversion
     PRIVATE
-        PrintToLLVMPass.hpp
-        PrintToLLVMPass.cpp
-        StencilToStd.cpp
-        StencilToStd.hpp
+        StencilPrintToLLVM/StencilPrintToLLVM.cpp
+        StencilPrintToLLVM/StencilPrintToLLVM.hpp
+        StencilApplyToLoops/StencilApplyToLoops.cpp
+        StencilApplyToLoops/StencilApplyToLoops.hpp
+        StencilOpsToStandard/StencilOpsToStandard.cpp
+        StencilOpsToStandard/StencilOpsToStandard.hpp
 )
 
 target_include_directories(Conversion INTERFACE ${CMAKE_CURRENT_LIST_DIR}/..)

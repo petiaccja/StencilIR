@@ -1,11 +1,11 @@
-#include "PrintToLLVMPass.hpp"
-
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "StencilPrintToLLVM.hpp"
 
 #include <StencilDialect/StencilDialect.hpp>
 #include <StencilDialect/StencilOps.hpp>
+
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/Sequence.h>
+#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/Dialect/LLVMIR/LLVMDialect.h>
 #include <mlir/Dialect/LLVMIR/LLVMTypes.h>
@@ -99,11 +99,11 @@ private:
 };
 
 
-void PrintToLLVMPass::getDependentDialects(DialectRegistry& registry) const {
+void StencilPrintToLLVMPass::getDependentDialects(DialectRegistry& registry) const {
     registry.insert<func::FuncDialect, LLVM::LLVMDialect, arith::ArithmeticDialect>();
 }
 
-void PrintToLLVMPass::runOnOperation() {
+void StencilPrintToLLVMPass::runOnOperation() {
     ConversionTarget target(getContext());
     target.addLegalDialect<LLVM::LLVMDialect>();
     target.addLegalDialect<func::FuncDialect>();

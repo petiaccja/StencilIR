@@ -1,19 +1,20 @@
 #pragma once
 
-#include "PrintToLLVMPass.hpp"
-#include "StencilToStd.hpp"
+#include "StencilPrintToLLVM/StencilPrintToLLVM.hpp"
+#include "StencilApplyToLoops/StencilApplyToLoops.hpp"
+#include "StencilOpsToStandard/StencilOpsToStandard.hpp"
 
 
-inline auto createStencilToLoopFuncPass() {
-    auto pass = std::make_unique<StencilToLoopFuncPass>();
+inline auto createStencilApplyToLoopsPass() {
+    auto pass = std::make_unique<StencilApplyToLoopsPass>();
     return pass;
 }
 
-inline auto createStencilToStdPass() {
-    auto pass = std::make_unique<StencilToStdPass>();
+inline auto createStencilOpsToStandardPass() {
+    auto pass = std::make_unique<StencilOpsToStandardPass>();
     return pass;
 }
 
 inline auto createStencilPrintToLLVMPass() {
-    return std::make_unique<PrintToLLVMPass>();
+    return std::make_unique<StencilPrintToLLVMPass>();
 }
