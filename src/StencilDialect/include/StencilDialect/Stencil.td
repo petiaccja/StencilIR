@@ -22,7 +22,7 @@ class Stencil_Op<string mnemonic, list<Trait> traits = []> :
 
 
 def StencilOp : Stencil_Op<"stencil", [
-  AffineScope, AutomaticAllocationScope, CallableOpInterface,
+  AffineScope, AutomaticAllocationScope,
   FunctionOpInterface, IsolatedFromAbove, OpAsmOpInterface, Symbol
 ]> {
   let arguments = (ins
@@ -55,19 +55,6 @@ def StencilOp : Stencil_Op<"stencil", [
     /// asserts that the attributes of the current function and dest are
     /// compatible.
     void cloneInto(StencilOp dest, mlir::BlockAndValueMapping &mapper);
-
-    //===------------------------------------------------------------------===//
-    // CallableOpInterface
-    //===------------------------------------------------------------------===//
-
-    /// Returns the region on the current operation that is callable. This may
-    /// return null in the case of an external callable object, e.g. an external
-    /// function.
-    ::mlir::Region *getCallableRegion() { return isExternal() ? nullptr : &getBody(); }
-
-    /// Returns the results types that the callable region produces when
-    /// executed.
-    llvm::ArrayRef<mlir::Type> getCallableResults() { return getFunctionType().getResults(); }
 
     //===------------------------------------------------------------------===//
     // FunctionOpInterface Methods
@@ -106,7 +93,9 @@ def StencilOp : Stencil_Op<"stencil", [
 
 
 def ApplyOp : Stencil_Op<"apply", [
-  MemRefsNormalizable, AttrSizedOperandSegments,
+  MemRefsNormalizable,
+  AttrSizedOperandSegments,
+  DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
   DeclareOpInterfaceMethods<SymbolUserOpInterface>
 ]> {
   let arguments = (ins FlatSymbolRefAttr:$callee,
@@ -119,7 +108,8 @@ def ApplyOp : Stencil_Op<"apply", [
   let builders = [
     OpBuilder<(ins "::llvm::StringRef":$callee, "::mlir::ValueRange":$inputs, "::mlir::ValueRange":$outputs)>,
     OpBuilder<(ins "::llvm::StringRef":$callee, "::mlir::ValueRange":$inputs, "::mlir::ValueRange":$outputs, "::llvm::ArrayRef<int64_t>":$static_offsets)>,
-    OpBuilder<(ins "::llvm::StringRef":$callee, "::mlir::ValueRange":$inputs, "::mlir::ValueRange":$outputs, "::mlir::ValueRange":$offsets)>
+    OpBuilder<(ins "::llvm::StringRef":$callee, "::mlir::ValueRange":$inputs, "::mlir::ValueRange":$outputs, "::mlir::ValueRange":$offsets)>,
+    OpBuilder<(ins "::llvm::StringRef":$callee, "::mlir::ValueRange":$inputs, "::mlir::ValueRange":$outputs, "::mlir::ValueRange":$offsets, "::llvm::ArrayRef<int64_t>":$static_offsets)>
   ];
 
   let hasVerifier = 1;
@@ -140,8 +130,8 @@ def ApplyOp : Stencil_Op<"apply", [
 
 
 def InvokeStencilOp : Stencil_Op<"invoke_stencil", [
-  CallOpInterface, MemRefsNormalizable, AttrSizedOperandSegments,
-  DeclareOpInterfaceMethods<SymbolUserOpInterface>, NoSideEffect
+  MemRefsNormalizable, AttrSizedOperandSegments,
+  DeclareOpInterfaceMethods<SymbolUserOpInterface>
 ]> {
   let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<Index>:$indices, Variadic<AnyType>:$arguments);
   let results = (outs Variadic<AnyType>);
@@ -190,7 +180,7 @@ def IndexOp : Stencil_Op<"index", [NoSideEffect, HasParent<"StencilOp">]> {
 }
 
 
-def JumpOp : Stencil_Op<"jump", [NoSideEffect, HasParent<"StencilOp">]> {
+def JumpOp : Stencil_Op<"jump", [NoSideEffect]> {
   let arguments = (ins AnyVector:$input_index, I64ArrayAttr:$offset);
   let results = (outs AnyVector:$offseted_index);
   let hasCustomAssemblyFormat = 1;
@@ -199,7 +189,7 @@ def JumpOp : Stencil_Op<"jump", [NoSideEffect, HasParent<"StencilOp">]> {
 }
 
 
-def SampleOp : Stencil_Op<"sample", [NoSideEffect, HasParent<"StencilOp">]> {
+def SampleOp : Stencil_Op<"sample", [MemoryEffects<[MemRead]>]> {
   let arguments = (ins AnyShaped:$field, AnyVector:$index);
   let results = (outs AnyType:$sampled_value);
   let hasCustomAssemblyFormat = 1;
@@ -208,7 +198,7 @@ def SampleOp : Stencil_Op<"sample", [NoSideEffect, HasParent<"StencilOp">]> {
 }
 
 
-def JumpIndirectOp : Stencil_Op<"jump_indirect", [NoSideEffect, HasParent<"StencilOp">]> {
+def JumpIndirectOp : Stencil_Op<"jump_indirect", [MemoryEffects<[MemRead]>]> {
   let arguments = (ins AnyVector:$input_index, IndexAttr:$dimension, AnyShaped:$map, Index:$map_element);
   let results = (outs AnyVector:$offseted_index);
   let hasCustomAssemblyFormat = 1;
@@ -226,7 +216,7 @@ def JumpIndirectOp : Stencil_Op<"jump_indirect", [NoSideEffect, HasParent<"Stenc
 }
 
 
-def SampleIndirectOp : Stencil_Op<"sample_indirect", [NoSideEffect, HasParent<"StencilOp">]> {
+def SampleIndirectOp : Stencil_Op<"sample_indirect", [MemoryEffects<[MemRead]>]> {
   let arguments = (ins AnyVector:$index, IndexAttr:$dimension, AnyShaped:$field, Index:$field_element);
   let results = (outs AnyType:$field_value);
   let hasCustomAssemblyFormat = 1;

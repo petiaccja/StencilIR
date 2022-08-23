@@ -179,6 +179,29 @@ struct Mul : Expression {
     std::shared_ptr<Expression> rhs;
 };
 
+//------------------------------------------------------------------------------
+// Tensors
+//------------------------------------------------------------------------------
+
+struct AllocTensor : Expression {
+    AllocTensor(types::FundamentalType elementType,
+                std::vector<std::shared_ptr<Expression>> sizes,
+                Location loc = {})
+        : Expression(loc), elementType(elementType), sizes(sizes) {}
+
+    types::FundamentalType elementType;
+    std::vector<std::shared_ptr<Expression>> sizes;
+};
+
+struct Dim : Expression {
+    Dim(std::shared_ptr<Expression> field,
+        std::shared_ptr<Expression> index,
+        Location loc = {})
+        : Expression(loc), field(field), index(index) {}
+    std::shared_ptr<Expression> field;
+    std::shared_ptr<Expression> index;
+};
+
 struct ReshapeField : Expression {
     explicit ReshapeField(std::shared_ptr<Expression> field,
                           std::vector<std::shared_ptr<Expression>> shape,

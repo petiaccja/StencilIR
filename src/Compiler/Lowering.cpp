@@ -3,11 +3,18 @@
 #include "LoweringPasses.hpp"
 
 #include <Conversion/Passes.hpp>
+#include <StencilDialect/BufferizableOpInterfaceImpl.hpp>
 #include <StencilDialect/StencilDialect.hpp>
 
 #include <mlir/Conversion/Passes.h>
+#include <mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h>
+#include <mlir/Dialect/Bufferization/Transforms/FuncBufferizableOpInterfaceImpl.h>
 #include <mlir/Dialect/Bufferization/Transforms/OneShotAnalysis.h>
+#include <mlir/Dialect/Bufferization/Transforms/OneShotModuleBufferize.h>
 #include <mlir/Dialect/Bufferization/Transforms/Passes.h>
+#include <mlir/Dialect/Func/IR/FuncOps.h>
+#include <mlir/Dialect/Func/Transforms/Passes.h>
+#include <mlir/Dialect/Tensor/Transforms/Passes.h>
 #include <mlir/Pass/Pass.h>
 #include <mlir/Pass/PassManager.h>
 #include <mlir/Transforms/LocationSnapshot.h>
@@ -69,19 +76,46 @@ auto LowerToLLVMCPU(mlir::MLIRContext& context, const mlir::ModuleOp& module)
     std::vector<std::pair<std::string, mlir::ModuleOp>> stages;
     auto mutableModule = CloneModule(module);
 
+    // Bufferization
+    mlir::DialectRegistry registry;
+    mlir::bufferization::func_ext::registerBufferizableOpInterfaceExternalModels(registry);
+    stencil::registerBufferizableOpInterfaceExternalModels(registry);
+    context.appendDialectRegistry(registry);
+
     mlir::PassManager pm(&context);
     mlir::bufferization::OneShotBufferizationOptions bufferizationOptions;
+    bufferizationOptions.allowUnknownOps = false;
     bufferizationOptions.allowReturnAllocs = false;
     bufferizationOptions.createDeallocs = false;
     bufferizationOptions.defaultMemorySpace = 0;
-    pm.addPass(mlir::bufferization::createOneShotBufferizePass(bufferizationOptions));
-    ThrowIfFailed(pm.run(mutableModule), "Bufferization #1 failed");
+    bufferizationOptions.functionBoundaryTypeConversion = mlir::bufferization::BufferizationOptions::LayoutMapOption::FullyDynamicLayoutMap;
+
+    mlir::bufferization::OneShotBufferizationOptions funcBufferizationOptions = bufferizationOptions;
+    funcBufferizationOptions.bufferizeFunctionBoundaries = true;
+    funcBufferizationOptions.opFilter.allowOperation([](mlir::Operation* op) -> bool {
+        return mlir::isa<mlir::func::FuncOp>(op) || op->getParentOfType<mlir::func::FuncOp>();
+    });
+
+    mlir::bufferization::OneShotBufferizationOptions indepBufferizationOptions = bufferizationOptions;
+    indepBufferizationOptions.opFilter.denyOperation<mlir::func::FuncOp>();
+
+    pm.addPass(mlir::bufferization::createOneShotBufferizePass(funcBufferizationOptions));
+    pm.addPass(mlir::bufferization::createOneShotBufferizePass(indepBufferizationOptions));
+    pm.addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createBufferizationBufferizePass());
+    pm.addNestedPass<mlir::func::FuncOp>(mlir::createTensorBufferizePass());
+    pm.addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createFinalizingBufferizePass());
+    pm.addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createBufferHoistingPass());
+    pm.addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createBufferLoopHoistingPass());
+    pm.addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createBufferDeallocationPass());
+
+    pm.enableVerifier(false);
+    ThrowIfFailed(pm.run(mutableModule), "Bufferization failed");
+    ThrowIfFailed(mutableModule.verify(), "Bufferization failed");
+    stages.push_back({ "Bufferized", CloneModule(mutableModule) });
 
     ApplyLowerToStd(context, mutableModule);
     ApplyCleanupPasses(context, mutableModule);
     stages.push_back({ "Standard mix", CloneModule(mutableModule) });
-
-    ThrowIfFailed(pm.run(mutableModule), "Bufferization #2 failed");
 
     ApplyLowerToLLVM(context, mutableModule);
     ApplyCleanupPasses(context, mutableModule);

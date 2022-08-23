@@ -147,6 +147,23 @@ void ApplyOp::build(::mlir::OpBuilder& odsBuilder,
                  odsBuilder.getI64ArrayAttr({}));
 }
 
+void ApplyOp::build(::mlir::OpBuilder& odsBuilder,
+                    ::mlir::OperationState& odsState,
+                    ::llvm::StringRef callee,
+                    ::mlir::ValueRange inputs,
+                    ::mlir::ValueRange outputs,
+                    ::mlir::ValueRange offsets,
+                    ::llvm::ArrayRef<int64_t> static_offsets) {
+    return build(odsBuilder,
+                 odsState,
+                 outputs.getTypes(),
+                 callee,
+                 inputs,
+                 outputs,
+                 offsets,
+                 odsBuilder.getI64ArrayAttr(static_offsets));
+}
+
 ::mlir::LogicalResult ApplyOp::verify() {
     const auto& outputTypes = getOutputs().getTypes();
     const auto& resultTypes = getResultTypes();
@@ -170,6 +187,18 @@ void ApplyOp::build(::mlir::OpBuilder& odsBuilder,
 
     return success();
 }
+
+void ApplyOp::getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>& effects) {
+    for (const auto& input : getInputs()) {
+        if (input.getType().isa<ShapedType>()) {
+            effects.emplace_back(MemoryEffects::Read::get(), input, SideEffects::DefaultResource::get());
+        }
+    }
+    for (const auto& output : getOutputs()) {
+        effects.emplace_back(MemoryEffects::Write::get(), output, SideEffects::DefaultResource::get());
+    }
+}
+
 
 //------------------------------------------------------------------------------
 // InvokeStencilOp

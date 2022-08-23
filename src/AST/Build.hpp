@@ -127,4 +127,21 @@ inline auto mul(std::shared_ptr<Expression> lhs,
     return std::make_shared<Mul>(lhs, rhs, loc);
 }
 
+
+//------------------------------------------------------------------------------
+// Tensor
+//------------------------------------------------------------------------------
+
+inline auto alloc_tensor(types::FundamentalType elementType,
+                         std::vector<std::shared_ptr<Expression>> sizes,
+                         Location loc = {}) {
+    return std::make_shared<AllocTensor>(elementType, sizes, loc);
+}
+
+inline auto dim(std::shared_ptr<Expression> field,
+                std::shared_ptr<Expression> index,
+                Location loc = {}) {
+    return std::make_shared<Dim>(field, index, loc);
+}
+
 } // namespace ast
