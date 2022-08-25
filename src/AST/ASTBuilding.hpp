@@ -19,6 +19,13 @@ inline auto symref(std::string name,
 }
 
 
+inline auto assign(std::vector<std::string> names,
+                   std::shared_ptr<Expression> expr,
+                   std::optional<Location> loc = {}) {
+    return std::make_shared<Assign>(names, expr, loc);
+}
+
+
 //------------------------------------------------------------------------------
 // Stencil structure
 //------------------------------------------------------------------------------

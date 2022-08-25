@@ -55,6 +55,16 @@ struct SymbolRef : Expression {
 };
 
 
+struct Assign : Statement {
+    explicit Assign(std::vector<std::string> names,
+                    std::shared_ptr<Expression> expr,
+                    std::optional<Location> loc = {})
+        : Statement(loc), names(names), expr(expr) {}
+    std::vector<std::string> names;
+    std::shared_ptr<Expression> expr;
+};
+
+
 //------------------------------------------------------------------------------
 // Stencil structure
 //------------------------------------------------------------------------------

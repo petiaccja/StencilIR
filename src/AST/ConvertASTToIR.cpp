@@ -221,6 +221,17 @@ public:
         return { { *value } };
     }
 
+    auto Generate(const ast::Assign& node) const -> GenerationResult {
+        const auto ir = Generate(*node.expr);
+        if (ir.values.size() != node.names.size()) {
+            throw std::invalid_argument("Assign must have the same number of names as values.");
+        }
+        for (size_t i = 0; i < ir.values.size(); ++i) {
+            symbolTable.Assign(node.names[i], ir.values[i]);
+        }
+        return {};
+    }
+
     //--------------------------------------------------------------------------
     // Stencil structure
     //--------------------------------------------------------------------------
