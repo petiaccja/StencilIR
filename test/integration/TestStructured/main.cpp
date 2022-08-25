@@ -1,5 +1,5 @@
 #include <AST/ASTBuilding.hpp>
-#include <AST/GenerateIR.hpp>
+#include <AST/ConvertASTToIR.hpp>
 #include <Compiler/Pipelines.hpp>
 #include <Execution/Execution.hpp>
 
@@ -108,7 +108,7 @@ int main() {
 
     std::shared_ptr<ast::Module> ast = CreateLaplacian();
     try {
-        mlir::ModuleOp module = GenerateIR(context, *ast);
+        mlir::ModuleOp module = ConvertASTToIR(context, *ast);
 
         Compiler compiler{ TargetCPUPipeline(context) };
         std::vector<StageResult> stageResults;

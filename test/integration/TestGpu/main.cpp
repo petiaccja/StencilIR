@@ -1,5 +1,5 @@
 #include <AST/ASTBuilding.hpp>
-#include <AST/GenerateIR.hpp>
+#include <AST/ConvertASTToIR.hpp>
 #include <Execution/Execution.hpp>
 
 #include <iostream>

@@ -1,4 +1,4 @@
-#include "GenerateIR.hpp"
+#include "ConvertASTToIR.hpp"
 
 #include "ASTNodes.hpp"
 #include "ASTTypes.hpp"
@@ -484,7 +484,7 @@ public:
     }
 };
 
-mlir::ModuleOp GenerateIR(mlir::MLIRContext& context, const ast::Module& node) {
+mlir::ModuleOp ConvertASTToIR(mlir::MLIRContext& context, const ast::Module& node) {
     StencilIRGenerator generator{ context };
 
     context.getOrLoadDialect<mlir::func::FuncDialect>();
