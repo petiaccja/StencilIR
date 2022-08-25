@@ -121,7 +121,21 @@ mlir::Type ConvertType(mlir::OpBuilder& builder, types::Type type, const TypeCon
 // Generator
 //------------------------------------------------------------------------------
 
-class StencilIRGenerator : public IRGenerator<ast::Node, mlir::Operation*, std::vector<mlir::Value>, StencilIRGenerator,
+struct GenerationResult {
+    GenerationResult() = default;
+    GenerationResult(mlir::Operation* op) : op(op), values{ op->getResults() } {}
+    GenerationResult(mlir::SmallVector<mlir::Value> values) : values(values) {}
+    operator mlir::Value() const {
+        if (values.size() == 1) {
+            return values.front();
+        }
+        throw std::logic_error("Result has multiple values when 1 value was requested");
+    }
+    mlir::Operation* op = nullptr;
+    mlir::SmallVector<mlir::Value> values;
+};
+
+class StencilIRGenerator : public IRGenerator<ast::Node, GenerationResult, StencilIRGenerator,
                                               ast::Print,
                                               ast::Add,
                                               ast::Sub,
@@ -148,13 +162,6 @@ class StencilIRGenerator : public IRGenerator<ast::Node, mlir::Operation*, std::
                                               ast::Constant<uint64_t>,
                                               ast::AllocTensor,
                                               ast::Dim> {
-    using IROperation = mlir::Operation*;
-    using IRValue = std::vector<mlir::Value>;
-    using Generated = std::tuple<IROperation, IRValue>;
-
-    mutable mlir::OpBuilder builder;
-    mutable SymbolTable<std::string, mlir::Value> symbolTable;
-
 public:
     StencilIRGenerator(mlir::MLIRContext& context) : builder(&context) {}
 
@@ -168,19 +175,6 @@ public:
         builder.setInsertionPointToEnd(&block);
         func();
         builder.restoreInsertionPoint(previousInsertionPoint);
-    }
-
-    static mlir::Value GetSingleResult(const Generated& generated) {
-        const auto& [op, values] = generated;
-        if (values.size() != 1) {
-            throw std::invalid_argument("Operation did not produce a single result.");
-        }
-        return values.front();
-    }
-
-    static Generated FromOp(mlir::Operation* op) {
-        auto results = op->getResults();
-        return { op, { results.begin(), results.end() } };
     }
 
     auto GetFunctionType(const std::vector<ast::Parameter>& inputs,
@@ -219,19 +213,19 @@ public:
     //--------------------------------------------------------------------------
     // Symbols
     //--------------------------------------------------------------------------
-    auto Generate(const ast::SymbolRef& node) const -> Generated {
+    auto Generate(const ast::SymbolRef& node) const -> GenerationResult {
         const auto value = symbolTable.Lookup(node.name);
         if (!value) {
             throw std::invalid_argument("Undefined symbol: " + node.name);
         }
-        return { nullptr, { *value } };
+        return { { *value } };
     }
 
     //--------------------------------------------------------------------------
     // Stencil structure
     //--------------------------------------------------------------------------
 
-    auto Generate(const ast::Stencil& node) const -> Generated {
+    auto Generate(const ast::Stencil& node) const -> GenerationResult {
         const TypeConversionOptions typeOptions = {
             .bufferType = TypeConversionOptions::TENSOR
         };
@@ -246,25 +240,25 @@ public:
         GenerateFunctionBody(op, node.parameters, node.body);
         op.setVisibility(mlir::SymbolTable::Visibility::Private);
 
-        return FromOp(op);
+        return { op };
     }
 
-    auto Generate(const ast::Apply& node) const -> Generated {
+    auto Generate(const ast::Apply& node) const -> GenerationResult {
         const auto callee = mlir::StringRef(node.callee);
 
         std::vector<mlir::Value> outputs;
         for (auto& target : node.outputs) {
-            outputs.push_back(GetSingleResult(Generate(*target)));
+            outputs.push_back(Generate(*target));
         }
 
         std::vector<mlir::Value> inputs;
         for (auto& argument : node.inputs) {
-            inputs.push_back(GetSingleResult(Generate(*argument)));
+            inputs.push_back(Generate(*argument));
         }
 
         std::vector<mlir::Value> offsets;
         for (auto& offset : node.offsets) {
-            offsets.push_back(GetSingleResult(Generate(*offset)));
+            offsets.push_back(Generate(*offset));
         }
 
         auto op = builder.create<stencil::ApplyOp>(ConvertLocation(builder, node.location),
@@ -274,25 +268,25 @@ public:
                                                    offsets,
                                                    node.static_offsets);
 
-        return FromOp(op);
+        return { op };
     }
 
-    auto Generate(const ast::Return& node) const -> Generated {
+    auto Generate(const ast::Return& node) const -> GenerationResult {
         const auto loc = ConvertLocation(builder, node.location);
         std::vector<mlir::Value> values;
         for (const auto& value : node.values) {
-            values.push_back(GetSingleResult(Generate(*value)));
+            values.push_back(Generate(*value));
         }
 
         mlir::Operation* parentOp = std::any_cast<mlir::Operation*>(symbolTable.Info());
 
         if (mlir::isa<mlir::func::FuncOp>(parentOp)) {
             auto op = builder.create<mlir::func::ReturnOp>(loc, values);
-            return FromOp(op);
+            return { op };
         }
         else if (mlir::isa<stencil::StencilOp>(parentOp)) {
             auto op = builder.create<stencil::ReturnOp>(loc, values);
-            return FromOp(op);
+            return { op };
         }
         throw std::invalid_argument("ReturnOp must have either FuncOp or StencilOp as parent.");
     }
@@ -301,7 +295,7 @@ public:
     // Module structure
     //--------------------------------------------------------------------------
 
-    auto Generate(const ast::Function& node) const -> Generated {
+    auto Generate(const ast::Function& node) const -> GenerationResult {
         const TypeConversionOptions typeOptions = {
             .bufferType = TypeConversionOptions::TENSOR
         };
@@ -314,15 +308,15 @@ public:
 
         GenerateFunctionBody(op, node.parameters, node.body);
 
-        return FromOp(op);
+        return { op };
     }
 
 
-    auto Generate(const ast::Module& node) const -> Generated {
-        auto moduleOp = builder.create<mlir::ModuleOp>(ConvertLocation(builder, node.location));
+    auto Generate(const ast::Module& node) const -> GenerationResult {
+        auto op = builder.create<mlir::ModuleOp>(ConvertLocation(builder, node.location));
 
         auto loc = ConvertLocation(builder, node.location);
-        builder.setInsertionPointToEnd(moduleOp.getBody());
+        builder.setInsertionPointToEnd(op.getBody());
 
         for (auto& kernel : node.stencils) {
             Generate(*kernel);
@@ -331,14 +325,14 @@ public:
             Generate(*function);
         }
 
-        return FromOp(moduleOp);
+        return { op };
     }
 
     //--------------------------------------------------------------------------
     // Stencil intrinsics
     //--------------------------------------------------------------------------
 
-    auto Generate(const ast::Index& node) const -> Generated {
+    auto Generate(const ast::Index& node) const -> GenerationResult {
         const auto loc = ConvertLocation(builder, node.location);
 
         auto currentStencil = mlir::dyn_cast<stencil::StencilOp>(std::any_cast<mlir::Operation*>(symbolTable.Info()));
@@ -349,21 +343,21 @@ public:
         const auto indexType = mlir::VectorType::get({ numDims }, builder.getIndexType());
 
         auto op = builder.create<stencil::IndexOp>(loc, indexType);
-        return FromOp(op);
+        return { op };
     }
 
-    auto Generate(const ast::Jump& node) const -> Generated {
+    auto Generate(const ast::Jump& node) const -> GenerationResult {
         const auto loc = ConvertLocation(builder, node.location);
-        const auto index = GetSingleResult(Generate(*node.index));
+        const mlir::Value index = Generate(*node.index);
         const auto offset = builder.getI64ArrayAttr(node.offset);
         auto op = builder.create<stencil::JumpOp>(loc, index.getType(), index, offset);
-        return FromOp(op);
+        return { op };
     }
 
-    auto Generate(const ast::Sample& node) const -> Generated {
+    auto Generate(const ast::Sample& node) const -> GenerationResult {
         const auto loc = ConvertLocation(builder, node.location);
-        const auto field = GetSingleResult(Generate(*node.field));
-        const auto index = GetSingleResult(Generate(*node.index));
+        const mlir::Value field = Generate(*node.field);
+        const mlir::Value index = Generate(*node.index);
 
         auto fieldType = field.getType();
         if (!fieldType.isa<mlir::ShapedType>()) {
@@ -372,27 +366,27 @@ public:
         auto elementType = fieldType.dyn_cast<mlir::ShapedType>().getElementType();
 
         auto op = builder.create<stencil::SampleOp>(loc, elementType, field, index);
-        return FromOp(op);
+        return { op };
     }
 
-    auto Generate(const ast::JumpIndirect& node) const -> Generated {
+    auto Generate(const ast::JumpIndirect& node) const -> GenerationResult {
         const auto loc = ConvertLocation(builder, node.location);
 
-        const auto index = GetSingleResult(Generate(*node.index));
+        const mlir::Value index = Generate(*node.index);
         const auto dimension = builder.getIndexAttr(node.dimension);
-        const auto map = GetSingleResult(Generate(*node.map));
-        const auto mapElement = GetSingleResult(Generate(*node.mapElement));
+        const mlir::Value map = Generate(*node.map);
+        const mlir::Value mapElement = Generate(*node.mapElement);
 
         auto op = builder.create<stencil::JumpIndirectOp>(loc, index.getType(), index, dimension, map, mapElement);
-        return FromOp(op);
+        return { op };
     }
 
-    auto Generate(const ast::SampleIndirect& node) const -> Generated {
+    auto Generate(const ast::SampleIndirect& node) const -> GenerationResult {
         const auto loc = ConvertLocation(builder, node.location);
-        auto index = GetSingleResult(Generate(*node.index));
-        auto dimension = builder.getIndexAttr(node.dimension);
-        auto field = GetSingleResult(Generate(*node.field));
-        auto fieldElement = GetSingleResult(Generate(*node.fieldElement));
+        const mlir::Value index = Generate(*node.index);
+        const auto dimension = builder.getIndexAttr(node.dimension);
+        const mlir::Value field = Generate(*node.field);
+        const mlir::Value fieldElement = Generate(*node.fieldElement);
 
         auto fieldType = field.getType();
         if (!fieldType.isa<mlir::ShapedType>()) {
@@ -401,7 +395,7 @@ public:
         auto elementType = fieldType.dyn_cast<mlir::ShapedType>().getElementType();
 
         auto op = builder.create<stencil::SampleIndirectOp>(loc, elementType, index, dimension, field, fieldElement);
-        return FromOp(op);
+        return { op };
     }
 
 
@@ -410,13 +404,13 @@ public:
     //--------------------------------------------------------------------------
 
     template <class T>
-    auto Generate(const ast::Constant<T>& node) const -> Generated {
+    auto Generate(const ast::Constant<T>& node) const -> GenerationResult {
         if constexpr (std::is_floating_point_v<T>) {
             const auto type = std::is_same_v<T, float> ? builder.getF32Type() : builder.getF64Type();
             auto op = builder.create<mlir::arith::ConstantFloatOp>(ConvertLocation(builder, node.location),
                                                                    mlir::APFloat(node.value),
                                                                    type);
-            return FromOp(op);
+            return { op };
         }
         else if constexpr (std::is_integral_v<T>) {
             constexpr int numBits = sizeof(T) * 8;
@@ -426,75 +420,79 @@ public:
             auto op = builder.create<mlir::arith::ConstantOp>(ConvertLocation(builder, node.location),
                                                               builder.getIntegerAttr(type, std::bit_cast<int64_t>(unsignedValue)),
                                                               type);
-            return FromOp(op);
+            return { op };
         }
         throw std::invalid_argument("Cannot lower this constant type.");
     }
 
-    auto Generate(const ast::Print& node) const -> Generated {
-        const auto argument = GetSingleResult(Generate(*node.argument));
+    auto Generate(const ast::Print& node) const -> GenerationResult {
+        const mlir::Value argument = Generate(*node.argument);
 
         auto op = builder.create<stencil::PrintOp>(ConvertLocation(builder, node.location),
                                                    argument);
-        return FromOp(op);
+        return { op };
     }
 
-    auto Generate(const ast::Add& node) const -> Generated {
-        auto lhs = GetSingleResult(Generate(*node.lhs));
-        auto rhs = GetSingleResult(Generate(*node.rhs));
+    auto Generate(const ast::Add& node) const -> GenerationResult {
+        mlir::Value lhs = Generate(*node.lhs);
+        mlir::Value rhs = Generate(*node.rhs);
         auto op = builder.create<mlir::arith::AddFOp>(ConvertLocation(builder, node.location),
                                                       lhs,
                                                       rhs);
-        return FromOp(op);
+        return { op };
     }
 
-    auto Generate(const ast::Sub& node) const -> Generated {
-        auto lhs = GetSingleResult(Generate(*node.lhs));
-        auto rhs = GetSingleResult(Generate(*node.rhs));
+    auto Generate(const ast::Sub& node) const -> GenerationResult {
+        mlir::Value lhs = Generate(*node.lhs);
+        mlir::Value rhs = Generate(*node.rhs);
         auto op = builder.create<mlir::arith::SubFOp>(ConvertLocation(builder, node.location),
                                                       lhs,
                                                       rhs);
-        return FromOp(op);
+        return { op };
     }
 
-    auto Generate(const ast::Mul& node) const -> Generated {
-        auto lhs = GetSingleResult(Generate(*node.lhs));
-        auto rhs = GetSingleResult(Generate(*node.rhs));
+    auto Generate(const ast::Mul& node) const -> GenerationResult {
+        mlir::Value lhs = Generate(*node.lhs);
+        mlir::Value rhs = Generate(*node.rhs);
         auto op = builder.create<mlir::arith::MulFOp>(ConvertLocation(builder, node.location),
                                                       lhs,
                                                       rhs);
-        return FromOp(op);
+        return { op };
     }
 
     //--------------------------------------------------------------------------
     // Tensor
     //--------------------------------------------------------------------------
 
-    auto Generate(const ast::Dim& node) const -> Generated {
+    auto Generate(const ast::Dim& node) const -> GenerationResult {
         auto loc = ConvertLocation(builder, node.location);
-        const mlir::Value tensor = GetSingleResult(Generate(*node.field));
-        const mlir::Value index = GetSingleResult(Generate(*node.index));
+        const mlir::Value tensor = Generate(*node.field);
+        const mlir::Value index = Generate(*node.index);
         if (tensor.getType().isa<mlir::MemRefType>()) {
-            return FromOp(builder.create<mlir::memref::DimOp>(loc, tensor, index));
+            return { builder.create<mlir::memref::DimOp>(loc, tensor, index) };
         }
         else {
-            return FromOp(builder.create<mlir::tensor::DimOp>(loc, tensor, index));
+            return { builder.create<mlir::tensor::DimOp>(loc, tensor, index) };
         }
     }
 
-    auto Generate(const ast::AllocTensor& node) const -> Generated {
+    auto Generate(const ast::AllocTensor& node) const -> GenerationResult {
         auto loc = ConvertLocation(builder, node.location);
 
         const auto elementType = ConvertType(builder, node.elementType);
         std::vector<mlir::Value> sizes;
         std::vector<int64_t> shape;
         for (const auto& size : node.sizes) {
-            sizes.push_back(GetSingleResult(Generate(*size)));
+            sizes.push_back(Generate(*size));
             shape.push_back(mlir::ShapedType::kDynamicSize);
         }
         const auto type = mlir::RankedTensorType::get(shape, elementType);
-        return FromOp(builder.create<mlir::bufferization::AllocTensorOp>(loc, type, sizes));
+        return { builder.create<mlir::bufferization::AllocTensorOp>(loc, type, sizes) };
     }
+
+private:
+    mutable mlir::OpBuilder builder;
+    mutable SymbolTable<std::string, mlir::Value> symbolTable;
 };
 
 mlir::ModuleOp ConvertASTToIR(mlir::MLIRContext& context, const ast::Module& node) {
@@ -507,6 +505,6 @@ mlir::ModuleOp ConvertASTToIR(mlir::MLIRContext& context, const ast::Module& nod
     context.getOrLoadDialect<mlir::bufferization::BufferizationDialect>();
     context.getOrLoadDialect<mlir::tensor::TensorDialect>();
 
-    auto [moduleOp, _] = generator.Generate(node);
-    return mlir::dyn_cast<mlir::ModuleOp>(moduleOp);
+    auto ir = generator.Generate(node);
+    return mlir::dyn_cast<mlir::ModuleOp>(ir.op);
 }
