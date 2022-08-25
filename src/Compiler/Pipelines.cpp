@@ -45,9 +45,7 @@ Stage CreateBufferizationStage(mlir::MLIRContext& context) {
     stage.passes->addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createBufferHoistingPass());
     stage.passes->addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createBufferLoopHoistingPass());
     stage.passes->addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createBufferDeallocationPass());
-
-    // Verifier must be disabled for this pass because it's rather hacky with the separated one-shot bufferize.
-    stage.passes->enableVerifier(false);
+    stage.passes->addPass(mlir::createCanonicalizerPass());
 
     return stage;
 }

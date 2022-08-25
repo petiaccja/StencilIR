@@ -74,7 +74,7 @@ struct ApplyOpLoweringBase : public OpRewritePattern<stencil::ApplyOp> {
     static auto CreateLoopBody(stencil::ApplyOp op, OpBuilder& builder, Location loc, ValueRange loopVars) {
         // Get invocation result types from ApplyOp result tensors.
         std::vector<Type> resultTypes;
-        for (const auto& type : op->getResultTypes()) {
+        for (const auto& type : op.getOutputs().getTypes()) {
             mlir::ShapedType shapedType = type.dyn_cast<ShapedType>();
             assert(shapedType);
             resultTypes.push_back(shapedType.getElementType());
@@ -148,7 +148,7 @@ struct ApplyOpLoweringSCF : ApplyOpLoweringBase {
         scf::buildLoopNest(rewriter, loc, lbValues, ubValues, steps, [&op](OpBuilder& builder, Location loc, ValueRange loopVars) {
             CreateLoopBody(op, builder, loc, loopVars);
         });
-        rewriter.replaceOp(op, op.getOutputs());
+        rewriter.eraseOp(op);
 
         return success();
     }

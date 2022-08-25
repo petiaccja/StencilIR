@@ -155,13 +155,13 @@ struct ApplyOpInterface : public BufferizableOpInterface::ExternalModel<ApplyOpI
             staticOffsets.push_back(offset.getInt());
         }
 
-
-        replaceOpWithNewBufferizedOp<ApplyOp>(rewriter, applyOp,
-                                              applyOp.getCallee(),
-                                              inputMemrefs,
-                                              outputMemrefs,
-                                              applyOp.getOffsets(),
-                                              staticOffsets);
+        rewriter.create<ApplyOp>(applyOp->getLoc(),
+                                 applyOp.getCallee(),
+                                 inputMemrefs,
+                                 outputMemrefs,
+                                 applyOp.getOffsets(),
+                                 staticOffsets);
+        replaceOpWithBufferizedValues(rewriter, applyOp, outputMemrefs);
 
         return success();
     }

@@ -62,11 +62,6 @@ LogicalResult ApplyOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
                              << "' does not reference a valid function";
     }
 
-    // Verify that outputs have same types as result types.
-    if (getResultTypes().size() != getOutputs().size()) {
-        return emitOpError("number of result types must equal number of output operands");
-    }
-
     // Verify that the operand and result types match the callee.
     auto fnType = fn.getFunctionType();
     const size_t numCalleeParams = fnType.getNumInputs();
@@ -81,10 +76,12 @@ LogicalResult ApplyOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
     }
 
     for (unsigned i = 0, e = fnType.getNumInputs(); i != e; ++i) {
-        if (getInputs()[i].getType() != fnType.getInput(i)) {
+        mlir::Type inputType = getInputs()[i].getType();
+        mlir::Type calleeInputType = fnType.getInput(i);
+        if (inputType != calleeInputType && !(inputType.isa<ShapedType>() && calleeInputType.isa<ShapedType>())) {
             return emitOpError("operand type mismatch: expected operand type ")
-                   << fnType.getInput(i) << ", but provided "
-                   << getOutputs()[i].getType() << " for operand number " << i;
+                   << inputType << ", but provided "
+                   << calleeInputType << " for operand number " << i;
         }
     }
 
@@ -107,6 +104,17 @@ LogicalResult ApplyOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
 }
 
 
+static mlir::SmallVector<mlir::Type, 8> InferApplyOpResultTypes(mlir::ValueRange outputs) {
+    if (!outputs.empty()) {
+        auto types = outputs.getTypes();
+        if (types.front().isa<mlir::TensorType>()) {
+            return { types.begin(), types.end() };
+        }
+    }
+    return {};
+}
+
+
 void ApplyOp::build(::mlir::OpBuilder& odsBuilder,
                     ::mlir::OperationState& odsState,
                     ::llvm::StringRef callee,
@@ -114,7 +122,7 @@ void ApplyOp::build(::mlir::OpBuilder& odsBuilder,
                     ::mlir::ValueRange outputs) {
     return build(odsBuilder,
                  odsState,
-                 outputs.getTypes(),
+                 InferApplyOpResultTypes(outputs),
                  callee,
                  inputs,
                  outputs,
@@ -131,7 +139,7 @@ void ApplyOp::build(::mlir::OpBuilder& odsBuilder,
                     ::llvm::ArrayRef<int64_t> static_offsets) {
     return build(odsBuilder,
                  odsState,
-                 outputs.getTypes(),
+                 InferApplyOpResultTypes(outputs),
                  callee,
                  inputs,
                  outputs,
@@ -148,7 +156,7 @@ void ApplyOp::build(::mlir::OpBuilder& odsBuilder,
                     ::mlir::ValueRange offsets) {
     return build(odsBuilder,
                  odsState,
-                 outputs.getTypes(),
+                 InferApplyOpResultTypes(outputs),
                  callee,
                  inputs,
                  outputs,
@@ -165,7 +173,7 @@ void ApplyOp::build(::mlir::OpBuilder& odsBuilder,
                     ::llvm::ArrayRef<int64_t> static_offsets) {
     return build(odsBuilder,
                  odsState,
-                 outputs.getTypes(),
+                 InferApplyOpResultTypes(outputs),
                  callee,
                  inputs,
                  outputs,
@@ -177,15 +185,33 @@ void ApplyOp::build(::mlir::OpBuilder& odsBuilder,
     const auto& outputTypes = getOutputs().getTypes();
     const auto& resultTypes = getResultTypes();
 
-    // Same number of output operands and results
-    if (outputTypes.size() != resultTypes.size()) {
-        return emitOpError("must have equal number of output operands as results");
+    // Either all output operands are tensors or memrefs
+    bool isAllTensor = std::all_of(outputTypes.begin(), outputTypes.end(), [](mlir::Type type) {
+        return type.isa<mlir::TensorType>();
+    });
+    bool isAllMemref = std::all_of(outputTypes.begin(), outputTypes.end(), [](mlir::Type type) {
+        return type.isa<mlir::MemRefType>();
+    });
+    if (!isAllTensor && !isAllMemref) {
+        return emitOpError("output operands must be either all tensors or all memrefs, not mixed");
     }
 
-    // Same types of output operands and results
-    for (size_t i = 0; i < outputTypes.size(); ++i) {
-        if (outputTypes[i].getTypeID() != resultTypes[i].getTypeID()) {
-            return emitOpError("output operand must have the same types as results");
+    if (isAllTensor) {
+        // Same number of output operands and results
+        if (outputTypes.size() != resultTypes.size()) {
+            return emitOpError("must have equal number of output operands as results");
+        }
+
+        // Same types of output operands and results
+        for (size_t i = 0; i < outputTypes.size(); ++i) {
+            if (outputTypes[i].getTypeID() != resultTypes[i].getTypeID()) {
+                return emitOpError("output operand must have the same types as results");
+            }
+        }
+    }
+    if (isAllMemref) {
+        if (resultTypes.size() != 0) {
+            return emitOpError("ops with memref semantics cannot have results");
         }
     }
 

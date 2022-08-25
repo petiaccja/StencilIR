@@ -30,13 +30,6 @@ mlir::ModuleOp Compiler::Run(mlir::ModuleOp module, std::vector<StageResult>& st
             }
             throw std::runtime_error("Stage '" + stage.name + "' failed during passes.");
         }
-        const auto verificationResult = module.verify();
-        if (failed(verificationResult)) {
-            if (printStageResults) {
-                stageResults.push_back({ std::to_string(index) + "_" + stage.name, to_string(module) });
-            }
-            throw std::runtime_error("Stage '" + stage.name + "' failed verification.");
-        }
         if (printStageResults) {
             stageResults.push_back({ std::to_string(index) + "_" + stage.name, to_string(module) });
         }
