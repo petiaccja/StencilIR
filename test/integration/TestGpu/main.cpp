@@ -1,6 +1,5 @@
 #include <AST/ASTBuilding.hpp>
 #include <AST/GenerateIR.hpp>
-#include <Compiler/Lowering.hpp>
 #include <Execution/Execution.hpp>
 
 #include <iostream>
@@ -54,16 +53,7 @@ int main() {
 
     std::shared_ptr<ast::Module> ast = CreateDdx();
     try {
-        mlir::ModuleOp module = GenerateIR(context, *ast);
-        ApplyLocationSnapshot(context, module);
-        DumpIR(module, "Stencil original");
-        ApplyCleanupPasses(context, module);
-        DumpIR(module, "Stencil cleaned");
 
-        auto llvmCpuStages = LowerToLLVMGPU(context, module);
-        for (auto& stage : llvmCpuStages) {
-            DumpIR(stage.second, stage.first);
-        }
     }
     catch (std::exception& ex) {
         std::cout << ex.what() << std::endl;

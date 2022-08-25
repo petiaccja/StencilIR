@@ -11,10 +11,10 @@ add_library(Compiler)
 
 target_sources(Compiler
     PRIVATE
-        LoweringPasses.hpp
-        LoweringPasses.cpp
-        Lowering.cpp
-        Lowering.hpp
+        Compiler.cpp
+        Compiler.hpp
+        Pipelines.cpp
+        Pipelines.hpp
 )
 
 target_include_directories(Compiler INTERFACE ${CMAKE_CURRENT_LIST_DIR}/..)

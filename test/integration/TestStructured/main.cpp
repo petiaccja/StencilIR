@@ -1,6 +1,6 @@
 #include <AST/ASTBuilding.hpp>
 #include <AST/GenerateIR.hpp>
-#include <Compiler/Lowering.hpp>
+#include <Compiler/Pipelines.hpp>
 #include <Execution/Execution.hpp>
 
 #include <filesystem>
@@ -88,13 +88,6 @@ void RunLaplacian(JitRunner& runner) {
     }
 }
 
-std::string StringizeIR(mlir::ModuleOp ir) {
-    std::string s;
-    llvm::raw_string_ostream ss{ s };
-    ir->print(ss, mlir::OpPrintingFlags{}.elideLargeElementsAttrs());
-    return s;
-}
-
 void DumpIR(std::string_view ir, std::string_view name) {
     assert(!name.empty());
     std::string fname;
@@ -116,22 +109,20 @@ int main() {
     std::shared_ptr<ast::Module> ast = CreateLaplacian();
     try {
         mlir::ModuleOp module = GenerateIR(context, *ast);
-        ApplyLocationSnapshot(context, module);
-        DumpIR(StringizeIR(module), "Stencil original");
-        ApplyCleanupPasses(context, module);
-        DumpIR(StringizeIR(module), "Stencil cleaned");
 
-        auto llvmCpuStages = LowerToLLVMCPU(context, module);
-        for (auto& stage : llvmCpuStages) {
-            DumpIR(StringizeIR(stage.second), stage.first);
+        Compiler compiler{ TargetCPUPipeline(context) };
+        std::vector<StageResult> stageResults;
+
+        mlir::ModuleOp compiled = compiler.Run(module, stageResults);
+        for (auto& stageResult : stageResults) {
+            DumpIR(stageResult.ir, stageResult.name);
         }
 
         constexpr int optLevel = 3;
-        JitRunner jitRunner{ llvmCpuStages.back().second, optLevel };
+        JitRunner jitRunner{ compiled, optLevel };
+        RunLaplacian(jitRunner);
 
         DumpIR(jitRunner.LLVMIR(), "LLVM IR");
-
-        RunLaplacian(jitRunner);
     }
     catch (std::exception& ex) {
         std::cout << ex.what() << std::endl;
