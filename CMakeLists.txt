@@ -55,7 +55,7 @@ include(conan.cmake)
 conan_cmake_configure(
 	REQUIRES
 		pybind11/2.10.0
-		catch2/2.13.4
+		catch2/2.13.9
 	GENERATORS cmake_find_package
 )
 conan_cmake_autodetect(conan_settings)
