@@ -26,16 +26,19 @@ std::shared_ptr<ast::Module> CreateDdx() {
     auto inputField = ast::symref("input");
     auto output = ast::symref("out");
 
-    auto kernelLaunch = ast::apply(kernel->name,
-                                   { inputField },
-                                   { output });
+    auto apply = ast::apply(kernel->name,
+                            { inputField },
+                            { output });
 
-    return ast::module_({ kernelLaunch },
-                        { kernel },
-                        {
-                            { "input", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-                            { "out", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-                        });
+    auto main = ast::function("main",
+                              {
+                                  { "input", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
+                                  { "out", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
+                              },
+                              {},
+                              { apply, ast::return_() });
+    return ast::module_({ main },
+                        { kernel });
 }
 
 void DumpIR(mlir::ModuleOp ir, std::string_view name = {}) {
@@ -53,7 +56,6 @@ int main() {
 
     std::shared_ptr<ast::Module> ast = CreateDdx();
     try {
-
     }
     catch (std::exception& ex) {
         std::cout << ex.what() << std::endl;

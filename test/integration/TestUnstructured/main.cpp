@@ -31,31 +31,35 @@ std::shared_ptr<ast::Module> CreateLaplacian() {
 
     auto ret = ast::return_({ sum });
 
-    auto kernel = ast::stencil("edge_diffs",
-                               {
-                                   { "cellK", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-                                   { "edgeToCell", types::FieldType{ types::FundamentalType::SSIZE, 2 } },
-                                   { "cellWeights", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-                               },
-                               { types::FundamentalType::FLOAT32 },
-                               { ret },
-                               2);
+    auto edge_diffs = ast::stencil("edge_diffs",
+                                   {
+                                       { "cellK", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
+                                       { "edgeToCell", types::FieldType{ types::FundamentalType::SSIZE, 2 } },
+                                       { "cellWeights", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
+                                   },
+                                   { types::FundamentalType::FLOAT32 },
+                                   { ret },
+                                   2);
 
     // Main function logic
     auto outEdgeK = ast::symref("outEdgeK");
 
-    auto applyStencil = ast::apply(kernel->name,
-                                   { cellK, edgeToCell, cellWeights },
-                                   { outEdgeK });
+    auto apply = ast::apply(edge_diffs->name,
+                            { cellK, edgeToCell, cellWeights },
+                            { outEdgeK });
 
-    return ast::module_({ applyStencil },
-                        { kernel },
-                        {
-                            { "cellK", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-                            { "edgeToCell", types::FieldType{ types::FundamentalType::SSIZE, 2 } },
-                            { "cellWeights", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-                            { "outEdgeK", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-                        });
+    auto main = ast::function("main",
+                              {
+                                  { "cellK", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
+                                  { "edgeToCell", types::FieldType{ types::FundamentalType::SSIZE, 2 } },
+                                  { "cellWeights", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
+                                  { "outEdgeK", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
+                              },
+                              {},
+                              { apply, ast::return_() });
+
+    return ast::module_({ main },
+                        { edge_diffs });
 }
 
 

@@ -21,6 +21,12 @@ struct Location {
 };
 
 
+struct Parameter {
+    std::string name;
+    types::Type type;
+};
+
+
 struct Node : std::enable_shared_from_this<Node> {
     virtual ~Node() = default;
     Node(std::optional<Location> loc = {}) : location(loc) {}
@@ -39,7 +45,7 @@ struct Expression : Statement {
 
 
 //------------------------------------------------------------------------------
-// Structure
+// Symbols
 //------------------------------------------------------------------------------
 
 struct SymbolRef : Expression {
@@ -48,10 +54,10 @@ struct SymbolRef : Expression {
     std::string name;
 };
 
-struct Parameter {
-    std::string name;
-    types::Type type;
-};
+
+//------------------------------------------------------------------------------
+// Stencil structure
+//------------------------------------------------------------------------------
 
 struct Stencil : Node {
     explicit Stencil(std::string name,
@@ -68,12 +74,14 @@ struct Stencil : Node {
     size_t numDimensions;
 };
 
+
 struct Return : Statement {
     explicit Return(std::vector<std::shared_ptr<Expression>> values = {},
                     std::optional<Location> loc = {})
         : Statement(loc), values(values) {}
     std::vector<std::shared_ptr<Expression>> values;
 };
+
 
 struct Apply : Statement {
     explicit Apply(std::string callee,
@@ -95,19 +103,37 @@ struct Apply : Statement {
     std::vector<int64_t> static_offsets;
 };
 
-struct Module : Node {
-    explicit Module(std::vector<std::shared_ptr<Node>> body,
-                    std::vector<std::shared_ptr<Stencil>> kernels = {},
-                    std::vector<Parameter> parameters = {},
-                    std::optional<Location> loc = {})
-        : Node(loc), body(body), kernels(kernels), parameters(parameters) {}
-    std::vector<std::shared_ptr<Node>> body;
-    std::vector<std::shared_ptr<Stencil>> kernels;
-    std::vector<Parameter> parameters;
-};
 
 //------------------------------------------------------------------------------
-// Kernel intrinsics
+// Module structure
+//------------------------------------------------------------------------------
+
+struct Function : Node {
+    explicit Function(std::string name,
+                      std::vector<Parameter> parameters,
+                      std::vector<types::Type> results,
+                      std::vector<std::shared_ptr<Statement>> body,
+                      std::optional<Location> loc = {})
+        : Node(loc), name(name), parameters(parameters), results(results), body(body) {}
+    std::string name;
+    std::vector<Parameter> parameters;
+    std::vector<types::Type> results;
+    std::vector<std::shared_ptr<Statement>> body;
+};
+
+
+struct Module : Node {
+    explicit Module(std::vector<std::shared_ptr<Function>> functions = {},
+                    std::vector<std::shared_ptr<Stencil>> stencils = {},
+                    std::optional<Location> loc = {})
+        : Node(loc), stencils(stencils), functions(functions) {}
+    std::vector<std::shared_ptr<Function>> functions;
+    std::vector<std::shared_ptr<Stencil>> stencils;
+};
+
+
+//------------------------------------------------------------------------------
+// Stencil intrinsics
 //------------------------------------------------------------------------------
 
 struct Index : Expression {
@@ -160,6 +186,30 @@ struct SampleIndirect : Expression {
 
 
 //------------------------------------------------------------------------------
+// Tensors
+//------------------------------------------------------------------------------
+
+struct AllocTensor : Expression {
+    AllocTensor(types::FundamentalType elementType,
+                std::vector<std::shared_ptr<Expression>> sizes,
+                Location loc = {})
+        : Expression(loc), elementType(elementType), sizes(sizes) {}
+
+    types::FundamentalType elementType;
+    std::vector<std::shared_ptr<Expression>> sizes;
+};
+
+struct Dim : Expression {
+    Dim(std::shared_ptr<Expression> field,
+        std::shared_ptr<Expression> index,
+        Location loc = {})
+        : Expression(loc), field(field), index(index) {}
+    std::shared_ptr<Expression> field;
+    std::shared_ptr<Expression> index;
+};
+
+
+//------------------------------------------------------------------------------
 // Arithmetic-logic
 //------------------------------------------------------------------------------
 
@@ -194,39 +244,6 @@ struct Mul : Expression {
     std::shared_ptr<Expression> rhs;
 };
 
-//------------------------------------------------------------------------------
-// Tensors
-//------------------------------------------------------------------------------
-
-struct AllocTensor : Expression {
-    AllocTensor(types::FundamentalType elementType,
-                std::vector<std::shared_ptr<Expression>> sizes,
-                Location loc = {})
-        : Expression(loc), elementType(elementType), sizes(sizes) {}
-
-    types::FundamentalType elementType;
-    std::vector<std::shared_ptr<Expression>> sizes;
-};
-
-struct Dim : Expression {
-    Dim(std::shared_ptr<Expression> field,
-        std::shared_ptr<Expression> index,
-        Location loc = {})
-        : Expression(loc), field(field), index(index) {}
-    std::shared_ptr<Expression> field;
-    std::shared_ptr<Expression> index;
-};
-
-struct ReshapeField : Expression {
-    explicit ReshapeField(std::shared_ptr<Expression> field,
-                          std::vector<std::shared_ptr<Expression>> shape,
-                          std::vector<std::shared_ptr<Expression>> strides,
-                          Location loc = {})
-        : Expression(loc), field(field), shape(shape), strides(strides) {}
-    std::shared_ptr<Expression> field;
-    std::vector<std::shared_ptr<Expression>> shape;
-    std::vector<std::shared_ptr<Expression>> strides;
-};
 
 //------------------------------------------------------------------------------
 // Misc

@@ -25,31 +25,32 @@ std::shared_ptr<ast::Module> CreateLaplacian() {
     auto sum = ast::add(samples[0], ast::add(samples[1], ast::add(samples[2], ast::add(samples[3], samples[4]))));
     auto ret = ast::return_({ sum });
 
-    auto kernel = ast::stencil("laplacian",
-                               { { "field", types::FieldType{ types::FundamentalType::FLOAT32, 2 } } },
-                               { types::FundamentalType::FLOAT32 },
-                               { ret },
-                               2);
+    auto laplacian = ast::stencil("laplacian",
+                                  { { "field", types::FieldType{ types::FundamentalType::FLOAT32, 2 } } },
+                                  { types::FundamentalType::FLOAT32 },
+                                  { ret },
+                                  2);
 
     // Main function logic
     auto input = ast::symref("input");
     auto output = ast::symref("out");
 
-    auto applyStencil = ast::apply(kernel->name,
-                                   { input },
-                                   { output },
-                                   { 1, 1 });
+    auto apply = ast::apply(laplacian->name,
+                            { input },
+                            { output },
+                            { 1, 1 });
 
-    // Module
-    auto moduleBody = std::vector<std::shared_ptr<ast::Node>>{ applyStencil };
-    auto moduleKernels = std::vector<std::shared_ptr<ast::Stencil>>{ kernel };
+    auto main = ast::function("main",
+                              {
+                                  { "input", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
+                                  { "out", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
+                              },
+                              {},
+                              { apply, ast::return_() });
 
-    return ast::module_({ applyStencil },
-                        { kernel },
-                        {
-                            { "input", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-                            { "out", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-                        });
+
+    return ast::module_({ main },
+                        { laplacian });
 }
 
 

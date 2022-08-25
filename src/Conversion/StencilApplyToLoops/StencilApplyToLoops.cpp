@@ -45,6 +45,7 @@ struct StencilOpLowering : public OpRewritePattern<stencil::StencilOp> {
         auto functionType = rewriter.getFunctionType(functionParamTypes, functionReturnTypes);
 
         auto funcOp = rewriter.create<func::FuncOp>(loc, op.getSymName(), functionType);
+        funcOp.setVisibility(SymbolTable::getSymbolVisibility(op));
         rewriter.inlineRegionBefore(op.getRegion(), funcOp.getBody(), funcOp.end());
         Block& block = funcOp.getBody().front();
 
