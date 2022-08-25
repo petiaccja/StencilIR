@@ -75,32 +75,32 @@ struct Stencil : Node {
 };
 
 
-struct Return : Statement {
-    explicit Return(std::vector<std::shared_ptr<Expression>> values = {},
-                    std::optional<Location> loc = {})
-        : Statement(loc), values(values) {}
-    std::vector<std::shared_ptr<Expression>> values;
-};
-
-
-struct Apply : Statement {
+struct Apply : Expression {
     explicit Apply(std::string callee,
                    std::vector<std::shared_ptr<Expression>> arguments,
                    std::vector<std::shared_ptr<Expression>> targets,
                    std::vector<std::shared_ptr<Expression>> offsets,
                    std::optional<Location> loc = {})
-        : Statement(loc), callee(callee), inputs(arguments), outputs(targets), offsets(offsets), static_offsets() {}
+        : Expression(loc), callee(callee), inputs(arguments), outputs(targets), offsets(offsets), static_offsets() {}
     explicit Apply(std::string callee,
                    std::vector<std::shared_ptr<Expression>> arguments,
                    std::vector<std::shared_ptr<Expression>> targets,
                    std::vector<int64_t> static_offsets,
                    std::optional<Location> loc = {})
-        : Statement(loc), callee(callee), inputs(arguments), outputs(targets), offsets(), static_offsets(static_offsets) {}
+        : Expression(loc), callee(callee), inputs(arguments), outputs(targets), offsets(), static_offsets(static_offsets) {}
     std::string callee;
     std::vector<std::shared_ptr<Expression>> inputs;
     std::vector<std::shared_ptr<Expression>> outputs;
     std::vector<std::shared_ptr<Expression>> offsets;
     std::vector<int64_t> static_offsets;
+};
+
+
+struct Return : Statement {
+    explicit Return(std::vector<std::shared_ptr<Expression>> values = {},
+                    std::optional<Location> loc = {})
+        : Statement(loc), values(values) {}
+    std::vector<std::shared_ptr<Expression>> values;
 };
 
 
