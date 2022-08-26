@@ -145,10 +145,13 @@ class StencilIRGenerator : public IRGenerator<ast::Node, GenerationResult, Stenc
                                               ast::Return,
                                               ast::Apply,
                                               ast::SymbolRef,
+                                              ast::Assign,
                                               ast::Index,
                                               ast::Jump,
                                               ast::Sample,
                                               ast::JumpIndirect,
+                                              ast::DimForeach,
+                                              ast::Yield,
                                               ast::SampleIndirect,
                                               ast::Constant<float>,
                                               ast::Constant<double>,
@@ -346,7 +349,12 @@ public:
     auto Generate(const ast::Index& node) const -> GenerationResult {
         const auto loc = ConvertLocation(builder, node.location);
 
-        auto currentStencil = mlir::dyn_cast<stencil::StencilOp>(std::any_cast<mlir::Operation*>(symbolTable.Info()));
+        stencil::StencilOp currentStencil = nullptr;
+        const auto& scopeInfo = symbolTable.Info();
+        if (scopeInfo.has_value() && scopeInfo.type() == typeid(mlir::Operation*)) {
+            const auto op = std::any_cast<mlir::Operation*>(scopeInfo);
+            currentStencil = mlir::dyn_cast<stencil::StencilOp>(op);
+        }
         if (!currentStencil) {
             throw std::invalid_argument("IndexOp can only be used inside StencilOps");
         }
@@ -407,6 +415,57 @@ public:
 
         auto op = builder.create<stencil::SampleIndirectOp>(loc, elementType, index, dimension, field, fieldElement);
         return { op };
+    }
+
+    auto Generate(const ast::DimForeach& node) const -> GenerationResult {
+        auto loc = ConvertLocation(builder, node.location);
+
+        const mlir::Value field = Generate(*node.field);
+        const auto index = builder.getIndexAttr(node.index);
+        const mlir::Value initVar = node.initVar ? Generate(*node.initVar) : nullptr;
+
+        // ::mlir::function_ref<void(::mlir::OpBuilder &, ::mlir::Location, ::mlir::Value, ::mlir::ValueRange)> odsArg3
+        mlir::Value loopVar;
+        mlir::ValueRange initVars;
+        auto bodyBuilder = [&](mlir::OpBuilder&, mlir::Location, mlir::Value loopVar_, mlir::ValueRange initVars_) {
+            loopVar = loopVar_;
+            initVars = initVars_;
+        };
+        auto op = builder.create<stencil::ForeachElementOp>(loc, field, index, mlir::ValueRange{ initVar }, bodyBuilder);
+
+        auto& body = *op.getBody();
+        body.clear();
+        symbolTable.RunInScope([&, this] {
+            symbolTable.Assign(node.loopVarSymbol, loopVar);
+            if (node.initVar) {
+                assert(!initVars.empty());
+                symbolTable.Assign(node.initVarSymbol, *initVars.begin());
+            }
+            InsertInBlock(body, [&]() {
+                for (auto& statement : node.body) {
+                    Generate(*statement);
+                }
+            });
+        },
+                               std::any{ (mlir::Operation*)op });
+
+        return { op };
+    }
+
+    auto Generate(const ast::Yield& node) const -> GenerationResult {
+        const auto loc = ConvertLocation(builder, node.location);
+        std::vector<mlir::Value> values;
+        for (const auto& value : node.values) {
+            values.push_back(Generate(*value));
+        }
+
+        mlir::Operation* parentOp = std::any_cast<mlir::Operation*>(symbolTable.Info());
+
+        if (mlir::isa<stencil::ForeachElementOp>(parentOp)) {
+            auto op = builder.create<stencil::YieldOp>(loc, values);
+            return { op };
+        }
+        throw std::invalid_argument("YieldOp must have ForeachElementOp as parent.");
     }
 
 

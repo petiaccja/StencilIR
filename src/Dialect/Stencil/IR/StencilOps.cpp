@@ -23,9 +23,8 @@ void stencil::StencilDialect::initialize() {
         >();
 }
 
-
+namespace stencil {
 using namespace mlir;
-using namespace stencil;
 
 //------------------------------------------------------------------------------
 // StencilOp
@@ -281,3 +280,144 @@ FunctionType InvokeStencilOp::getCalleeType() {
     }
     return FunctionType::get(getContext(), argumentTypes, getResultTypes());
 }
+
+
+//------------------------------------------------------------------------------
+// ForeachElementOp
+//------------------------------------------------------------------------------
+
+void ForeachElementOp::build(OpBuilder& builder,
+                         OperationState& result,
+                         Value field,
+                         IntegerAttr dimIndex,
+                         ValueRange iterArgs,
+                         BodyBuilderFn bodyBuilder) {
+    result.addOperands({ field });
+    result.addAttribute("dim", dimIndex);
+    result.addOperands(iterArgs);
+    for (Value v : iterArgs)
+        result.addTypes(v.getType());
+    Region* bodyRegion = result.addRegion();
+    bodyRegion->push_back(new Block);
+    Block& bodyBlock = bodyRegion->front();
+    bodyBlock.addArgument(builder.getIndexType(), result.location);
+    for (Value v : iterArgs)
+        bodyBlock.addArgument(v.getType(), v.getLoc());
+
+    // Create the default terminator if the builder is not provided and if the
+    // iteration arguments are not provided. Otherwise, leave this to the caller
+    // because we don't know which values to return from the loop.
+    if (iterArgs.empty() && !bodyBuilder) {
+        ForeachElementOp::ensureTerminator(*bodyRegion, builder, result.location);
+    }
+    else if (bodyBuilder) {
+        OpBuilder::InsertionGuard guard(builder);
+        builder.setInsertionPointToStart(&bodyBlock);
+        bodyBuilder(builder, result.location, bodyBlock.getArgument(0),
+                    bodyBlock.getArguments().drop_front());
+    }
+}
+
+
+LogicalResult ForeachElementOp::verify() {
+    const int64_t dimIndex = getDim().getSExtValue();
+    const int64_t fieldRank = getField().getType().dyn_cast<ShapedType>().getRank();
+    if (!(dimIndex < fieldRank)) {
+        return emitOpError("dim must be less than the field's rank");
+    }
+
+    const auto opNumResults = getNumResults();
+    const auto numIterOperands = getNumIterOperands();
+    if (opNumResults > 0 && numIterOperands != opNumResults) {
+        return emitOpError("mismatch in number of loop-carried values and defined values");
+    }
+    return success();
+}
+
+
+LogicalResult ForeachElementOp::verifyRegions() {
+    // Check that the body defines as single block argument for the induction
+    // variable.
+    auto* body = getBody();
+    if (!body->getArgument(0).getType().isIndex()) {
+        return emitOpError(
+            "expected body first argument to be an index argument for "
+            "the induction variable");
+    }
+
+    auto opNumResults = getNumResults();
+    if (opNumResults == 0) {
+        return success();
+    }
+
+    if (getNumRegionIterArgs() != opNumResults) {
+        return emitOpError(
+            "mismatch in number of basic block args and defined values");
+    }
+
+    auto iterOperands = getIterOperands();
+    auto iterArgs = getRegionIterArgs();
+    auto opResults = getResults();
+    unsigned i = 0;
+    for (auto e : llvm::zip(iterOperands, iterArgs, opResults)) {
+        if (std::get<0>(e).getType() != std::get<2>(e).getType()) {
+            return emitOpError() << "types mismatch between " << i
+                                 << "th iter operand and defined value";
+        }
+        if (std::get<1>(e).getType() != std::get<2>(e).getType()) {
+            return emitOpError() << "types mismatch between " << i
+                                 << "th iter region arg and defined value";
+        }
+        i++;
+    }
+    return success();
+}
+
+Optional<Value> ForeachElementOp::getSingleInductionVar() { return getInductionVar(); }
+
+
+Region& ForeachElementOp::getLoopBody() { return getRegion(); }
+
+ForeachElementOp getForInductionVarOwner(Value val) {
+    auto ivArg = val.dyn_cast<BlockArgument>();
+    if (!ivArg)
+        return ForeachElementOp();
+    assert(ivArg.getOwner() && "unlinked block argument");
+    auto* containingOp = ivArg.getOwner()->getParentOp();
+    return dyn_cast_or_null<ForeachElementOp>(containingOp);
+}
+
+/// Return operands used when entering the region at 'index'. These operands
+/// correspond to the loop iterator operands, i.e., those excluding the
+/// induction variable. LoopOp only has one region, so 0 is the only valid value
+/// for `index`.
+OperandRange ForeachElementOp::getSuccessorEntryOperands(Optional<unsigned> index) {
+    assert(index && *index == 0 && "invalid region index");
+
+    // The initial operands map to the loop arguments after the induction
+    // variable.
+    return getInitArgs();
+}
+
+/// Given the region at `index`, or the parent operation if `index` is None,
+/// return the successor regions. These are the regions that may be selected
+/// during the flow of control. `operands` is a set of optional attributes that
+/// correspond to a constant value for each operand, or null if that operand is
+/// not a constant.
+void ForeachElementOp::getSuccessorRegions(Optional<unsigned> index,
+                                       ArrayRef<Attribute> operands,
+                                       SmallVectorImpl<RegionSuccessor>& regions) {
+    // If the predecessor is the ForOp, branch into the body using the iterator
+    // arguments.
+    if (!index) {
+        regions.push_back(RegionSuccessor(&getLoopBody(), getRegionIterArgs()));
+        return;
+    }
+
+    // Otherwise, the loop may branch back to itself or the parent operation.
+    assert(*index == 0 && "expected loop region");
+    regions.push_back(RegionSuccessor(&getLoopBody(), getRegionIterArgs()));
+    regions.push_back(RegionSuccessor(getResults()));
+}
+
+} // namespace stencil

@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <stdexcept>
+#include <string>
 #include <tuple>
 #include <typeindex>
 #include <unordered_map>
@@ -11,9 +12,11 @@ template <class ASTNode, class IRResult, class Generator, class... ConcreteASTNo
 class IRGenerator {
 public:
     IRResult Generate(const ASTNode& node) const {
+        using namespace std::string_literals;
+
         auto generatorIt = m_generators.find(typeid(node));
         if (generatorIt == m_generators.end()) {
-            throw std::invalid_argument("No generator registered for provided AST node type.");
+            throw std::invalid_argument("No generator registered for provided AST node type: "s + typeid(node).name());
         }
         return generatorIt->second(node);
     }

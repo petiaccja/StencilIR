@@ -76,7 +76,7 @@ TEST_CASE("Structured", "[Program]") {
     }
 
     const auto program = CreateAST();
-    RunAST(*program, "main", input, output);
+    const auto stages = RunAST(*program, "main", input, output);
 
     const std::array<float, outputSizeX* outputSizeY> expectedBuffer = {
         -0.8f, -1.4f, -2.0f, -2.6f, -3.2f, -3.8f, -4.4f,
@@ -93,5 +93,12 @@ TEST_CASE("Structured", "[Program]") {
         0.0f,
         [](float acc, float v) { return std::max(acc, v); },
         [](float u, float v) { return std::abs(u - v); });
+    std::stringstream ss;
+    for (auto& stage : stages) {
+        ss << "// " << stage.name << std::endl;
+        ss << stage.ir << "\n"
+           << std::endl;
+    }
+    INFO(ss.str());
     REQUIRE(maxDifference < 0.001f);
 }

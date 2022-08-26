@@ -133,6 +133,38 @@ struct SampleIndirectOpLowering : public OpRewritePattern<stencil::SampleIndirec
     }
 };
 
+
+struct ForeachElementOpLowering : public OpRewritePattern<stencil::ForeachElementOp> {
+    using OpRewritePattern<stencil::ForeachElementOp>::OpRewritePattern;
+
+    LogicalResult matchAndRewrite(stencil::ForeachElementOp op, PatternRewriter& rewriter) const override final {
+        Location loc = op->getLoc();
+
+        mlir::Value lb = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+        mlir::Value ub = rewriter.create<memref::DimOp>(loc, op.getField(), op.getDim().getSExtValue());
+        mlir::Value step = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+
+        auto scfForOp = rewriter.create<scf::ForOp>(loc, lb, ub, step, op.getIterOperands());
+        rewriter.eraseBlock(scfForOp.getBody());
+        rewriter.inlineRegionBefore(op.getRegion(), scfForOp.getRegion(), scfForOp.getRegion().end());
+        rewriter.replaceOp(op, scfForOp.getResults());
+
+        return success();
+    }
+};
+
+
+class YieldOpLowering : public OpRewritePattern<stencil::YieldOp> {
+public:
+    using OpRewritePattern<stencil::YieldOp>::OpRewritePattern;
+
+    LogicalResult matchAndRewrite(stencil::YieldOp op, PatternRewriter& rewriter) const override final {
+        rewriter.replaceOpWithNewOp<scf::YieldOp>(op, op.getOperands());
+        return success();
+    }
+};
+
+
 void StencilOpsToStandardPass::getDependentDialects(DialectRegistry& registry) const {
     registry.insert<arith::ArithmeticDialect,
                     func::FuncDialect,
@@ -156,6 +188,8 @@ void StencilOpsToStandardPass::runOnOperation() {
     patterns.add<SampleOpLowering>(&getContext());
     patterns.add<JumpIndirectOpLowering>(&getContext());
     patterns.add<SampleIndirectOpLowering>(&getContext());
+    patterns.add<ForeachElementOpLowering>(&getContext());
+    patterns.add<YieldOpLowering>(&getContext());
 
     if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {
         signalPassFailure();

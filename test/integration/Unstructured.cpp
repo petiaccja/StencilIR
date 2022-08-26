@@ -23,17 +23,24 @@ static std::shared_ptr<ast::Module> CreateAST() {
     // Kernel logic
     auto field = ast::symref("cellK");
 
-    auto c0 = ast::constant(0, types::FundamentalType::SSIZE);
-    auto c1 = ast::constant(1, types::FundamentalType::SSIZE);
+    // auto c0 = ast::constant(0, types::FundamentalType::SSIZE);
+    // auto c1 = ast::constant(1, types::FundamentalType::SSIZE);
 
-    auto weightLeft = ast::sample_indirect(ast::index(), 0, cellWeights, c0);
-    auto weightRight = ast::sample_indirect(ast::index(), 0, cellWeights, c1);
-    auto sampleLeft = ast::sample(cellK, ast::jump_indirect(ast::index(), 0, edgeToCell, c0));
-    auto sampleRight = ast::sample(cellK, ast::jump_indirect(ast::index(), 0, edgeToCell, c1));
-    auto sum = ast::sub(ast::mul(sampleLeft, weightLeft),
-                        ast::mul(sampleRight, weightRight));
+    // auto weightLeft = ast::sample_indirect(ast::index(), 0, cellWeights, c0);
+    // auto weightRight = ast::sample_indirect(ast::index(), 0, cellWeights, c1);
+    // auto sampleLeft = ast::sample(cellK, ast::jump_indirect(ast::index(), 0, edgeToCell, c0));
+    // auto sampleRight = ast::sample(cellK, ast::jump_indirect(ast::index(), 0, edgeToCell, c1));
+    // auto sum = ast::sub(ast::mul(sampleLeft, weightLeft),
+    //                     ast::mul(sampleRight, weightRight));
 
-    auto ret = ast::return_({ sum });
+    auto assign_index = ast::assign({ "index" }, ast::index());
+    auto index = ast::symref("index");
+    auto updatedAcc = ast::add(ast::symref("accumulator"),
+                               ast::mul(
+                                   ast::sample_indirect(index, 0, cellWeights, ast::symref("elementIdx")),
+                                   ast::sample(cellK, ast::jump_indirect(index, 0, edgeToCell, ast::symref("elementIdx")))));
+    auto yieldAcc = ast::yield({ updatedAcc });
+    auto sum = ast::dim_foreach(edgeToCell, 1, "elementIdx", { yieldAcc }, { ast::constant(0.0f) }, "accumulator");
 
     auto edge_diffs = ast::stencil("edge_diffs",
                                    {
@@ -42,7 +49,7 @@ static std::shared_ptr<ast::Module> CreateAST() {
                                        { "cellWeights", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
                                    },
                                    { types::FundamentalType::FLOAT32 },
-                                   { ret },
+                                   { assign_index, ast::return_({ sum }) },
                                    2);
 
     // Main function logic
@@ -82,7 +89,7 @@ TEST_CASE("Unstructured", "[Program]") {
     std::iota(edgeToCell.begin(), edgeToCell.begin() + numEdges, 0);
     std::iota(edgeToCell.begin() + numEdges, edgeToCell.end(), 1);
     std::fill(cellWeights.begin(), cellWeights.begin() + numEdges, -1.0f);
-    std::fill(cellWeights.begin() + numEdges, cellWeights.end(), -1.0f);
+    std::fill(cellWeights.begin() + numEdges, cellWeights.end(), 1.0f);
 
 
     MemRef<float, 2> cellKMem{ cellK.data(), cellK.data(), 0, { numCells, numLevels }, { 1, numCells } };
@@ -91,7 +98,7 @@ TEST_CASE("Unstructured", "[Program]") {
     MemRef<float, 2> cellWeightsMem{ cellWeights.data(), cellWeights.data(), 0, { numEdges, 2 }, { 1, numEdges } };
 
     const auto program = CreateAST();
-    RunAST(*program, "main", cellKMem, edgeToCellMem, cellWeightsMem, edgeKMem);
+    const auto stages = RunAST(*program, "main", cellKMem, edgeToCellMem, cellWeightsMem, edgeKMem);
 
     const std::array<float, numEdges* numLevels> expectedBuffer = {
         1.f, 1.14354706f, 1.20482254f, 1.2464242f, 1.27830124f,
@@ -106,5 +113,12 @@ TEST_CASE("Unstructured", "[Program]") {
         0.0f,
         [](float acc, float v) { return std::max(acc, v); },
         [](float u, float v) { return std::abs(u - v); });
+
+    std::stringstream ss;
+    for (auto& stage : stages) {
+        ss << "// " << stage.name << std::endl;
+        ss << stage.ir << "\n" << std::endl;
+    }
+    INFO(ss.str());
     REQUIRE(maxDifference < 0.001f);
 }

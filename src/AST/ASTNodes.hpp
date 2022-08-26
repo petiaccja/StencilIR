@@ -194,6 +194,30 @@ struct SampleIndirect : Expression {
     std::shared_ptr<Expression> fieldElement;
 };
 
+struct DimForeach : Expression {
+    explicit DimForeach(std::shared_ptr<Expression> field,
+                        int64_t index,
+                        std::string loopVarSymbol,
+                        std::vector<std::shared_ptr<Statement>> body,
+                        std::shared_ptr<Expression> initVar,
+                        std::string initVarSymbol,
+                        std::optional<Location> loc = {})
+        : Expression(loc), field(field), index(index), loopVarSymbol(loopVarSymbol), body(body), initVarSymbol(initVarSymbol), initVar(initVar) {}
+    std::shared_ptr<Expression> field;
+    int64_t index;
+    std::string loopVarSymbol;
+    std::vector<std::shared_ptr<Statement>> body;
+    std::shared_ptr<Expression> initVar;
+    std::string initVarSymbol;
+};
+
+struct Yield : Statement {
+    explicit Yield(std::vector<std::shared_ptr<Expression>> values = {},
+                   std::optional<Location> loc = {})
+        : Statement(loc), values(values) {}
+    std::vector<std::shared_ptr<Expression>> values;
+};
+
 
 //------------------------------------------------------------------------------
 // Tensors

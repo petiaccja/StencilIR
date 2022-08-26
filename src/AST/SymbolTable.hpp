@@ -54,6 +54,14 @@ public:
         return m_currentScope.value().get().info;
     }
 
+    auto begin() const {
+        return m_scopes.crbegin();
+    }
+
+    auto end() const {
+        return m_scopes.crend();
+    }
+
 private:
     std::list<Scope> m_scopes;
     std::optional<std::reference_wrapper<Scope>> m_currentScope;
