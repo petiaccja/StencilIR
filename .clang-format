@@ -59,6 +59,8 @@ IncludeCategories:
     Priority:        2
   - Regex:           '<([[:alnum:].]|_)+>'
     Priority:        4
+  - Regex:           '(<|")((C|c)atch.*)/'
+    Priority:        5
   - Regex:           '.*'
     Priority:        1
 IndentCaseBlocks: 'false'

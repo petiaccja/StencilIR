@@ -1,3 +1,5 @@
+#include "Utility/RunAST.hpp"
+
 #include <AST/ASTBuilding.hpp>
 #include <AST/ConvertASTToIR.hpp>
 #include <Compiler/Pipelines.hpp>
@@ -7,11 +9,14 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <numeric>
 #include <string_view>
 
+#include <catch2/catch.hpp>
 
-std::shared_ptr<ast::Module> CreateLaplacian() {
-    // Kernel logic
+
+static std::shared_ptr<ast::Module> CreateAST() {
+    // Kernel logicExecute
     auto field = ast::symref("field");
 
     std::array samples = {
@@ -53,8 +58,7 @@ std::shared_ptr<ast::Module> CreateLaplacian() {
                         { laplacian });
 }
 
-
-void RunLaplacian(JitRunner& runner) {
+TEST_CASE("Structured", "[Program]") {
     constexpr ptrdiff_t inputSizeX = 9;
     constexpr ptrdiff_t inputSizeY = 7;
     constexpr ptrdiff_t outputSizeX = inputSizeX - 2;
@@ -71,61 +75,23 @@ void RunLaplacian(JitRunner& runner) {
         }
     }
 
-    runner.InvokeFunction("main", input, output);
+    const auto program = CreateAST();
+    RunAST(*program, "main", input, output);
 
-    std::cout << "Input:" << std::endl;
-    for (size_t y = 0; y < inputSizeY; ++y) {
-        for (size_t x = 0; x < inputSizeX; ++x) {
-            std::cout << std::setprecision(4) << inputBuffer[y * inputSizeX + x] << "\t";
-        }
-        std::cout << std::endl;
-    }
-    std::cout << "\nOutput:" << std::endl;
-    for (size_t y = 0; y < outputSizeY; ++y) {
-        for (size_t x = 0; x < outputSizeX; ++x) {
-            std::cout << std::setprecision(4) << outputBuffer[y * outputSizeX + x] << "\t";
-        }
-        std::cout << std::endl;
-    }
-}
+    const std::array<float, outputSizeX* outputSizeY> expectedBuffer = {
+        -0.8f, -1.4f, -2.0f, -2.6f, -3.2f, -3.8f, -4.4f,
+        -0.8f, -1.4f, -2.0f, -2.6f, -3.2f, -3.8f, -4.4f,
+        -0.8f, -1.4f, -2.0f, -2.6f, -3.2f, -3.8f, -4.4f,
+        -0.8f, -1.4f, -2.0f, -2.6f, -3.2f, -3.8f, -4.4f,
+        -0.8f, -1.4f, -2.0f, -2.6f, -3.2f, -3.8f, -4.4f
+    };
 
-void DumpIR(std::string_view ir, std::string_view name) {
-    assert(!name.empty());
-    std::string fname;
-    std::transform(name.begin(), name.end(), std::back_inserter(fname), [](char c) {
-        if (std::ispunct(c) || std::isspace(c)) {
-            c = '_';
-        }
-        return std::tolower(c);
-    });
-    auto tempfile = std::filesystem::temp_directory_path() / (fname + ".mlir");
-    std::ofstream of(tempfile, std::ios::trunc);
-    of << ir;
-}
-
-
-int main() {
-    mlir::MLIRContext context;
-
-    std::shared_ptr<ast::Module> ast = CreateLaplacian();
-    try {
-        mlir::ModuleOp module = ConvertASTToIR(context, *ast);
-
-        Compiler compiler{ TargetCPUPipeline(context) };
-        std::vector<StageResult> stageResults;
-
-        mlir::ModuleOp compiled = compiler.Run(module, stageResults);
-        for (auto& stageResult : stageResults) {
-            DumpIR(stageResult.ir, stageResult.name);
-        }
-
-        constexpr int optLevel = 3;
-        JitRunner jitRunner{ compiled, optLevel };
-        RunLaplacian(jitRunner);
-
-        DumpIR(jitRunner.LLVMIR(), "LLVM IR");
-    }
-    catch (std::exception& ex) {
-        std::cout << ex.what() << std::endl;
-    }
+    const auto maxDifference = std::inner_product(
+        outputBuffer.begin(),
+        outputBuffer.end(),
+        expectedBuffer.begin(),
+        0.0f,
+        [](float acc, float v) { return std::max(acc, v); },
+        [](float u, float v) { return std::abs(u - v); });
+    REQUIRE(maxDifference < 0.001f);
 }

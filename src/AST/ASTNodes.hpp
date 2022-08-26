@@ -226,9 +226,9 @@ struct Dim : Expression {
 template <class T>
 struct Constant : Expression {
     explicit Constant(T value, std::optional<Location> loc = {})
-        : Expression(location), value(value) {}
+        : Expression(loc), value(value) {}
     Constant(T value, types::Type type, std::optional<Location> loc = {})
-        : Expression(location), value(value), type(type) {}
+        : Expression(loc), value(value), type(type) {}
     T value;
     std::optional<types::Type> type;
 };

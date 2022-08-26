@@ -1,3 +1,5 @@
+#include "Utility/RunAST.hpp"
+
 #include <AST/ASTBuilding.hpp>
 #include <AST/ConvertASTToIR.hpp>
 #include <Compiler/Pipelines.hpp>
@@ -10,8 +12,10 @@
 #include <numeric>
 #include <string_view>
 
+#include <catch2/catch.hpp>
 
-std::shared_ptr<ast::Module> CreateLaplacian() {
+
+static std::shared_ptr<ast::Module> CreateAST() {
     auto cellK = ast::symref("cellK");
     auto edgeToCell = ast::symref("edgeToCell");
     auto cellWeights = ast::symref("cellWeights");
@@ -63,7 +67,7 @@ std::shared_ptr<ast::Module> CreateLaplacian() {
 }
 
 
-void RunLaplacian(JitRunner& runner) {
+TEST_CASE("Unstructured", "[Program]") {
     constexpr ptrdiff_t numEdges = 5;
     constexpr ptrdiff_t numCells = numEdges + 1;
     constexpr ptrdiff_t numLevels = 3;
@@ -86,68 +90,21 @@ void RunLaplacian(JitRunner& runner) {
     MemRef<ptrdiff_t, 2> edgeToCellMem{ edgeToCell.data(), edgeToCell.data(), 0, { numEdges, 2 }, { 1, numEdges } };
     MemRef<float, 2> cellWeightsMem{ cellWeights.data(), cellWeights.data(), 0, { numEdges, 2 }, { 1, numEdges } };
 
-    runner.InvokeFunction("main", cellKMem, edgeToCellMem, cellWeightsMem, edgeKMem);
+    const auto program = CreateAST();
+    RunAST(*program, "main", cellKMem, edgeToCellMem, cellWeightsMem, edgeKMem);
 
-    std::cout << "Input:" << std::endl;
-    for (size_t level = 0; level < numLevels; ++level) {
-        for (size_t cell = 0; cell < numCells; ++cell) {
-            std::cout << std::setprecision(4) << cellK[level * numCells + cell] << "\t";
-        }
-        std::cout << std::endl;
-    }
-    std::cout << "\nOutput:" << std::endl;
-    for (size_t level = 0; level < numLevels; ++level) {
-        for (size_t edge = 0; edge < numEdges; ++edge) {
-            std::cout << std::setprecision(4) << edgeK[level * numEdges + edge] << "\t";
-        }
-        std::cout << std::endl;
-    }
-}
+    const std::array<float, numEdges* numLevels> expectedBuffer = {
+        1.f, 1.14354706f, 1.20482254f, 1.2464242f, 1.27830124f,
+        1.32631063f, 1.34545708f, 1.3624239f, 1.37767506f, 1.39154434f,
+        1.41603279f, 1.42697716f, 1.43721581f, 1.44683456f, 1.45591354f
+    };
 
-std::string StringizeIR(mlir::ModuleOp ir) {
-    std::string s;
-    llvm::raw_string_ostream ss{ s };
-    ir->print(ss, mlir::OpPrintingFlags{}.elideLargeElementsAttrs());
-    return s;
-}
-
-void DumpIR(std::string_view ir, std::string_view name) {
-    assert(!name.empty());
-    std::string fname;
-    std::transform(name.begin(), name.end(), std::back_inserter(fname), [](char c) {
-        if (std::ispunct(c) || std::isspace(c)) {
-            c = '_';
-        }
-        return std::tolower(c);
-    });
-    auto tempfile = std::filesystem::temp_directory_path() / (fname + ".mlir");
-    std::ofstream of(tempfile, std::ios::trunc);
-    of << ir;
-}
-
-
-int main() {
-    mlir::MLIRContext context;
-
-    std::shared_ptr<ast::Module> ast = CreateLaplacian();
-    try {
-        mlir::ModuleOp module = ConvertASTToIR(context, *ast);
-
-        Compiler compiler{ TargetCPUPipeline(context) };
-        std::vector<StageResult> stageResults;
-
-        mlir::ModuleOp compiled = compiler.Run(module, stageResults);
-        for (auto& stageResult : stageResults) {
-            DumpIR(stageResult.ir, stageResult.name);
-        }
-
-        constexpr int optLevel = 3;
-        JitRunner jitRunner{ compiled, optLevel };
-        RunLaplacian(jitRunner);
-
-        DumpIR(jitRunner.LLVMIR(), "LLVM IR");
-    }
-    catch (std::exception& ex) {
-        std::cout << ex.what() << std::endl;
-    }
+    const auto maxDifference = std::inner_product(
+        edgeK.begin(),
+        edgeK.end(),
+        expectedBuffer.begin(),
+        0.0f,
+        [](float acc, float v) { return std::max(acc, v); },
+        [](float u, float v) { return std::abs(u - v); });
+    REQUIRE(maxDifference < 0.001f);
 }
