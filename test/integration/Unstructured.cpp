@@ -23,16 +23,6 @@ static std::shared_ptr<ast::Module> CreateAST() {
     // Kernel logic
     auto field = ast::symref("cellK");
 
-    // auto c0 = ast::constant(0, types::FundamentalType::SSIZE);
-    // auto c1 = ast::constant(1, types::FundamentalType::SSIZE);
-
-    // auto weightLeft = ast::sample_indirect(ast::index(), 0, cellWeights, c0);
-    // auto weightRight = ast::sample_indirect(ast::index(), 0, cellWeights, c1);
-    // auto sampleLeft = ast::sample(cellK, ast::jump_indirect(ast::index(), 0, edgeToCell, c0));
-    // auto sampleRight = ast::sample(cellK, ast::jump_indirect(ast::index(), 0, edgeToCell, c1));
-    // auto sum = ast::sub(ast::mul(sampleLeft, weightLeft),
-    //                     ast::mul(sampleRight, weightRight));
-
     auto assign_index = ast::assign({ "index" }, ast::index());
     auto index = ast::symref("index");
     auto updatedAcc = ast::add(ast::symref("accumulator"),
@@ -40,7 +30,13 @@ static std::shared_ptr<ast::Module> CreateAST() {
                                    ast::sample_indirect(index, 0, cellWeights, ast::symref("elementIdx")),
                                    ast::sample(cellK, ast::jump_indirect(index, 0, edgeToCell, ast::symref("elementIdx")))));
     auto yieldAcc = ast::yield({ updatedAcc });
-    auto sum = ast::dim_foreach(edgeToCell, 1, "elementIdx", { yieldAcc }, { ast::constant(0.0f) }, "accumulator");
+    auto sum = ast::for_(ast::constant(0, types::FundamentalType::SSIZE),
+                         ast::dim(edgeToCell, ast::constant(1, types::FundamentalType::SSIZE)),
+                         1,
+                         "elementIdx",
+                         { yieldAcc },
+                         { ast::constant(0.0f) },
+                         { "accumulator" });
 
     auto edge_diffs = ast::stencil("edge_diffs",
                                    {
@@ -117,7 +113,8 @@ TEST_CASE("Unstructured", "[Program]") {
     std::stringstream ss;
     for (auto& stage : stages) {
         ss << "// " << stage.name << std::endl;
-        ss << stage.ir << "\n" << std::endl;
+        ss << stage.ir << "\n"
+           << std::endl;
     }
     INFO(ss.str());
     REQUIRE(maxDifference < 0.001f);

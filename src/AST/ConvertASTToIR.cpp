@@ -14,6 +14,7 @@
 #include <mlir/Dialect/Bufferization/IR/Bufferization.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/Dialect/MemRef/IR/MemRef.h>
+#include <mlir/Dialect/SCF/IR/SCF.h>
 #include <mlir/Dialect/Tensor/IR/Tensor.h>
 #include <mlir/IR/AffineExpr.h>
 #include <mlir/IR/AffineMap.h>
@@ -150,9 +151,11 @@ class StencilIRGenerator : public IRGenerator<ast::Node, GenerationResult, Stenc
                                               ast::Jump,
                                               ast::Sample,
                                               ast::JumpIndirect,
-                                              ast::DimForeach,
+                                              ast::For,
+                                              ast::If,
                                               ast::Yield,
                                               ast::SampleIndirect,
+                                              ast::Constant<bool>,
                                               ast::Constant<float>,
                                               ast::Constant<double>,
                                               ast::Constant<int8_t>,
@@ -417,29 +420,33 @@ public:
         return { op };
     }
 
-    auto Generate(const ast::DimForeach& node) const -> GenerationResult {
-        auto loc = ConvertLocation(builder, node.location);
+    //--------------------------------------------------------------------------
+    // Structured flow control
+    //--------------------------------------------------------------------------
 
-        const mlir::Value field = Generate(*node.field);
-        const auto index = builder.getIndexAttr(node.index);
-        const mlir::Value initVar = node.initVar ? Generate(*node.initVar) : nullptr;
+    auto Generate(const ast::For& node) const -> GenerationResult {
+        const auto loc = ConvertLocation(builder, node.location);
 
-        // ::mlir::function_ref<void(::mlir::OpBuilder &, ::mlir::Location, ::mlir::Value, ::mlir::ValueRange)> odsArg3
-        mlir::Value loopVar;
-        mlir::ValueRange initVars;
-        auto bodyBuilder = [&](mlir::OpBuilder&, mlir::Location, mlir::Value loopVar_, mlir::ValueRange initVars_) {
-            loopVar = loopVar_;
-            initVars = initVars_;
-        };
-        auto op = builder.create<stencil::ForeachElementOp>(loc, field, index, mlir::ValueRange{ initVar }, bodyBuilder);
+        if (node.initArgs.size() != node.iterArgSymbols.size()) {
+            throw std::invalid_argument("for loop must have the same number of init args as iter args");
+        }
+
+        const mlir::Value start = Generate(*node.start);
+        const mlir::Value end = Generate(*node.end);
+        const mlir::Value step = builder.create<mlir::arith::ConstantIndexOp>(loc, node.step);
+        mlir::SmallVector<mlir::Value, 4> initArgs;
+        for (auto& v : node.initArgs) {
+            initArgs.push_back(Generate(*v));
+        }
+
+        auto op = builder.create<mlir::scf::ForOp>(loc, start, end, step, initArgs);
 
         auto& body = *op.getBody();
         body.clear();
         symbolTable.RunInScope([&, this] {
-            symbolTable.Assign(node.loopVarSymbol, loopVar);
-            if (node.initVar) {
-                assert(!initVars.empty());
-                symbolTable.Assign(node.initVarSymbol, *initVars.begin());
+            symbolTable.Assign(node.loopVarSymbol, op.getInductionVar());
+            for (int i = 0; i < op.getNumIterOperands(); ++i) {
+                symbolTable.Assign(node.iterArgSymbols[i], op.getRegionIterArgs()[i]);
             }
             InsertInBlock(body, [&]() {
                 for (auto& statement : node.body) {
@@ -452,6 +459,37 @@ public:
         return { op };
     }
 
+    auto Generate(const ast::If& node) const -> GenerationResult {
+        const auto loc = ConvertLocation(builder, node.location);
+
+        const mlir::Value condition = Generate(*node.condition);
+        auto op = builder.create<mlir::scf::IfOp>(loc, condition, !node.bodyFalse.empty());
+
+        auto& thenBlock = *op.thenBlock();
+        thenBlock.clear();
+        symbolTable.RunInScope([&] {
+            InsertInBlock(thenBlock, [&] {
+                for (auto& statement : node.bodyTrue) {
+                    Generate(*statement);
+                }
+            });
+        });
+
+        auto& elseBlock = *op.elseBlock();
+        elseBlock.clear();
+        symbolTable.RunInScope([&] {
+            InsertInBlock(elseBlock, [&] {
+                for (auto& statement : node.bodyFalse) {
+                    Generate(*statement);
+                }
+            });
+        });
+
+        throw std::runtime_error("Not implemented. Have to figure out result types somehow.");
+
+        return { op };
+    }
+
     auto Generate(const ast::Yield& node) const -> GenerationResult {
         const auto loc = ConvertLocation(builder, node.location);
         std::vector<mlir::Value> values;
@@ -459,15 +497,9 @@ public:
             values.push_back(Generate(*value));
         }
 
-        mlir::Operation* parentOp = std::any_cast<mlir::Operation*>(symbolTable.Info());
-
-        if (mlir::isa<stencil::ForeachElementOp>(parentOp)) {
-            auto op = builder.create<stencil::YieldOp>(loc, values);
-            return { op };
-        }
-        throw std::invalid_argument("YieldOp must have ForeachElementOp as parent.");
+        auto op = builder.create<mlir::scf::YieldOp>(loc, values);
+        return { op };
     }
-
 
     //--------------------------------------------------------------------------
     // Arithmetic and misc
@@ -475,11 +507,17 @@ public:
 
     template <class T>
     auto Generate(const ast::Constant<T>& node) const -> GenerationResult {
+        const auto loc = ConvertLocation(builder, node.location);
         if constexpr (std::is_floating_point_v<T>) {
             const auto type = std::is_same_v<T, float> ? builder.getF32Type() : builder.getF64Type();
-            auto op = builder.create<mlir::arith::ConstantFloatOp>(ConvertLocation(builder, node.location),
+            auto op = builder.create<mlir::arith::ConstantFloatOp>(loc,
                                                                    mlir::APFloat(node.value),
                                                                    type);
+            return { op };
+        }
+        else if constexpr (std::is_same_v<T, bool>) {
+            auto value = builder.getBoolAttr(node.value);
+            auto op = builder.create<mlir::arith::ConstantOp>(loc, value, builder.getI1Type());
             return { op };
         }
         else if constexpr (std::is_integral_v<T>) {
@@ -487,7 +525,7 @@ public:
             const auto type = node.type ? ConvertType(builder, node.type.value()) : mlir::Type(builder.getIntegerType(numBits));
             using Unsigned = std::make_unsigned_t<decltype(node.value)>;
             const uint64_t unsignedValue = std::bit_cast<Unsigned>(node.value);
-            auto op = builder.create<mlir::arith::ConstantOp>(ConvertLocation(builder, node.location),
+            auto op = builder.create<mlir::arith::ConstantOp>(loc,
                                                               builder.getIntegerAttr(type, std::bit_cast<int64_t>(unsignedValue)),
                                                               type);
             return { op };
@@ -574,7 +612,12 @@ mlir::ModuleOp ConvertASTToIR(mlir::MLIRContext& context, const ast::Module& nod
     context.getOrLoadDialect<stencil::StencilDialect>();
     context.getOrLoadDialect<mlir::bufferization::BufferizationDialect>();
     context.getOrLoadDialect<mlir::tensor::TensorDialect>();
+    context.getOrLoadDialect<mlir::scf::SCFDialect>();
 
     auto ir = generator.Generate(node);
-    return mlir::dyn_cast<mlir::ModuleOp>(ir.op);
+    auto module = mlir::dyn_cast<mlir::ModuleOp>(ir.op);
+    if (failed(module.verify())) {
+        throw std::logic_error("MLIR module is not correct.");
+    }
+    return module;
 }

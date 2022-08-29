@@ -194,21 +194,34 @@ struct SampleIndirect : Expression {
     std::shared_ptr<Expression> fieldElement;
 };
 
-struct DimForeach : Expression {
-    explicit DimForeach(std::shared_ptr<Expression> field,
-                        int64_t index,
-                        std::string loopVarSymbol,
-                        std::vector<std::shared_ptr<Statement>> body,
-                        std::shared_ptr<Expression> initVar,
-                        std::string initVarSymbol,
-                        std::optional<Location> loc = {})
-        : Expression(loc), field(field), index(index), loopVarSymbol(loopVarSymbol), body(body), initVarSymbol(initVarSymbol), initVar(initVar) {}
-    std::shared_ptr<Expression> field;
-    int64_t index;
+struct For : Expression {
+    explicit For(std::shared_ptr<Expression> start,
+                 std::shared_ptr<Expression> end,
+                 int64_t step,
+                 std::string loopVarSymbol,
+                 std::vector<std::shared_ptr<Statement>> body,
+                 std::vector<std::shared_ptr<Expression>> initArgs,
+                 std::vector<std::string> iterArgSymbols,
+                 std::optional<Location> loc = {})
+        : Expression(loc), start(start), end(end), step(step), loopVarSymbol(loopVarSymbol), body(body), initArgs(initArgs), iterArgSymbols(iterArgSymbols) {}
+    std::shared_ptr<Expression> start;
+    std::shared_ptr<Expression> end;
+    int64_t step;
     std::string loopVarSymbol;
     std::vector<std::shared_ptr<Statement>> body;
-    std::shared_ptr<Expression> initVar;
-    std::string initVarSymbol;
+    std::vector<std::shared_ptr<Expression>> initArgs;
+    std::vector<std::string> iterArgSymbols;
+};
+
+struct If : Expression {
+    explicit If(std::shared_ptr<Expression> condition,
+                std::vector<std::shared_ptr<Statement>> bodyTrue,
+                std::vector<std::shared_ptr<Statement>> bodyFalse,
+                std::optional<Location> loc = {})
+        : Expression(loc), condition(condition), bodyTrue(bodyTrue), bodyFalse(bodyFalse) {}
+    std::shared_ptr<Expression> condition;
+    std::vector<std::shared_ptr<Statement>> bodyTrue;
+    std::vector<std::shared_ptr<Statement>> bodyFalse;
 };
 
 struct Yield : Statement {

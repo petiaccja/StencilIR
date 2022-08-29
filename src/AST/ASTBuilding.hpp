@@ -124,15 +124,30 @@ inline auto sample_indirect(std::shared_ptr<Expression> index,
     return std::make_shared<SampleIndirect>(index, dimension, field, fieldElement, loc);
 }
 
-inline auto dim_foreach(std::shared_ptr<Expression> field,
-                        int64_t index,
-                        std::string loopVarSymbol,
-                        std::vector<std::shared_ptr<Statement>> body,
-                        std::shared_ptr<Expression> initVar,
-                        std::string initVarSymbol,
-                        std::optional<Location> loc = {}) {
-    return std::make_shared<DimForeach>(field, index, loopVarSymbol, body, initVar, initVarSymbol, loc);
-}
+
+//--------------------------------------------------------------------------
+// Structured flow control
+//--------------------------------------------------------------------------
+
+inline auto for_(std::shared_ptr<Expression> start,
+                 std::shared_ptr<Expression> end,
+                 int64_t step,
+                 std::string loopVarSymbol,
+                 std::vector<std::shared_ptr<Statement>> body,
+                 std::vector<std::shared_ptr<Expression>> initArgs,
+                 std::vector<std::string> iterArgSymbols,
+                 std::optional<Location> loc = {}) {
+    return std::make_shared<For>(start, end, step, loopVarSymbol, body, initArgs, iterArgSymbols);
+};
+
+
+inline auto if_(std::shared_ptr<Expression> condition,
+                std::vector<std::shared_ptr<Statement>> bodyTrue,
+                std::vector<std::shared_ptr<Statement>> bodyFalse,
+                std::optional<Location> loc = {}) {
+    return std::make_shared<If>(condition, bodyTrue, bodyFalse);
+};
+
 
 inline auto yield(std::vector<std::shared_ptr<Expression>> values = {},
                   std::optional<Location> loc = {}) {
