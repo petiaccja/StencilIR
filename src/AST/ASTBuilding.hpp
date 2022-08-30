@@ -205,6 +205,25 @@ inline auto bit_shr(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression>
     return std::make_shared<BinaryArithmeticOperator>(lhs, rhs, BinaryArithmeticOperator::BIT_SHR, loc);
 }
 
+inline auto eq(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {}) {
+    return std::make_shared<BinaryComparisonOperator>(lhs, rhs, BinaryComparisonOperator::EQ, loc);
+}
+inline auto neq(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {}) {
+    return std::make_shared<BinaryComparisonOperator>(lhs, rhs, BinaryComparisonOperator::NEQ, loc);
+}
+inline auto gt(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {}) {
+    return std::make_shared<BinaryComparisonOperator>(lhs, rhs, BinaryComparisonOperator::GT, loc);
+}
+inline auto lt(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {}) {
+    return std::make_shared<BinaryComparisonOperator>(lhs, rhs, BinaryComparisonOperator::LT, loc);
+}
+inline auto lte(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {}) {
+    return std::make_shared<BinaryComparisonOperator>(lhs, rhs, BinaryComparisonOperator::LTE, loc);
+}
+inline auto gte(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {}) {
+    return std::make_shared<BinaryComparisonOperator>(lhs, rhs, BinaryComparisonOperator::GTE, loc);
+}
+
 
 //------------------------------------------------------------------------------
 // Tensor

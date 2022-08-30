@@ -299,6 +299,23 @@ struct BinaryArithmeticOperator : BinaryOperator {
     eOperation operation;
 };
 
+struct BinaryComparisonOperator : BinaryOperator {
+    enum eOperation {
+        EQ,
+        NEQ,
+        LT,
+        GT,
+        LTE,
+        GTE,
+    };
+    BinaryComparisonOperator(std::shared_ptr<Expression> lhs,
+                             std::shared_ptr<Expression> rhs,
+                             eOperation operation,
+                             std::optional<Location> loc = {})
+        : BinaryOperator(lhs, rhs, loc), operation(operation) {}
+    eOperation operation;
+};
+
 
 //------------------------------------------------------------------------------
 // Misc

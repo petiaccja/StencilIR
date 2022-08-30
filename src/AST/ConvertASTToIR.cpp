@@ -216,6 +216,7 @@ class StencilIRGenerator : public IRGenerator<ast::Node, GenerationResult, Stenc
                                               ast::Dim,
                                               ast::Print,
                                               ast::BinaryArithmeticOperator,
+                                              ast::BinaryComparisonOperator,
                                               ast::Constant<bool>,
                                               ast::Constant<float>,
                                               ast::Constant<double>,
@@ -634,6 +635,39 @@ public:
             case ast::BinaryArithmeticOperator::BIT_SHR:
                 return { isUnsigned ? builder.create<mlir::arith::ShRUIOp>(loc, lhs, rhs)
                                     : builder.create<mlir::arith::ShRSIOp>(loc, lhs, rhs) };
+            default:
+                throw std::logic_error("Binary op not implemented.");
+        }
+    }
+
+    auto Generate(const ast::BinaryComparisonOperator& node) const -> GenerationResult {
+        const auto loc = ConvertLocation(builder, node.location);
+        auto [lhs, rhs] = PromoteToCommonType(builder, loc, Generate(*node.lhs), Generate(*node.rhs));
+        bool isFloat = lhs.getType().isa<mlir::FloatType>();
+        bool isUnsigned = lhs.getType().isUnsignedInteger();
+        switch (node.operation) {
+            case ast::BinaryComparisonOperator::EQ:
+                return { isFloat ? builder.create<mlir::arith::CmpFOp>(loc, mlir::arith::CmpFPredicate::OEQ, lhs, rhs)
+                                 : builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::eq, lhs, rhs) };
+            case ast::BinaryComparisonOperator::NEQ:
+                return { isFloat ? builder.create<mlir::arith::CmpFOp>(loc, mlir::arith::CmpFPredicate::ONE, lhs, rhs)
+                                 : builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::ne, lhs, rhs) };
+            case ast::BinaryComparisonOperator::GT:
+                return { isFloat      ? builder.create<mlir::arith::CmpFOp>(loc, mlir::arith::CmpFPredicate::OGT, lhs, rhs)
+                         : isUnsigned ? builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::ugt, lhs, rhs)
+                                      : builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::sgt, lhs, rhs) };
+            case ast::BinaryComparisonOperator::LT:
+                return { isFloat      ? builder.create<mlir::arith::CmpFOp>(loc, mlir::arith::CmpFPredicate::OLT, lhs, rhs)
+                         : isUnsigned ? builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::ult, lhs, rhs)
+                                      : builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::slt, lhs, rhs) };
+            case ast::BinaryComparisonOperator::GTE:
+                return { isFloat      ? builder.create<mlir::arith::CmpFOp>(loc, mlir::arith::CmpFPredicate::OGE, lhs, rhs)
+                         : isUnsigned ? builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::uge, lhs, rhs)
+                                      : builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::sge, lhs, rhs) };
+            case ast::BinaryComparisonOperator::LTE:
+                return { isFloat      ? builder.create<mlir::arith::CmpFOp>(loc, mlir::arith::CmpFPredicate::OLE, lhs, rhs)
+                         : isUnsigned ? builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::ule, lhs, rhs)
+                                      : builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::sle, lhs, rhs) };
             default:
                 throw std::logic_error("Binary op not implemented.");
         }
