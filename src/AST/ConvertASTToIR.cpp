@@ -523,13 +523,40 @@ public:
         const auto loc = ConvertLocation(builder, node.location);
 
         const mlir::Value condition = Generate(*node.condition);
-        auto op = builder.create<mlir::scf::IfOp>(loc, condition, !node.bodyFalse.empty());
+
+        // Create an IfOp without results.
+        auto deductionOp = builder.create<mlir::scf::IfOp>(loc, condition, false);
+
+        // Fill in the IfOp's then block to deduce the yielded result types.
+        auto& deductionBlock = *deductionOp.thenBlock();
+        deductionBlock.clear();
+        symbolTable.RunInScope([&] {
+            InsertInBlock(deductionBlock, [&] {
+                for (const auto& statement : node.thenBody) {
+                    // We only need to generate Assign and Yield ops.
+                    // All the rest can't provide an argument to Yield.
+                    const ast::Statement& stmt = *statement;
+                    if (typeid(stmt) == typeid(ast::Assign)
+                        || typeid(stmt) == typeid(ast::Yield)) {
+                        Generate(*statement);
+                    }
+                }
+            });
+        });
+
+        // Extract result types from deduction op.
+        const auto resultTypesView = deductionOp.thenYield()->getOperandTypes();
+        mlir::SmallVector<mlir::Type, 4> resultTypes = { resultTypesView.begin(), resultTypesView.end() };
+        deductionOp->erase();
+
+        // Create the actual IfOp with result types and both blocks.
+        auto op = builder.create<mlir::scf::IfOp>(loc, resultTypes, condition, !node.elseBody.empty());
 
         auto& thenBlock = *op.thenBlock();
-        thenBlock.clear();
+        deductionBlock.clear();
         symbolTable.RunInScope([&] {
-            InsertInBlock(thenBlock, [&] {
-                for (auto& statement : node.bodyTrue) {
+            InsertInBlock(deductionBlock, [&] {
+                for (const auto& statement : node.thenBody) {
                     Generate(*statement);
                 }
             });
@@ -539,14 +566,13 @@ public:
         elseBlock.clear();
         symbolTable.RunInScope([&] {
             InsertInBlock(elseBlock, [&] {
-                for (auto& statement : node.bodyFalse) {
+                for (const auto& statement : node.elseBody) {
                     Generate(*statement);
                 }
             });
         });
 
-        throw std::runtime_error("Not implemented. Have to figure out result types somehow.");
-
+        // Return the actual IfOp, not the deduction which has been erased.
         return { op };
     }
 

@@ -25,16 +25,21 @@ static std::shared_ptr<ast::Module> CreateAST() {
 
     auto assign_index = ast::assign({ "index" }, ast::index());
     auto index = ast::symref("index");
-    auto updatedAcc = ast::add(ast::symref("accumulator"),
+
+    auto neighbour = ast::sample_indirect(index, 0, edgeToCell, ast::symref("elementIdx"));
+    auto invalid = ast::constant(-1, types::FundamentalType::SSIZE);
+    auto isNeighbourValid = ast::neq(neighbour, invalid);
+    auto accUpdated = ast::add(ast::symref("accumulator"),
                                ast::mul(
                                    ast::sample_indirect(index, 0, cellWeights, ast::symref("elementIdx")),
                                    ast::sample(cellK, ast::jump_indirect(index, 0, edgeToCell, ast::symref("elementIdx")))));
-    auto yieldAcc = ast::yield({ updatedAcc });
+    auto accSame = ast::symref("accumulator");
+    auto acc = ast::if_(isNeighbourValid, { ast::yield({ accUpdated }) }, { ast::yield({ accSame }) });
     auto sum = ast::for_(ast::constant(0, types::FundamentalType::SSIZE),
                          ast::dim(edgeToCell, ast::constant(1, types::FundamentalType::SSIZE)),
                          1,
                          "elementIdx",
-                         { yieldAcc },
+                         { ast::yield({ acc }) },
                          { ast::constant(0.0f) },
                          { "accumulator" });
 

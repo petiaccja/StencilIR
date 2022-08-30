@@ -218,10 +218,10 @@ struct If : Expression {
                 std::vector<std::shared_ptr<Statement>> bodyTrue,
                 std::vector<std::shared_ptr<Statement>> bodyFalse,
                 std::optional<Location> loc = {})
-        : Expression(loc), condition(condition), bodyTrue(bodyTrue), bodyFalse(bodyFalse) {}
+        : Expression(loc), condition(condition), thenBody(bodyTrue), elseBody(bodyFalse) {}
     std::shared_ptr<Expression> condition;
-    std::vector<std::shared_ptr<Statement>> bodyTrue;
-    std::vector<std::shared_ptr<Statement>> bodyFalse;
+    std::vector<std::shared_ptr<Statement>> thenBody;
+    std::vector<std::shared_ptr<Statement>> elseBody;
 };
 
 struct Yield : Statement {
