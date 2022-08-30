@@ -60,7 +60,7 @@ using namespace std::string_literals;
 // Utilities
 //------------------------------------------------------------------------------
 
-mlir::Location ConvertLocation(mlir::OpBuilder& builder, const std::optional<ast::Location>& location) {
+static mlir::Location ConvertLocation(mlir::OpBuilder& builder, const std::optional<ast::Location>& location) {
     if (location) {
         auto fileattr = builder.getStringAttr(location->file);
         return mlir::FileLineColLoc::get(fileattr, location->line, location->col);
@@ -75,7 +75,7 @@ struct TypeConversionOptions {
     } bufferType = MEMREF;
 };
 
-mlir::Type ConvertType(mlir::OpBuilder& builder, types::Type type, const TypeConversionOptions& options = {}) {
+static mlir::Type ConvertType(mlir::OpBuilder& builder, types::Type type, const TypeConversionOptions& options = {}) {
     struct {
         mlir::OpBuilder& builder;
         const TypeConversionOptions& options;
@@ -117,6 +117,67 @@ mlir::Type ConvertType(mlir::OpBuilder& builder, types::Type type, const TypeCon
 }
 
 
+static mlir::Value PromoteValue(mlir::OpBuilder& builder, mlir::Location loc, mlir::Value value, mlir::Type type) {
+    auto inputType = value.getType();
+    if (inputType.isa<mlir::IntegerType>() && type.isa<mlir::IntegerType>()) {
+        auto inputIntType = inputType.dyn_cast<mlir::IntegerType>();
+        auto intType = type.dyn_cast<mlir::IntegerType>();
+        if (inputIntType.getSignedness() == intType.getSignedness()) {
+            if (inputIntType.getWidth() == intType.getWidth()) {
+                return value;
+            }
+            if (inputIntType.getWidth() < intType.getWidth()) {
+                const auto signedness = inputIntType.getSignedness();
+                if (signedness == mlir::IntegerType::Unsigned) {
+                    return builder.create<mlir::arith::ExtUIOp>(loc, type, value);
+                }
+                return builder.create<mlir::arith::ExtSIOp>(loc, type, value);
+            }
+        }
+        return nullptr;
+    }
+    if (inputType.isa<mlir::FloatType>() && type.isa<mlir::FloatType>()) {
+        auto inputFloatType = inputType.dyn_cast<mlir::FloatType>();
+        auto floatType = type.dyn_cast<mlir::FloatType>();
+        if (inputFloatType.getWidth() == floatType.getWidth()) {
+            return value;
+        }
+        if (inputFloatType.getWidth() < floatType.getWidth()) {
+            return builder.create<mlir::arith::ExtFOp>(loc, type, value);
+        }
+        return nullptr;
+    }
+    if (inputType.isa<mlir::IntegerType>() && type.isa<mlir::FloatType>()) {
+        auto inputIntType = inputType.dyn_cast<mlir::IntegerType>();
+        auto floatType = type.dyn_cast<mlir::FloatType>();
+        if (inputIntType.getWidth() < floatType.getFPMantissaWidth()) {
+            if (inputIntType.getSignedness() == mlir::IntegerType::Unsigned) {
+                return builder.create<mlir::arith::UIToFPOp>(loc, floatType, value);
+            }
+            return builder.create<mlir::arith::SIToFPOp>(loc, floatType, value);
+        }
+        return nullptr;
+    }
+    return nullptr;
+}
+
+
+static std::pair<mlir::Value, mlir::Value> PromoteToCommonType(mlir::OpBuilder& builder, mlir::Location loc, mlir::Value lhs, mlir::Value rhs) {
+    const auto lhsType = lhs.getType();
+    const auto rhsType = rhs.getType();
+    if (lhsType == rhsType) {
+        return { lhs, rhs };
+    }
+    if (auto promotedLhs = PromoteValue(builder, loc, lhs, rhsType)) {
+        return { promotedLhs, rhs };
+    }
+    if (auto promotedRhs = PromoteValue(builder, loc, rhs, lhsType)) {
+        return { lhs, promotedRhs };
+    }
+    throw std::logic_error("The two types don't have a common type.");
+}
+
+
 
 //------------------------------------------------------------------------------
 // Generator
@@ -137,10 +198,6 @@ struct GenerationResult {
 };
 
 class StencilIRGenerator : public IRGenerator<ast::Node, GenerationResult, StencilIRGenerator,
-                                              ast::Print,
-                                              ast::Add,
-                                              ast::Sub,
-                                              ast::Mul,
                                               ast::Module,
                                               ast::Stencil,
                                               ast::Return,
@@ -155,6 +212,10 @@ class StencilIRGenerator : public IRGenerator<ast::Node, GenerationResult, Stenc
                                               ast::If,
                                               ast::Yield,
                                               ast::SampleIndirect,
+                                              ast::AllocTensor,
+                                              ast::Dim,
+                                              ast::Print,
+                                              ast::BinaryArithmeticOperator,
                                               ast::Constant<bool>,
                                               ast::Constant<float>,
                                               ast::Constant<double>,
@@ -165,9 +226,7 @@ class StencilIRGenerator : public IRGenerator<ast::Node, GenerationResult, Stenc
                                               ast::Constant<uint8_t>,
                                               ast::Constant<uint16_t>,
                                               ast::Constant<uint32_t>,
-                                              ast::Constant<uint64_t>,
-                                              ast::AllocTensor,
-                                              ast::Dim> {
+                                              ast::Constant<uint64_t>> {
 public:
     StencilIRGenerator(mlir::MLIRContext& context) : builder(&context) {}
 
@@ -541,32 +600,45 @@ public:
         return { op };
     }
 
-    auto Generate(const ast::Add& node) const -> GenerationResult {
-        mlir::Value lhs = Generate(*node.lhs);
-        mlir::Value rhs = Generate(*node.rhs);
-        auto op = builder.create<mlir::arith::AddFOp>(ConvertLocation(builder, node.location),
-                                                      lhs,
-                                                      rhs);
-        return { op };
+    auto Generate(const ast::BinaryArithmeticOperator& node) const -> GenerationResult {
+        const auto loc = ConvertLocation(builder, node.location);
+        auto [lhs, rhs] = PromoteToCommonType(builder, loc, Generate(*node.lhs), Generate(*node.rhs));
+        bool isFloat = lhs.getType().isa<mlir::FloatType>();
+        bool isUnsigned = lhs.getType().isUnsignedInteger();
+        switch (node.operation) {
+            case ast::BinaryArithmeticOperator::ADD:
+                return { isFloat ? builder.create<mlir::arith::AddFOp>(loc, lhs, rhs)
+                                 : builder.create<mlir::arith::AddIOp>(loc, lhs, rhs) };
+            case ast::BinaryArithmeticOperator::SUB:
+                return { isFloat ? builder.create<mlir::arith::SubFOp>(loc, lhs, rhs)
+                                 : builder.create<mlir::arith::SubIOp>(loc, lhs, rhs) };
+            case ast::BinaryArithmeticOperator::MUL:
+                return { isFloat ? builder.create<mlir::arith::MulFOp>(loc, lhs, rhs)
+                                 : builder.create<mlir::arith::MulIOp>(loc, lhs, rhs) };
+            case ast::BinaryArithmeticOperator::DIV:
+                return { isFloat      ? builder.create<mlir::arith::DivFOp>(loc, lhs, rhs)
+                         : isUnsigned ? builder.create<mlir::arith::DivUIOp>(loc, lhs, rhs)
+                                      : builder.create<mlir::arith::DivSIOp>(loc, lhs, rhs) };
+            case ast::BinaryArithmeticOperator::MOD:
+                return { isFloat      ? builder.create<mlir::arith::RemFOp>(loc, lhs, rhs)
+                         : isUnsigned ? builder.create<mlir::arith::RemUIOp>(loc, lhs, rhs)
+                                      : builder.create<mlir::arith::RemSIOp>(loc, lhs, rhs) };
+            case ast::BinaryArithmeticOperator::BIT_AND:
+                return { builder.create<mlir::arith::AndIOp>(loc, lhs, rhs) };
+            case ast::BinaryArithmeticOperator::BIT_OR:
+                return { builder.create<mlir::arith::OrIOp>(loc, lhs, rhs) };
+            case ast::BinaryArithmeticOperator::BIT_XOR:
+                return { builder.create<mlir::arith::XOrIOp>(loc, lhs, rhs) };
+            case ast::BinaryArithmeticOperator::BIT_SHL:
+                return { builder.create<mlir::arith::ShLIOp>(loc, lhs, rhs) };
+            case ast::BinaryArithmeticOperator::BIT_SHR:
+                return { isUnsigned ? builder.create<mlir::arith::ShRUIOp>(loc, lhs, rhs)
+                                    : builder.create<mlir::arith::ShRSIOp>(loc, lhs, rhs) };
+            default:
+                throw std::logic_error("Binary op not implemented.");
+        }
     }
 
-    auto Generate(const ast::Sub& node) const -> GenerationResult {
-        mlir::Value lhs = Generate(*node.lhs);
-        mlir::Value rhs = Generate(*node.rhs);
-        auto op = builder.create<mlir::arith::SubFOp>(ConvertLocation(builder, node.location),
-                                                      lhs,
-                                                      rhs);
-        return { op };
-    }
-
-    auto Generate(const ast::Mul& node) const -> GenerationResult {
-        mlir::Value lhs = Generate(*node.lhs);
-        mlir::Value rhs = Generate(*node.rhs);
-        auto op = builder.create<mlir::arith::MulFOp>(ConvertLocation(builder, node.location),
-                                                      lhs,
-                                                      rhs);
-        return { op };
-    }
 
     //--------------------------------------------------------------------------
     // Tensor

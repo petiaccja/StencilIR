@@ -270,25 +270,33 @@ struct Constant : Expression {
     std::optional<types::Type> type;
 };
 
-struct Add : Expression {
-    Add(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {})
-        : Expression(loc), lhs(lhs), rhs(rhs) {}
+struct BinaryOperator : Expression {
+    BinaryOperator(std::shared_ptr<Expression> lhs,
+                   std::shared_ptr<Expression> rhs,
+                   std::optional<Location> loc = {}) : Expression(loc), lhs(lhs), rhs(rhs) {}
     std::shared_ptr<Expression> lhs;
     std::shared_ptr<Expression> rhs;
 };
 
-struct Sub : Expression {
-    Sub(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {})
-        : Expression(loc), lhs(lhs), rhs(rhs) {}
-    std::shared_ptr<Expression> lhs;
-    std::shared_ptr<Expression> rhs;
-};
-
-struct Mul : Expression {
-    Mul(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {})
-        : Expression(loc), lhs(lhs), rhs(rhs) {}
-    std::shared_ptr<Expression> lhs;
-    std::shared_ptr<Expression> rhs;
+struct BinaryArithmeticOperator : BinaryOperator {
+    enum eOperation {
+        ADD,
+        SUB,
+        MUL,
+        DIV,
+        MOD,
+        BIT_AND,
+        BIT_OR,
+        BIT_XOR,
+        BIT_SHL,
+        BIT_SHR,
+    };
+    BinaryArithmeticOperator(std::shared_ptr<Expression> lhs,
+                             std::shared_ptr<Expression> rhs,
+                             eOperation operation,
+                             std::optional<Location> loc = {})
+        : BinaryOperator(lhs, rhs, loc), operation(operation) {}
+    eOperation operation;
 };
 
 
