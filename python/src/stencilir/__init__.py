@@ -1,2 +1,2 @@
-from stencilir_ext import *
+from stencilir_bindings import *
 from .execution import *

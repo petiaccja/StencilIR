@@ -18,18 +18,24 @@ class CMakeBuild(build_ext):
     def build_cmake(self, ext):
         cwd = pathlib.Path().absolute()
 
-        # these dirs will be created in build_py, so if you don't have
+        # These dirs will be created in build_py, so if you don't have
         # any python sources to bundle, the dirs will be missing
         build_temp = pathlib.Path(self.build_temp)
         build_temp.mkdir(parents=True, exist_ok=True)
         extdir = pathlib.Path(self.get_ext_fullpath(ext.name))
         extdir.mkdir(parents=True, exist_ok=True)
 
-        # cmake commands
-        os.environ["CC"] = "clang"
-        os.environ["CXX"] = "clang++"
-        self.debug = True
-        cmake_build_type = 'Debug' if self.debug else 'Release'
+        # Check if required env vars are defined.
+        if not os.environ["CMAKE_BUILD_TYPE"]:
+            raise RuntimeError("Please define the CMAKE_BUILD_TYPE environment variable.")
+        if not os.environ["LLVM_DIR"]:
+            raise RuntimeError("Please point the LLVM_DIR environment variable to your LLVM installation.")
+        if not os.environ["MLIR_DIR"]:
+            raise RuntimeError("Please point the MLIR_DIR environment variable to your LLVM installation.")
+
+        cmake_build_type = os.environ["CMAKE_BUILD_TYPE"]
+
+        # CMake commands
         configure_command = [
             'cmake',
             '-G', 'Ninja',
@@ -48,7 +54,7 @@ class CMakeBuild(build_ext):
             '--', '-j4'
         ]
 
-        # run cmake
+        # Run cmake
         self.spawn(configure_command)
         if not self.dry_run:
             self.spawn(build_command)
@@ -65,7 +71,7 @@ setup(
     long_description='',
     packages=["stencilir"],
     package_dir={"": './python/src'},
-    ext_modules=[CMakeExtension("stencilir_ext_", '.')],
+    ext_modules=[CMakeExtension("stencilir_bindings_", '.')],
     cmdclass={'build_ext': CMakeBuild},
     zip_safe=False
 )

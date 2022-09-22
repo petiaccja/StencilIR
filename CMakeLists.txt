@@ -1,4 +1,4 @@
-project(py_mlir)
+project(StencilIR)
 
 cmake_minimum_required(VERSION 3.20.0)
 
@@ -71,4 +71,4 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # Subdirectories
 add_subdirectory(src)
 add_subdirectory(test)
-add_subdirectory(bindings)
+add_subdirectory(python/bindings)

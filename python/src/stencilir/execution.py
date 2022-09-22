@@ -1,4 +1,4 @@
-import stencilir_ext
+import stencilir_bindings
 
 def compile_ast():
     pass
