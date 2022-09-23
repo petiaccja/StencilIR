@@ -7,7 +7,7 @@
 #include <mlir/Target/LLVMIR/Export.h>
 
 
-JitRunner::JitRunner(mlir::ModuleOp& llvmIr, int optLevel) {
+Runner::Runner(mlir::ModuleOp& llvmIr, int optLevel) {
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmPrinter();
     mlir::registerLLVMDialectTranslation(*llvmIr.getContext());
@@ -35,6 +35,13 @@ JitRunner::JitRunner(mlir::ModuleOp& llvmIr, int optLevel) {
     if (auto err = optPipeline(llvmModule.get())) {
         throw std::runtime_error("failed to optimize LLVM IR");
     }
-    llvm::raw_string_ostream ss{m_llvmIrDump};
+    llvm::raw_string_ostream ss{ m_llvmIrDump };
     ss << *llvmModule;
+}
+
+void Runner::Invoke(std::string_view name, std::span<void*> args) const {
+    auto result = m_engine->invokePacked(name, { args.data(), args.size() });
+    if (result) {
+        throw std::runtime_error("Invoking JIT-ed function failed.");
+    }
 }
