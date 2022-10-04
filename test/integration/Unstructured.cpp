@@ -27,7 +27,7 @@ static std::shared_ptr<ast::Module> CreateAST() {
     auto index = ast::symref("index");
 
     auto neighbour = ast::sample_indirect(index, 0, edgeToCell, ast::symref("elementIdx"));
-    auto invalid = ast::constant(-1, types::FundamentalType::SSIZE);
+    auto invalid = ast::constant(ast::index_type, -1);
     auto isNeighbourValid = ast::neq(neighbour, invalid);
     auto accUpdated = ast::add(ast::symref("accumulator"),
                                ast::mul(
@@ -35,8 +35,8 @@ static std::shared_ptr<ast::Module> CreateAST() {
                                    ast::sample(cellK, ast::jump_indirect(index, 0, edgeToCell, ast::symref("elementIdx")))));
     auto accSame = ast::symref("accumulator");
     auto acc = ast::if_(isNeighbourValid, { ast::yield({ accUpdated }) }, { ast::yield({ accSame }) });
-    auto sum = ast::for_(ast::constant(0, types::FundamentalType::SSIZE),
-                         ast::dim(edgeToCell, ast::constant(1, types::FundamentalType::SSIZE)),
+    auto sum = ast::for_(ast::constant(ast::index_type, 0),
+                         ast::dim(edgeToCell, ast::constant(ast::index_type, 1)),
                          1,
                          "elementIdx",
                          { ast::yield({ acc }) },
@@ -45,11 +45,11 @@ static std::shared_ptr<ast::Module> CreateAST() {
 
     auto edge_diffs = ast::stencil("edge_diffs",
                                    {
-                                       { "cellK", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-                                       { "edgeToCell", types::FieldType{ types::FundamentalType::SSIZE, 2 } },
-                                       { "cellWeights", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
+                                       { "cellK", ast::FieldType{ ast::ScalarType::FLOAT32, 2 } },
+                                       { "edgeToCell", ast::FieldType{ ast::ScalarType::INDEX, 2 } },
+                                       { "cellWeights", ast::FieldType{ ast::ScalarType::FLOAT32, 2 } },
                                    },
-                                   { types::FundamentalType::FLOAT32 },
+                                   { ast::ScalarType::FLOAT32 },
                                    { assign_index, ast::return_({ sum }) },
                                    2);
 
@@ -62,10 +62,10 @@ static std::shared_ptr<ast::Module> CreateAST() {
 
     auto main = ast::function("main",
                               {
-                                  { "cellK", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-                                  { "edgeToCell", types::FieldType{ types::FundamentalType::SSIZE, 2 } },
-                                  { "cellWeights", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-                                  { "outEdgeK", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
+                                  { "cellK", ast::FieldType{ ast::ScalarType::FLOAT32, 2 } },
+                                  { "edgeToCell", ast::FieldType{ ast::ScalarType::INDEX, 2 } },
+                                  { "cellWeights", ast::FieldType{ ast::ScalarType::FLOAT32, 2 } },
+                                  { "outEdgeK", ast::FieldType{ ast::ScalarType::FLOAT32, 2 } },
                               },
                               {},
                               { apply, ast::return_() });

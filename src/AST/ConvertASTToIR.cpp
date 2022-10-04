@@ -1,9 +1,9 @@
 #include "ConvertASTToIR.hpp"
 
-#include "Nodes.hpp"
-#include "Types.hpp"
 #include "IRGenerator.hpp"
+#include "Nodes.hpp"
 #include "SymbolTable.hpp"
+#include "Types.hpp"
 
 #include <Dialect/Stencil/IR/StencilOps.hpp>
 
@@ -75,29 +75,28 @@ struct TypeConversionOptions {
     } bufferType = MEMREF;
 };
 
-static mlir::Type ConvertType(mlir::OpBuilder& builder, types::Type type, const TypeConversionOptions& options = {}) {
+static mlir::Type ConvertType(mlir::OpBuilder& builder, ast::Type type, const TypeConversionOptions& options = {}) {
     struct {
         mlir::OpBuilder& builder;
         const TypeConversionOptions& options;
-        mlir::Type operator()(const types::FundamentalType& type) const {
-            switch (type.type) {
-                case types::FundamentalType::SINT8: return builder.getIntegerType(8, true);
-                case types::FundamentalType::SINT16: return builder.getIntegerType(16, true);
-                case types::FundamentalType::SINT32: return builder.getIntegerType(32, true);
-                case types::FundamentalType::SINT64: return builder.getIntegerType(64, true);
-                case types::FundamentalType::UINT8: return builder.getIntegerType(8, false);
-                case types::FundamentalType::UINT16: return builder.getIntegerType(16, false);
-                case types::FundamentalType::UINT32: return builder.getIntegerType(32, false);
-                case types::FundamentalType::UINT64: return builder.getIntegerType(64, false);
-                case types::FundamentalType::SSIZE: return builder.getIndexType();
-                case types::FundamentalType::USIZE: return builder.getIndexType();
-                case types::FundamentalType::FLOAT32: return builder.getF32Type();
-                case types::FundamentalType::FLOAT64: return builder.getF64Type();
-                case types::FundamentalType::BOOL: return builder.getI1Type();
+        mlir::Type operator()(const ast::ScalarType& type) const {
+            switch (type) {
+                case ast::ScalarType::SINT8: return builder.getIntegerType(8, true);
+                case ast::ScalarType::SINT16: return builder.getIntegerType(16, true);
+                case ast::ScalarType::SINT32: return builder.getIntegerType(32, true);
+                case ast::ScalarType::SINT64: return builder.getIntegerType(64, true);
+                case ast::ScalarType::UINT8: return builder.getIntegerType(8, false);
+                case ast::ScalarType::UINT16: return builder.getIntegerType(16, false);
+                case ast::ScalarType::UINT32: return builder.getIntegerType(32, false);
+                case ast::ScalarType::UINT64: return builder.getIntegerType(64, false);
+                case ast::ScalarType::INDEX: return builder.getIndexType();
+                case ast::ScalarType::FLOAT32: return builder.getF32Type();
+                case ast::ScalarType::FLOAT64: return builder.getF64Type();
+                case ast::ScalarType::BOOL: return builder.getI1Type();
             }
             throw std::invalid_argument("Unknown type.");
         }
-        mlir::Type operator()(const types::FieldType& type) const {
+        mlir::Type operator()(const ast::FieldType& type) const {
             const mlir::Type elementType = (*this)(type.elementType);
 
             constexpr auto offset = mlir::ShapedType::kDynamicStrideOrOffset;
@@ -217,17 +216,7 @@ class StencilIRGenerator : public IRGenerator<ast::Node, GenerationResult, Stenc
                                               ast::Print,
                                               ast::BinaryArithmeticOperator,
                                               ast::BinaryComparisonOperator,
-                                              ast::Constant<bool>,
-                                              ast::Constant<float>,
-                                              ast::Constant<double>,
-                                              ast::Constant<int8_t>,
-                                              ast::Constant<int16_t>,
-                                              ast::Constant<int32_t>,
-                                              ast::Constant<int64_t>,
-                                              ast::Constant<uint8_t>,
-                                              ast::Constant<uint16_t>,
-                                              ast::Constant<uint32_t>,
-                                              ast::Constant<uint64_t>> {
+                                              ast::Constant> {
 public:
     StencilIRGenerator(mlir::MLIRContext& context) : builder(&context) {}
 
@@ -244,7 +233,7 @@ public:
     }
 
     auto GetFunctionType(const std::vector<ast::Parameter>& inputs,
-                         const std::vector<types::Type>& results,
+                         const std::vector<ast::Type>& results,
                          TypeConversionOptions typeOptions) const {
         std::vector<mlir::Type> inputTypes{};
         for (auto& param : inputs) {
@@ -591,32 +580,46 @@ public:
     // Arithmetic and misc
     //--------------------------------------------------------------------------
 
-    template <class T>
-    auto Generate(const ast::Constant<T>& node) const -> GenerationResult {
+    auto Generate(const ast::Constant& node) const -> GenerationResult {
         const auto loc = ConvertLocation(builder, node.location);
-        if constexpr (std::is_floating_point_v<T>) {
-            const auto type = std::is_same_v<T, float> ? builder.getF32Type() : builder.getF64Type();
-            auto op = builder.create<mlir::arith::ConstantFloatOp>(loc,
-                                                                   mlir::APFloat(node.value),
-                                                                   type);
-            return { op };
+
+        std::variant<int64_t, uint64_t, float, double> value;
+        switch (node.type) {
+            case ast::ScalarType::SINT8: value = static_cast<int64_t>(std::any_cast<int8_t>(node.value)); break;
+            case ast::ScalarType::SINT16: value = static_cast<int64_t>(std::any_cast<int16_t>(node.value)); break;
+            case ast::ScalarType::SINT32: value = static_cast<int64_t>(std::any_cast<int32_t>(node.value)); break;
+            case ast::ScalarType::SINT64: value = static_cast<int64_t>(std::any_cast<int64_t>(node.value)); break;
+            case ast::ScalarType::UINT8: value = static_cast<uint64_t>(std::any_cast<uint8_t>(node.value)); break;
+            case ast::ScalarType::UINT16: value = static_cast<uint64_t>(std::any_cast<uint16_t>(node.value)); break;
+            case ast::ScalarType::UINT32: value = static_cast<uint64_t>(std::any_cast<uint32_t>(node.value)); break;
+            case ast::ScalarType::UINT64: value = static_cast<uint64_t>(std::any_cast<uint64_t>(node.value)); break;
+            case ast::ScalarType::INDEX: value = static_cast<int64_t>(std::any_cast<int64_t>(node.value)); break;
+            case ast::ScalarType::FLOAT32: value = std::any_cast<float>(node.value); break;
+            case ast::ScalarType::FLOAT64: value = std::any_cast<double>(node.value); break;
+            case ast::ScalarType::BOOL: value = static_cast<int64_t>(std::any_cast<bool>(node.value)); break;
+            default: assert(false && "All cases should be implemented."); std::terminate();
         }
-        else if constexpr (std::is_same_v<T, bool>) {
-            auto value = builder.getBoolAttr(node.value);
-            auto op = builder.create<mlir::arith::ConstantOp>(loc, value, builder.getI1Type());
-            return { op };
-        }
-        else if constexpr (std::is_integral_v<T>) {
-            constexpr int numBits = sizeof(T) * 8;
-            const auto type = node.type ? ConvertType(builder, node.type.value()) : mlir::Type(builder.getIntegerType(numBits));
-            using Unsigned = std::make_unsigned_t<decltype(node.value)>;
-            const uint64_t unsignedValue = std::bit_cast<Unsigned>(node.value);
-            auto op = builder.create<mlir::arith::ConstantOp>(loc,
-                                                              builder.getIntegerAttr(type, std::bit_cast<int64_t>(unsignedValue)),
-                                                              type);
-            return { op };
-        }
-        throw std::invalid_argument("Cannot lower this constant type.");
+        const auto type = ConvertType(builder, node.type);
+
+        const auto visitor = [&](auto value) -> mlir::Operation* {
+            if (node.type == ast::ScalarType::INDEX) {
+                return builder.create<mlir::arith::ConstantIndexOp>(loc, value);
+            }
+            if constexpr (std::is_same_v<decltype(value), int64_t>) {
+                return builder.create<mlir::arith::ConstantIntOp>(loc, value, type);
+            }
+            if constexpr (std::is_same_v<decltype(value), uint64_t>) {
+                const int64_t equivalent = std::bit_cast<int64_t>(value);
+                return builder.create<mlir::arith::ConstantIntOp>(loc, equivalent, type);
+            }
+            if constexpr (std::is_floating_point_v<decltype(value)>) {
+                return builder.create<mlir::arith::ConstantFloatOp>(loc, mlir::APFloat(value), type.dyn_cast<mlir::FloatType>());
+            }
+            assert(false && "All cases should be implemented.");
+            std::terminate();
+        };
+        auto op = std::visit(visitor, value);
+        return { op };
     }
 
     auto Generate(const ast::Print& node) const -> GenerationResult {

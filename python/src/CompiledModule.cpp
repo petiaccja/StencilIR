@@ -5,9 +5,9 @@
 
 static Runner Compile(std::shared_ptr<ast::Module> ast, CompileOptions options);
 static auto ExtractFunctions(std::shared_ptr<ast::Module> ast)
-    -> std::unordered_map<std::string, std::vector<types::Type>>;
+    -> std::unordered_map<std::string, std::vector<ast::Type>>;
 static void PythonToOpaque(pybind11::handle arg,
-                           types::Type type,
+                           ast::Type type,
                            std::pmr::memory_resource& compatHeap,
                            std::pmr::vector<void*>& opaqueArgs);
 
@@ -62,10 +62,10 @@ static Runner Compile(std::shared_ptr<ast::Module> ast, CompileOptions options) 
 
 
 static auto ExtractFunctions(std::shared_ptr<ast::Module> ast)
-    -> std::unordered_map<std::string, std::vector<types::Type>> {
-    std::unordered_map<std::string, std::vector<types::Type>> functions;
+    -> std::unordered_map<std::string, std::vector<ast::Type>> {
+    std::unordered_map<std::string, std::vector<ast::Type>> functions;
     for (const auto& function : ast->functions) {
-        std::vector<types::Type> parameters;
+        std::vector<ast::Type> parameters;
         for (auto& parameter : function->parameters) {
             parameters.push_back(parameter.type);
         }
@@ -76,7 +76,7 @@ static auto ExtractFunctions(std::shared_ptr<ast::Module> ast)
 
 
 static void PythonToOpaque(pybind11::handle arg,
-                           types::Type type,
+                           ast::Type type,
                            std::pmr::memory_resource& compatHeap,
                            std::pmr::vector<void*>& opaqueArgs) {
     static const auto AppendArg = [&](auto arg) {
@@ -93,25 +93,24 @@ static void PythonToOpaque(pybind11::handle arg,
         std::apply([&](auto... opaquePointers) { (..., opaqueArgs.push_back(opaquePointers)); }, opaqueArg); // Essentially tuple foreach
     };
     struct {
-        void operator()(const types::FundamentalType& type) const {
-            switch (type.type) {
-                case types::FundamentalType::SINT8: AppendArg(int8_t(arg.cast<int>())); break;
-                case types::FundamentalType::SINT16: AppendArg(int16_t(arg.cast<int>())); break;
-                case types::FundamentalType::SINT32: AppendArg(int32_t(arg.cast<int>())); break;
-                case types::FundamentalType::SINT64: AppendArg(int64_t(arg.cast<int>())); break;
-                case types::FundamentalType::UINT8: AppendArg(uint8_t(arg.cast<int>())); break;
-                case types::FundamentalType::UINT16: AppendArg(uint16_t(arg.cast<int>())); break;
-                case types::FundamentalType::UINT32: AppendArg(uint32_t(arg.cast<int>())); break;
-                case types::FundamentalType::UINT64: AppendArg(uint64_t(arg.cast<int>())); break;
-                case types::FundamentalType::SSIZE: AppendArg(ptrdiff_t(arg.cast<int>())); break;
-                case types::FundamentalType::USIZE: AppendArg(size_t(arg.cast<int>())); break;
-                case types::FundamentalType::FLOAT32: AppendArg(float(arg.cast<double>())); break;
-                case types::FundamentalType::FLOAT64: AppendArg(double(arg.cast<double>())); break;
-                case types::FundamentalType::BOOL: AppendArg(arg.cast<bool>()); break;
+        void operator()(const ast::ScalarType& type) const {
+            switch (type) {
+                case ast::ScalarType::SINT8: AppendArg(int8_t(arg.cast<int>())); break;
+                case ast::ScalarType::SINT16: AppendArg(int16_t(arg.cast<int>())); break;
+                case ast::ScalarType::SINT32: AppendArg(int32_t(arg.cast<int>())); break;
+                case ast::ScalarType::SINT64: AppendArg(int64_t(arg.cast<int>())); break;
+                case ast::ScalarType::UINT8: AppendArg(uint8_t(arg.cast<int>())); break;
+                case ast::ScalarType::UINT16: AppendArg(uint16_t(arg.cast<int>())); break;
+                case ast::ScalarType::UINT32: AppendArg(uint32_t(arg.cast<int>())); break;
+                case ast::ScalarType::UINT64: AppendArg(uint64_t(arg.cast<int>())); break;
+                case ast::ScalarType::INDEX: AppendArg(ptrdiff_t(arg.cast<int>())); break;
+                case ast::ScalarType::FLOAT32: AppendArg(float(arg.cast<double>())); break;
+                case ast::ScalarType::FLOAT64: AppendArg(double(arg.cast<double>())); break;
+                case ast::ScalarType::BOOL: AppendArg(arg.cast<bool>()); break;
                 default: throw std::invalid_argument("Invalid type.");
             }
         }
-        void operator()(const types::FieldType& type) const {
+        void operator()(const ast::FieldType& type) const {
             const auto buffer = arg.cast<pybind11::buffer>();
             const auto request = buffer.request(true);
             // TODO: check for item type as well.

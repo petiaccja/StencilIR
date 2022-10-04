@@ -41,5 +41,5 @@ public:
 
 private:
     Runner m_runner;
-    std::unordered_map<std::string, std::vector<types::Type>> m_functions;
+    std::unordered_map<std::string, std::vector<ast::Type>> m_functions;
 };

@@ -32,7 +32,7 @@ inline auto assign(std::vector<std::string> names,
 
 inline auto stencil(std::string name,
                     std::vector<Parameter> parameters,
-                    std::vector<types::Type> results,
+                    std::vector<Type> results,
                     std::vector<std::shared_ptr<Statement>> body,
                     size_t numDimensions,
                     std::optional<Location> loc = {}) {
@@ -70,7 +70,7 @@ inline auto apply(std::string callee,
 
 inline auto function(std::string name,
                      std::vector<Parameter> parameters,
-                     std::vector<types::Type> results,
+                     std::vector<Type> results,
                      std::vector<std::shared_ptr<Statement>> body,
                      std::optional<Location> loc = {}) {
     return std::make_shared<Function>(name, parameters, results, body, loc);
@@ -160,17 +160,13 @@ inline auto yield(std::vector<std::shared_ptr<Expression>> values = {},
 //------------------------------------------------------------------------------
 
 template <class T>
-inline auto constant(T value,
-                     std::optional<Location> loc = {}) {
-    return std::make_shared<Constant<T>>(value, loc);
+inline auto constant(T value, std::optional<Location> loc = {}) {
+    return std::make_shared<Constant>(value, loc);
 }
 
-
 template <class T>
-inline auto constant(T value,
-                     types::Type type,
-                     std::optional<Location> loc = {}) {
-    return std::make_shared<Constant<T>>(value, type, loc);
+inline auto constant(impl::IndexType, T value, std::optional<Location> loc = {}) {
+    return std::make_shared<Constant>(index_type, value, loc);
 }
 
 
@@ -229,7 +225,7 @@ inline auto gte(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs
 // Tensor
 //------------------------------------------------------------------------------
 
-inline auto alloc_tensor(types::FundamentalType elementType,
+inline auto alloc_tensor(ScalarType elementType,
                          std::vector<std::shared_ptr<Expression>> sizes,
                          Location loc = {}) {
     return std::make_shared<AllocTensor>(elementType, sizes, loc);
