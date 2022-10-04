@@ -3,7 +3,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include <AST/ASTNodes.hpp>
+#include <AST/Nodes.hpp>
 #include <AST/ConvertASTToIR.hpp>
 #include <Compiler/Pipelines.hpp>
 #include <Execution/Execution.hpp>
@@ -41,5 +41,5 @@ public:
 
 private:
     Runner m_runner;
-    std::unordered_map<std::string, std::vector<types::Type>> m_functions;
+    std::unordered_map<std::string, std::vector<ast::Type>> m_functions;
 };

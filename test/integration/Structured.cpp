@@ -1,6 +1,6 @@
 #include "Utility/RunAST.hpp"
 
-#include <AST/ASTBuilding.hpp>
+#include <AST/Building.hpp>
 #include <AST/ConvertASTToIR.hpp>
 #include <Compiler/Pipelines.hpp>
 #include <Execution/Execution.hpp>
@@ -31,8 +31,8 @@ static std::shared_ptr<ast::Module> CreateAST() {
     auto ret = ast::return_({ sum });
 
     auto laplacian = ast::stencil("laplacian",
-                                  { { "field", types::FieldType{ types::FundamentalType::FLOAT32, 2 } } },
-                                  { types::FundamentalType::FLOAT32 },
+                                  { { "field", ast::FieldType{ ast::ScalarType::FLOAT32, 2 } } },
+                                  { ast::ScalarType::FLOAT32 },
                                   { ret },
                                   2);
 
@@ -47,8 +47,8 @@ static std::shared_ptr<ast::Module> CreateAST() {
 
     auto main = ast::function("main",
                               {
-                                  { "input", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
-                                  { "out", types::FieldType{ types::FundamentalType::FLOAT32, 2 } },
+                                  { "input", ast::FieldType{ ast::ScalarType::FLOAT32, 2 } },
+                                  { "out", ast::FieldType{ ast::ScalarType::FLOAT32, 2 } },
                               },
                               {},
                               { apply, ast::return_() });

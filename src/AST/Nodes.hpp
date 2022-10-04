@@ -1,7 +1,8 @@
 #pragma once
 
-#include "ASTTypes.hpp"
+#include "Types.hpp"
 
+#include <any>
 #include <array>
 #include <memory>
 #include <optional>
@@ -23,7 +24,7 @@ struct Location {
 
 struct Parameter {
     std::string name;
-    types::Type type;
+    Type type;
 };
 
 
@@ -72,14 +73,14 @@ struct Assign : Statement {
 struct Stencil : Node {
     explicit Stencil(std::string name,
                      std::vector<Parameter> parameters,
-                     std::vector<types::Type> results,
+                     std::vector<Type> results,
                      std::vector<std::shared_ptr<Statement>> body,
                      size_t numDimensions,
                      std::optional<Location> loc = {})
         : Node(loc), name(name), parameters(parameters), results(results), body(body), numDimensions(numDimensions) {}
     std::string name;
     std::vector<Parameter> parameters;
-    std::vector<types::Type> results;
+    std::vector<Type> results;
     std::vector<std::shared_ptr<Statement>> body;
     size_t numDimensions;
 };
@@ -121,13 +122,13 @@ struct Return : Statement {
 struct Function : Node {
     explicit Function(std::string name,
                       std::vector<Parameter> parameters,
-                      std::vector<types::Type> results,
+                      std::vector<Type> results,
                       std::vector<std::shared_ptr<Statement>> body,
                       std::optional<Location> loc = {})
         : Node(loc), name(name), parameters(parameters), results(results), body(body) {}
     std::string name;
     std::vector<Parameter> parameters;
-    std::vector<types::Type> results;
+    std::vector<Type> results;
     std::vector<std::shared_ptr<Statement>> body;
 };
 
@@ -237,12 +238,12 @@ struct Yield : Statement {
 //------------------------------------------------------------------------------
 
 struct AllocTensor : Expression {
-    AllocTensor(types::FundamentalType elementType,
+    AllocTensor(ScalarType elementType,
                 std::vector<std::shared_ptr<Expression>> sizes,
                 Location loc = {})
         : Expression(loc), elementType(elementType), sizes(sizes) {}
 
-    types::FundamentalType elementType;
+    ScalarType elementType;
     std::vector<std::shared_ptr<Expression>> sizes;
 };
 
@@ -260,14 +261,17 @@ struct Dim : Expression {
 // Arithmetic-logic
 //------------------------------------------------------------------------------
 
-template <class T>
 struct Constant : Expression {
-    explicit Constant(T value, std::optional<Location> loc = {})
-        : Expression(loc), value(value) {}
-    Constant(T value, types::Type type, std::optional<Location> loc = {})
-        : Expression(loc), value(value), type(type) {}
-    T value;
-    std::optional<types::Type> type;
+    explicit Constant(std::integral auto value, std::optional<Location> loc = {})
+        : Expression(loc), value(value), type(InferType<decltype(value)>()) {}
+    explicit Constant(std::floating_point auto value, std::optional<Location> loc = {})
+        : Expression(loc), value(value), type(InferType<decltype(value)>()) {}
+    explicit Constant(bool value, std::optional<Location> loc = {})
+        : Expression(loc), value(value), type(InferType<bool>()) {}
+    explicit Constant(impl::IndexType, ptrdiff_t value, std::optional<Location> loc = {})
+        : Expression(loc), value(value), type(ScalarType::INDEX) {}
+    std::any value;
+    ScalarType type;
 };
 
 struct BinaryOperator : Expression {

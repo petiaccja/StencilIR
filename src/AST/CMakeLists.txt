@@ -2,9 +2,9 @@ add_library(AST STATIC)
 
 target_sources(AST
     PRIVATE
-        ASTBuilding.hpp
-        ASTNodes.hpp
-        ASTTypes.hpp
+        Building.hpp
+        Nodes.hpp
+        Types.hpp
         IRGenerator.hpp
         SymbolTable.hpp
         ConvertASTToIR.cpp
