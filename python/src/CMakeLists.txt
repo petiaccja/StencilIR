@@ -4,6 +4,8 @@ pybind11_add_module(stencilir)
 
 target_sources(stencilir
     PRIVATE
-        Bindings.cpp)
+        Interface.cpp
+        CompiledModule.cpp
+        CompiledModule.hpp)
 
 target_link_libraries(stencilir PUBLIC AST Compiler Execution)

@@ -73,4 +73,4 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # Subdirectories
 add_subdirectory(src)
 add_subdirectory(test)
-add_subdirectory(python/bindings)
+add_subdirectory(python/src)
