@@ -1,8 +1,8 @@
 #pragma once
 
 
-#include "ASTNodes.hpp"
-#include "ASTTypes.hpp"
+#include "Nodes.hpp"
+#include "Types.hpp"
 
 
 namespace ast {

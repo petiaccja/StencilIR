@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ASTTypes.hpp"
+#include "Types.hpp"
 
 #include <array>
 #include <memory>

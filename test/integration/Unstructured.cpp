@@ -1,6 +1,6 @@
 #include "Utility/RunAST.hpp"
 
-#include <AST/ASTBuilding.hpp>
+#include <AST/Building.hpp>
 #include <AST/ConvertASTToIR.hpp>
 #include <Compiler/Pipelines.hpp>
 #include <Execution/Execution.hpp>

@@ -1,7 +1,7 @@
 #include "ConvertASTToIR.hpp"
 
-#include "ASTNodes.hpp"
-#include "ASTTypes.hpp"
+#include "Nodes.hpp"
+#include "Types.hpp"
 #include "IRGenerator.hpp"
 #include "SymbolTable.hpp"
 
