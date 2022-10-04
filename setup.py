@@ -69,9 +69,7 @@ setup(
     author='Péter Kardos',
     description='Python bindings for StencilIR',
     long_description='',
-    packages=["stencilir"],
-    package_dir={"": './python/src'},
-    ext_modules=[CMakeExtension("stencilir_bindings_", '.')],
+    ext_modules=[CMakeExtension("stencilir_", '.')],
     cmdclass={'build_ext': CMakeBuild},
     zip_safe=False
 )

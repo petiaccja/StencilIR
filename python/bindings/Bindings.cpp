@@ -169,7 +169,7 @@ CompiledModule Compile(std::shared_ptr<Module> ast, CompileOptions options) {
 }
 
 
-PYBIND11_MODULE(stencilir_bindings, m) {
+PYBIND11_MODULE(stencilir, m) {
     m.doc() = "Stencil IR Python bindings";
 
     //----------------------------------
