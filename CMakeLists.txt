@@ -1,4 +1,4 @@
-project(py_mlir)
+project(StencilIR)
 
 cmake_minimum_required(VERSION 3.20.0)
 
@@ -46,6 +46,8 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC")
 	add_compile_options("$<$<CONFIG:RELWITHDEBINFO>:${RELEASE_OPTIONS}>")
 endif()
 
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 link_libraries(Threads::Threads)
@@ -62,10 +64,13 @@ conan_cmake_autodetect(conan_settings)
 conan_cmake_install(PATH_OR_REFERENCE . BUILD missing SETTINGS ${conan_settings} OUTPUT_QUIET)
 
 # Output directories
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/Bin)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/Bin)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/Bin)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+if (NOT DEFINED CMAKE_LIBRARY_OUTPUT_DIRECTORY)
+	set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+endif()
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # Subdirectories
 add_subdirectory(src)
 add_subdirectory(test)
+add_subdirectory(python/src)

@@ -6,6 +6,7 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <stdexcept>
 #include <string_view>
 #include <tuple>
@@ -21,12 +22,24 @@ struct MemRef {
 };
 
 
-class JitRunner {
+class Runner {
 public:
-    JitRunner(mlir::ModuleOp& llvmIr, int optLevel = 0);
+    Runner(mlir::ModuleOp& llvmIr, int optLevel = 0);
 
     template <class... Args>
-    void InvokeFunction(std::string_view name, Args&&... args) const;
+    void Invoke(std::string_view name, Args&&... args) const
+        requires((... && !std::ranges::range<Args>));
+    void Invoke(std::string_view name, std::span<void*> args) const;
+
+    template <class Arg>
+    static auto MakeCompatibleArgument(const Arg& arg) {
+        return ConvertArgs(arg);
+    }
+
+    template <class CompatibleArg>
+    static auto MakeOpaqueArgument(CompatibleArg& arg) {
+        return OpaqueArgs(arg);
+    }
 
     std::string_view LLVMIR() const { return m_llvmIrDump; }
 
@@ -36,6 +49,10 @@ private:
     }
 
     static auto ConvertArg(const std::integral auto& arg) {
+        return std::tuple{ arg };
+    }
+
+    static auto ConvertArg(const auto* arg) {
         return std::tuple{ arg };
     }
 
@@ -78,11 +95,9 @@ private:
 
 
 template <class... Args>
-void JitRunner::InvokeFunction(std::string_view name, Args&&... args) const {
+void Runner::Invoke(std::string_view name, Args&&... args) const
+    requires((... && !std::ranges::range<Args>)) {
     auto convertedArgs = ConvertArgs(args...);
     std::array opaqueArgs = OpaqueArgs(convertedArgs);
-    auto invocationResult = m_engine->invokePacked(name, opaqueArgs);
-    if (invocationResult) {
-        throw std::runtime_error("Invoking JIT-ed function failed.");
-    }
+    Invoke(name, opaqueArgs);
 }
