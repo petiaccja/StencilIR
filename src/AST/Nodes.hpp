@@ -202,6 +202,10 @@ struct SampleIndirect : Expression {
     std::shared_ptr<Expression> fieldElement;
 };
 
+//------------------------------------------------------------------------------
+// Control flow
+//------------------------------------------------------------------------------
+
 struct For : Expression {
     explicit For(std::shared_ptr<Expression> start,
                  std::shared_ptr<Expression> end,
@@ -289,42 +293,44 @@ struct BinaryOperator : Expression {
     std::shared_ptr<Expression> rhs;
 };
 
-struct BinaryArithmeticOperator : BinaryOperator {
-    enum eOperation {
-        ADD,
-        SUB,
-        MUL,
-        DIV,
-        MOD,
-        BIT_AND,
-        BIT_OR,
-        BIT_XOR,
-        BIT_SHL,
-        BIT_SHR,
-    };
-    BinaryArithmeticOperator(std::shared_ptr<Expression> lhs,
-                             std::shared_ptr<Expression> rhs,
-                             eOperation operation,
-                             std::optional<Location> loc = {})
-        : BinaryOperator(lhs, rhs, loc), operation(operation) {}
-    eOperation operation;
+enum class eArithmeticFunction {
+    ADD,
+    SUB,
+    MUL,
+    DIV,
+    MOD,
+    BIT_AND,
+    BIT_OR,
+    BIT_XOR,
+    BIT_SHL,
+    BIT_SHR,
 };
 
-struct BinaryComparisonOperator : BinaryOperator {
-    enum eOperation {
-        EQ,
-        NEQ,
-        LT,
-        GT,
-        LTE,
-        GTE,
-    };
-    BinaryComparisonOperator(std::shared_ptr<Expression> lhs,
-                             std::shared_ptr<Expression> rhs,
-                             eOperation operation,
-                             std::optional<Location> loc = {})
+struct ArithmeticOperator : BinaryOperator {
+    ArithmeticOperator(std::shared_ptr<Expression> lhs,
+                       std::shared_ptr<Expression> rhs,
+                       eArithmeticFunction operation,
+                       std::optional<Location> loc = {})
         : BinaryOperator(lhs, rhs, loc), operation(operation) {}
-    eOperation operation;
+    eArithmeticFunction operation;
+};
+
+enum class eComparisonFunction {
+    EQ,
+    NEQ,
+    LT,
+    GT,
+    LTE,
+    GTE,
+};
+
+struct ComparisonOperator : BinaryOperator {
+    ComparisonOperator(std::shared_ptr<Expression> lhs,
+                       std::shared_ptr<Expression> rhs,
+                       eComparisonFunction operation,
+                       std::optional<Location> loc = {})
+        : BinaryOperator(lhs, rhs, loc), operation(operation) {}
+    eComparisonFunction operation;
 };
 
 

@@ -29,6 +29,6 @@ def test_exec_stencil():
 
     compiled_module = ir.compile(module, compile_options)
     value = 3.14
-    out = np.zeros((8, 6))
+    out = np.zeros((8, 6), dtype=np.float32)
     compiled_module.invoke("main", value, out)
     assert np.allclose(out, value)

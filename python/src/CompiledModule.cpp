@@ -76,6 +76,11 @@ static auto ExtractFunctions(std::shared_ptr<ast::Module> ast)
     return functions;
 }
 
+static std::string_view GetPythonFormatString(ast::ScalarType type) {
+    return ast::VisitType(type, [](auto* t) {
+        return pybind11::format_descriptor<std::decay_t<std::remove_pointer_t<decltype(t)>>>::value;
+    });
+}
 
 static void PythonToOpaque(pybind11::handle arg,
                            ast::Type type,
@@ -96,37 +101,31 @@ static void PythonToOpaque(pybind11::handle arg,
     };
     static const auto visitor = [&](auto type) {
         if constexpr (std::is_same_v<decltype(type), ast::ScalarType>) {
-            switch (type) {
-                case ast::ScalarType::SINT8: AppendArg(int8_t(arg.cast<int>())); break;
-                case ast::ScalarType::SINT16: AppendArg(int16_t(arg.cast<int>())); break;
-                case ast::ScalarType::SINT32: AppendArg(int32_t(arg.cast<int>())); break;
-                case ast::ScalarType::SINT64: AppendArg(int64_t(arg.cast<int>())); break;
-                case ast::ScalarType::UINT8: AppendArg(uint8_t(arg.cast<int>())); break;
-                case ast::ScalarType::UINT16: AppendArg(uint16_t(arg.cast<int>())); break;
-                case ast::ScalarType::UINT32: AppendArg(uint32_t(arg.cast<int>())); break;
-                case ast::ScalarType::UINT64: AppendArg(uint64_t(arg.cast<int>())); break;
-                case ast::ScalarType::INDEX: AppendArg(ptrdiff_t(arg.cast<int>())); break;
-                case ast::ScalarType::FLOAT32: AppendArg(float(arg.cast<double>())); break;
-                case ast::ScalarType::FLOAT64: AppendArg(double(arg.cast<double>())); break;
-                case ast::ScalarType::BOOL: AppendArg(arg.cast<bool>()); break;
-                default: throw std::invalid_argument("Invalid type.");
-            }
+            ast::VisitType(type, [&](auto* t) {
+                using T = std::decay_t<std::remove_pointer_t<decltype(t)>>;
+                AppendArg(arg.cast<T>());
+            });
         }
         else {
             const auto buffer = arg.cast<pybind11::buffer>();
             const auto request = buffer.request(true);
-            // TODO: check for item type as well.
+            if (request.format != GetPythonFormatString(type.elementType)) {
+                throw std::invalid_argument("Buffer argument has different element type than the function expects.");
+            }
             if (request.shape.size() != type.numDimensions) {
-                throw std::invalid_argument("Field dimension mismatch.");
+                throw std::invalid_argument("Buffer argument has different rank than the function expects.");
             }
             AppendArg(request.ptr); // ptr
             AppendArg(request.ptr); // aligned ptr
             AppendArg(size_t(0)); // offset
-            for (auto& dim : request.shape) { // shape
-                AppendArg(size_t(dim));
+            for (auto& shape : request.shape) { // shape
+                AppendArg(size_t(shape));
             }
-            for (auto& dim : request.strides) { // strides
-                AppendArg(size_t(dim));
+            for (auto& stride : request.strides) { // strides
+                if (stride % request.itemsize != 0) {
+                    throw std::invalid_argument("Buffer strides must be multiples of itemsize.");
+                }
+                AppendArg(size_t(stride / request.itemsize));
             }
         }
     };

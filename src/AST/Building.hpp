@@ -171,53 +171,53 @@ inline auto constant(impl::IndexType, T value, std::optional<Location> loc = {})
 
 
 inline auto add(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {}) {
-    return std::make_shared<BinaryArithmeticOperator>(lhs, rhs, BinaryArithmeticOperator::ADD, loc);
+    return std::make_shared<ArithmeticOperator>(lhs, rhs, eArithmeticFunction::ADD, loc);
 }
 inline auto sub(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {}) {
-    return std::make_shared<BinaryArithmeticOperator>(lhs, rhs, BinaryArithmeticOperator::SUB, loc);
+    return std::make_shared<ArithmeticOperator>(lhs, rhs, eArithmeticFunction::SUB, loc);
 }
 inline auto mul(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {}) {
-    return std::make_shared<BinaryArithmeticOperator>(lhs, rhs, BinaryArithmeticOperator::MUL, loc);
+    return std::make_shared<ArithmeticOperator>(lhs, rhs, eArithmeticFunction::MUL, loc);
 }
 inline auto div(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {}) {
-    return std::make_shared<BinaryArithmeticOperator>(lhs, rhs, BinaryArithmeticOperator::DIV, loc);
+    return std::make_shared<ArithmeticOperator>(lhs, rhs, eArithmeticFunction::DIV, loc);
 }
 inline auto mod(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {}) {
-    return std::make_shared<BinaryArithmeticOperator>(lhs, rhs, BinaryArithmeticOperator::MOD, loc);
+    return std::make_shared<ArithmeticOperator>(lhs, rhs, eArithmeticFunction::MOD, loc);
 }
 inline auto bit_and(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {}) {
-    return std::make_shared<BinaryArithmeticOperator>(lhs, rhs, BinaryArithmeticOperator::BIT_AND, loc);
+    return std::make_shared<ArithmeticOperator>(lhs, rhs, eArithmeticFunction::BIT_AND, loc);
 }
 inline auto bit_or(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {}) {
-    return std::make_shared<BinaryArithmeticOperator>(lhs, rhs, BinaryArithmeticOperator::BIT_OR, loc);
+    return std::make_shared<ArithmeticOperator>(lhs, rhs, eArithmeticFunction::BIT_OR, loc);
 }
 inline auto bit_xor(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {}) {
-    return std::make_shared<BinaryArithmeticOperator>(lhs, rhs, BinaryArithmeticOperator::BIT_XOR, loc);
+    return std::make_shared<ArithmeticOperator>(lhs, rhs, eArithmeticFunction::BIT_XOR, loc);
 }
 inline auto bit_shl(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {}) {
-    return std::make_shared<BinaryArithmeticOperator>(lhs, rhs, BinaryArithmeticOperator::BIT_SHL, loc);
+    return std::make_shared<ArithmeticOperator>(lhs, rhs, eArithmeticFunction::BIT_SHL, loc);
 }
 inline auto bit_shr(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {}) {
-    return std::make_shared<BinaryArithmeticOperator>(lhs, rhs, BinaryArithmeticOperator::BIT_SHR, loc);
+    return std::make_shared<ArithmeticOperator>(lhs, rhs, eArithmeticFunction::BIT_SHR, loc);
 }
 
 inline auto eq(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {}) {
-    return std::make_shared<BinaryComparisonOperator>(lhs, rhs, BinaryComparisonOperator::EQ, loc);
+    return std::make_shared<ComparisonOperator>(lhs, rhs, eComparisonFunction::EQ, loc);
 }
 inline auto neq(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {}) {
-    return std::make_shared<BinaryComparisonOperator>(lhs, rhs, BinaryComparisonOperator::NEQ, loc);
+    return std::make_shared<ComparisonOperator>(lhs, rhs, eComparisonFunction::NEQ, loc);
 }
 inline auto gt(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {}) {
-    return std::make_shared<BinaryComparisonOperator>(lhs, rhs, BinaryComparisonOperator::GT, loc);
+    return std::make_shared<ComparisonOperator>(lhs, rhs, eComparisonFunction::GT, loc);
 }
 inline auto lt(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {}) {
-    return std::make_shared<BinaryComparisonOperator>(lhs, rhs, BinaryComparisonOperator::LT, loc);
+    return std::make_shared<ComparisonOperator>(lhs, rhs, eComparisonFunction::LT, loc);
 }
 inline auto lte(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {}) {
-    return std::make_shared<BinaryComparisonOperator>(lhs, rhs, BinaryComparisonOperator::LTE, loc);
+    return std::make_shared<ComparisonOperator>(lhs, rhs, eComparisonFunction::LTE, loc);
 }
 inline auto gte(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs, std::optional<Location> loc = {}) {
-    return std::make_shared<BinaryComparisonOperator>(lhs, rhs, BinaryComparisonOperator::GTE, loc);
+    return std::make_shared<ComparisonOperator>(lhs, rhs, eComparisonFunction::GTE, loc);
 }
 
 

@@ -71,4 +71,22 @@ ScalarType InferType() {
     }
 }
 
-} // namespace types
+template <class Visitor>
+decltype(auto) VisitType(ScalarType type, Visitor visitor) {
+    switch (type) {
+        case ScalarType::SINT8: return visitor(static_cast<int8_t*>(nullptr));
+        case ScalarType::SINT16: return visitor(static_cast<int16_t*>(nullptr));
+        case ScalarType::SINT32: return visitor(static_cast<int32_t*>(nullptr));
+        case ScalarType::SINT64: return visitor(static_cast<int64_t*>(nullptr));
+        case ScalarType::UINT8: return visitor(static_cast<uint8_t*>(nullptr));
+        case ScalarType::UINT16: return visitor(static_cast<uint16_t*>(nullptr));
+        case ScalarType::UINT32: return visitor(static_cast<uint32_t*>(nullptr));
+        case ScalarType::UINT64: return visitor(static_cast<uint64_t*>(nullptr));
+        case ScalarType::INDEX: return visitor(static_cast<ptrdiff_t*>(nullptr));
+        case ScalarType::FLOAT32: return visitor(static_cast<float*>(nullptr));
+        case ScalarType::FLOAT64: return visitor(static_cast<double*>(nullptr));
+        case ScalarType::BOOL: return visitor(static_cast<bool*>(nullptr));
+    }
+}
+
+} // namespace ast

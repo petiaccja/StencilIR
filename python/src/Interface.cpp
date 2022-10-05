@@ -67,6 +67,65 @@ PYBIND11_MODULE(stencilir, m) {
                             std::vector<std::shared_ptr<Statement>>,
                             std::optional<Location>>());
 
+    // Stencil instrinsics
+    pybind11::class_<Index, std::shared_ptr<Index>>(m, "Index", expression)
+        .def(pybind11::init<std::optional<Location>>());
+
+    pybind11::class_<Jump, std::shared_ptr<Jump>>(m, "Jump", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            std::vector<int64_t>,
+                            std::optional<Location>>());
+
+    pybind11::class_<Sample, std::shared_ptr<Sample>>(m, "Sample", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            std::shared_ptr<Expression>,
+                            std::optional<Location>>());
+
+    pybind11::class_<JumpIndirect, std::shared_ptr<JumpIndirect>>(m, "JumpIndirect", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            int64_t,
+                            std::shared_ptr<Expression>,
+                            std::shared_ptr<Expression>,
+                            std::optional<Location>>());
+
+    pybind11::class_<SampleIndirect, std::shared_ptr<SampleIndirect>>(m, "SampleIndirect", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            int64_t,
+                            std::shared_ptr<Expression>,
+                            std::shared_ptr<Expression>,
+                            std::optional<Location>>());
+
+    // Control flow
+    pybind11::class_<For, std::shared_ptr<For>>(m, "For", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            std::shared_ptr<Expression>,
+                            int64_t,
+                            std::string,
+                            std::vector<std::shared_ptr<Statement>>,
+                            std::vector<std::shared_ptr<Expression>>,
+                            std::vector<std::string>,
+                            std::optional<Location>>());
+
+    pybind11::class_<If, std::shared_ptr<If>>(m, "If", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            std::vector<std::shared_ptr<Statement>>,
+                            std::vector<std::shared_ptr<Statement>>,
+                            std::optional<Location>>());
+
+    pybind11::class_<Yield, std::shared_ptr<Yield>>(m, "Yield", expression)
+        .def(pybind11::init<std::vector<std::shared_ptr<Expression>>,
+                            std::optional<Location>>());
+
+    // Tensors
+    pybind11::class_<AllocTensor, std::shared_ptr<AllocTensor>>(m, "AllocTensor", expression)
+        .def(pybind11::init<ScalarType,
+                            std::vector<std::shared_ptr<Expression>>,
+                            Location>());
+
+    pybind11::class_<Dim, std::shared_ptr<Dim>>(m, "Dim", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            std::shared_ptr<Expression>,
+                            Location>());
 
     // Arithmetic-logic
     pybind11::class_<Constant, std::shared_ptr<Constant>>(m, "Constant", expression)
@@ -96,6 +155,40 @@ PYBIND11_MODULE(stencilir, m) {
         .def_static("boolean", [](bool value, std::optional<Location> loc) {
             return Constant(value);
         });
+
+    pybind11::enum_<eArithmeticFunction>(m, "ArithmeticFunction")
+        .value("ADD", eArithmeticFunction::ADD)
+        .value("SUB", eArithmeticFunction::SUB)
+        .value("MUL", eArithmeticFunction::MUL)
+        .value("DIV", eArithmeticFunction::DIV)
+        .value("MOD", eArithmeticFunction::MOD)
+        .value("BIT_AND", eArithmeticFunction::BIT_AND)
+        .value("BIT_OR", eArithmeticFunction::BIT_OR)
+        .value("BIT_XOR", eArithmeticFunction::BIT_XOR)
+        .value("BIT_SHL", eArithmeticFunction::BIT_SHL)
+        .value("BIT_SHR", eArithmeticFunction::BIT_SHR)
+        .export_values();
+
+    pybind11::class_<ArithmeticOperator, std::shared_ptr<ArithmeticOperator>>(m, "ArithmeticOperator", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            std::shared_ptr<Expression>,
+                            eArithmeticFunction,
+                            std::optional<Location>>());
+
+    pybind11::enum_<eComparisonFunction>(m, "ComparisonFunction")
+        .value("EQ,", eComparisonFunction::EQ)
+        .value("NEQ,", eComparisonFunction::NEQ)
+        .value("LT,", eComparisonFunction::LT)
+        .value("GT,", eComparisonFunction::GT)
+        .value("LTE,", eComparisonFunction::LTE)
+        .value("GTE,", eComparisonFunction::GTE)
+        .export_values();
+
+    pybind11::class_<ComparisonOperator, std::shared_ptr<ComparisonOperator>>(m, "ComparisonOperator", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            std::shared_ptr<Expression>,
+                            eComparisonFunction,
+                            std::optional<Location>>());
 
     //----------------------------------
     // AST structures
