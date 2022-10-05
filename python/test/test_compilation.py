@@ -1,14 +1,34 @@
-import stencilir
+import stencilir as ir
+import numpy as np
+
 
 def test_exec_stencil():
-    ret = stencilir.Return([], None)
-    stencil = stencilir.Stencil("stencil", [], [], [ret], 3, None)
-    function = stencilir.Function("main", [], [], [ret], None)
-    module = stencilir.Module([function], [stencil], None)
-
-    compile_options = stencilir.CompileOptions(
-        stencilir.TargetArch.X86, stencilir.OptimizationLevel.O0
+    c = ir.SymbolRef("c", None)
+    out = ir.SymbolRef("out", None)
+    stencil = ir.Stencil(
+        "fill",
+        [ir.Parameter("c", ir.ScalarType.FLOAT32)],
+        [ir.ScalarType.FLOAT32],
+        [ir.Return([c], None)],
+        2,
+        None,
     )
+    function = ir.Function(
+        "main",
+        [
+            ir.Parameter("c", ir.ScalarType.FLOAT32),
+            ir.Parameter("out", ir.FieldType(ir.ScalarType.FLOAT32, 2)),
+        ],
+        [],
+        [ir.Apply("fill", [c], [out], [], [0, 0], None), ir.Return([], None)],
+        None,
+    )
+    module = ir.Module([function], [stencil], None)
 
-    compiled_module = stencilir.compile(module, compile_options)
-    compiled_module.invoke("main")
+    compile_options = ir.CompileOptions(ir.TargetArch.X86, ir.OptimizationLevel.O0)
+
+    compiled_module = ir.compile(module, compile_options)
+    value = 3.14
+    out = np.zeros((8, 6))
+    compiled_module.invoke("main", value, out)
+    assert np.allclose(out, value)

@@ -15,6 +15,8 @@ static void PythonToOpaque(pybind11::handle arg,
 CompiledModule::CompiledModule(std::shared_ptr<ast::Module> ast, CompileOptions options)
     : m_runner(Compile(ast, options)),
       m_functions(ExtractFunctions(ast)) {}
+
+
 void CompiledModule::Invoke(std::string function, pybind11::args args) {
     alignas(long double) thread_local char compatBuffer[256];
     std::pmr::monotonic_buffer_resource compatHeap{ compatBuffer, sizeof(compatBuffer), std::pmr::new_delete_resource() };
@@ -92,8 +94,8 @@ static void PythonToOpaque(pybind11::handle arg,
         const auto opaqueArg = Runner::MakeOpaqueArgument(heapArg); // This is a tuple of void*'s
         std::apply([&](auto... opaquePointers) { (..., opaqueArgs.push_back(opaquePointers)); }, opaqueArg); // Essentially tuple foreach
     };
-    struct {
-        void operator()(const ast::ScalarType& type) const {
+    static const auto visitor = [&](auto type) {
+        if constexpr (std::is_same_v<decltype(type), ast::ScalarType>) {
             switch (type) {
                 case ast::ScalarType::SINT8: AppendArg(int8_t(arg.cast<int>())); break;
                 case ast::ScalarType::SINT16: AppendArg(int16_t(arg.cast<int>())); break;
@@ -110,7 +112,7 @@ static void PythonToOpaque(pybind11::handle arg,
                 default: throw std::invalid_argument("Invalid type.");
             }
         }
-        void operator()(const ast::FieldType& type) const {
+        else {
             const auto buffer = arg.cast<pybind11::buffer>();
             const auto request = buffer.request(true);
             // TODO: check for item type as well.
@@ -127,8 +129,6 @@ static void PythonToOpaque(pybind11::handle arg,
                 AppendArg(size_t(dim));
             }
         }
-        pybind11::handle arg;
-        std::pmr::memory_resource& compatHeap;
-        std::pmr::vector<void*>& opaqueArgs;
-    } visitor{ arg, compatHeap, opaqueArgs };
+    };
+    std::visit(visitor, type);
 }

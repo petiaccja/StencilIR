@@ -21,6 +21,12 @@ mlir::ModuleOp Compiler::Run(mlir::ModuleOp module, std::vector<StageResult>& st
     // Clone because we don't want to modify the original.
     module = module.clone();
 
+    std::stringstream diagnostics;
+    mlir::ScopedDiagnosticHandler diagHandler(module->getContext(), [&](mlir::Diagnostic& diag) {
+        diagnostics << "\n"
+                    << diag.str();
+    });
+
     size_t index = 1;
     for (const auto& stage : m_stages) {
         const auto passesResult = stage.passes->run(module);
@@ -28,7 +34,10 @@ mlir::ModuleOp Compiler::Run(mlir::ModuleOp module, std::vector<StageResult>& st
             if (printStageResults) {
                 stageResults.push_back({ std::to_string(index) + "_" + stage.name, to_string(module) });
             }
-            throw std::runtime_error("Stage '" + stage.name + "' failed during passes.");
+            diagnostics << "\n"
+                        << "Compilation failed during stage "
+                        << "\"" << stage.name << "\"";
+            throw std::runtime_error(diagnostics.str());
         }
         if (printStageResults) {
             stageResults.push_back({ std::to_string(index) + "_" + stage.name, to_string(module) });
