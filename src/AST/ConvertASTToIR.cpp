@@ -730,6 +730,16 @@ public:
         std::vector<mlir::Value> sizes;
         std::vector<mlir::Value> strides;
 
+        for (auto& offset : node.offsets) {
+            offsets.push_back(Generate(*offset));
+        }
+        for (auto& size : node.sizes) {
+            sizes.push_back(Generate(*size));
+        }
+        for (auto& stride : node.strides) {
+            strides.push_back(Generate(*stride));
+        }
+
         return { builder.create<mlir::tensor::ExtractSliceOp>(loc, source, offsets, sizes, strides) };
     }
 
@@ -737,10 +747,20 @@ public:
         auto loc = ConvertLocation(builder, node.location);
 
         const mlir::Value source = Generate(*node.source);
-        const mlir::Value dest= Generate(*node.dest);
+        const mlir::Value dest = Generate(*node.dest);
         std::vector<mlir::Value> offsets;
         std::vector<mlir::Value> sizes;
         std::vector<mlir::Value> strides;
+
+        for (auto& offset : node.offsets) {
+            offsets.push_back(Generate(*offset));
+        }
+        for (auto& size : node.sizes) {
+            sizes.push_back(Generate(*size));
+        }
+        for (auto& stride : node.strides) {
+            strides.push_back(Generate(*stride));
+        }
 
         return { builder.create<mlir::tensor::InsertSliceOp>(loc, source, dest, offsets, sizes, strides) };
     }
