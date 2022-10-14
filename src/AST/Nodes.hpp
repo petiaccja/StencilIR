@@ -251,7 +251,7 @@ struct Yield : Statement {
 struct AllocTensor : Expression {
     AllocTensor(ScalarType elementType,
                 std::vector<std::shared_ptr<Expression>> sizes,
-                Location loc = {})
+                std::optional<Location> loc = {})
         : Expression(loc), elementType(elementType), sizes(sizes) {}
 
     ScalarType elementType;
@@ -261,12 +261,39 @@ struct AllocTensor : Expression {
 struct Dim : Expression {
     Dim(std::shared_ptr<Expression> field,
         std::shared_ptr<Expression> index,
-        Location loc = {})
+        std::optional<Location> loc = {})
         : Expression(loc), field(field), index(index) {}
     std::shared_ptr<Expression> field;
     std::shared_ptr<Expression> index;
 };
 
+struct ExtractSlice : Expression {
+    ExtractSlice(std::shared_ptr<Expression> source,
+                 std::vector<std::shared_ptr<Expression>> offsets,
+                 std::vector<std::shared_ptr<Expression>> sizes,
+                 std::vector<std::shared_ptr<Expression>> strides,
+                 std::optional<Location> loc = {})
+        : Expression(loc), source(source), offsets(offsets), sizes(sizes), strides(strides) {}
+    std::shared_ptr<Expression> source;
+    std::vector<std::shared_ptr<Expression>> offsets;
+    std::vector<std::shared_ptr<Expression>> sizes;
+    std::vector<std::shared_ptr<Expression>> strides;
+};
+
+struct InsertSlice : Expression {
+    InsertSlice(std::shared_ptr<Expression> source,
+                std::shared_ptr<Expression> dest,
+                std::vector<std::shared_ptr<Expression>> offsets,
+                std::vector<std::shared_ptr<Expression>> sizes,
+                std::vector<std::shared_ptr<Expression>> strides,
+                std::optional<Location> loc = {})
+        : Expression(loc), source(source), dest(dest), offsets(offsets), sizes(sizes), strides(strides) {}
+    std::shared_ptr<Expression> source;
+    std::shared_ptr<Expression> dest;
+    std::vector<std::shared_ptr<Expression>> offsets;
+    std::vector<std::shared_ptr<Expression>> sizes;
+    std::vector<std::shared_ptr<Expression>> strides;
+};
 
 //------------------------------------------------------------------------------
 // Arithmetic-logic

@@ -238,4 +238,21 @@ inline auto dim(std::shared_ptr<Expression> field,
     return std::make_shared<Dim>(field, index, loc);
 }
 
+inline auto extract_slice(std::shared_ptr<Expression> source,
+                          std::vector<std::shared_ptr<Expression>> offsets,
+                          std::vector<std::shared_ptr<Expression>> sizes,
+                          std::vector<std::shared_ptr<Expression>> strides,
+                          Location loc = {}) {
+    return std::make_shared<ExtractSlice>(source, offsets, sizes, strides, loc);
+}
+
+inline auto insert_slice(std::shared_ptr<Expression> source,
+                         std::shared_ptr<Expression> dest,
+                         std::vector<std::shared_ptr<Expression>> offsets,
+                         std::vector<std::shared_ptr<Expression>> sizes,
+                         std::vector<std::shared_ptr<Expression>> strides,
+                         Location loc = {}) {
+    return std::make_shared<InsertSlice>(source, dest, offsets, sizes, strides, loc);
+}
+
 } // namespace ast

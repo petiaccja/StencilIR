@@ -213,6 +213,8 @@ class StencilIRGenerator : public IRGenerator<ast::Node, GenerationResult, Stenc
                                               ast::SampleIndirect,
                                               ast::AllocTensor,
                                               ast::Dim,
+                                              ast::ExtractSlice,
+                                              ast::InsertSlice,
                                               ast::Print,
                                               ast::ArithmeticOperator,
                                               ast::ComparisonOperator,
@@ -718,6 +720,29 @@ public:
         }
         const auto type = mlir::RankedTensorType::get(shape, elementType);
         return { builder.create<mlir::bufferization::AllocTensorOp>(loc, type, sizes) };
+    }
+
+    auto Generate(const ast::ExtractSlice& node) const -> GenerationResult {
+        auto loc = ConvertLocation(builder, node.location);
+
+        const mlir::Value source = Generate(*node.source);
+        std::vector<mlir::Value> offsets;
+        std::vector<mlir::Value> sizes;
+        std::vector<mlir::Value> strides;
+
+        return { builder.create<mlir::tensor::ExtractSliceOp>(loc, source, offsets, sizes, strides) };
+    }
+
+    auto Generate(const ast::InsertSlice& node) const -> GenerationResult {
+        auto loc = ConvertLocation(builder, node.location);
+
+        const mlir::Value source = Generate(*node.source);
+        const mlir::Value dest= Generate(*node.dest);
+        std::vector<mlir::Value> offsets;
+        std::vector<mlir::Value> sizes;
+        std::vector<mlir::Value> strides;
+
+        return { builder.create<mlir::tensor::InsertSliceOp>(loc, source, dest, offsets, sizes, strides) };
     }
 
 private:

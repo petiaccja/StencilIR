@@ -120,12 +120,27 @@ PYBIND11_MODULE(stencilir, m) {
     pybind11::class_<AllocTensor, std::shared_ptr<AllocTensor>>(m, "AllocTensor", expression)
         .def(pybind11::init<ScalarType,
                             std::vector<std::shared_ptr<Expression>>,
-                            Location>());
+                            std::optional<Location>>());
 
     pybind11::class_<Dim, std::shared_ptr<Dim>>(m, "Dim", expression)
         .def(pybind11::init<std::shared_ptr<Expression>,
                             std::shared_ptr<Expression>,
-                            Location>());
+                            std::optional<Location>>());
+
+    pybind11::class_<ExtractSlice, std::shared_ptr<ExtractSlice>>(m, "ExtractSlice", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            std::vector<std::shared_ptr<Expression>>,
+                            std::vector<std::shared_ptr<Expression>>,
+                            std::vector<std::shared_ptr<Expression>>,
+                            std::optional<Location>>());
+
+    pybind11::class_<InsertSlice, std::shared_ptr<InsertSlice>>(m, "InsertSlice", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            std::shared_ptr<Expression>,
+                            std::vector<std::shared_ptr<Expression>>,
+                            std::vector<std::shared_ptr<Expression>>,
+                            std::vector<std::shared_ptr<Expression>>,
+                            std::optional<Location>>());
 
     // Arithmetic-logic
     pybind11::class_<Constant, std::shared_ptr<Constant>>(m, "Constant", expression)
