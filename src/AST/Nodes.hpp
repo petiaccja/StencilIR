@@ -88,17 +88,24 @@ struct Stencil : Node {
 
 struct Apply : Expression {
     explicit Apply(std::string callee,
-                   std::vector<std::shared_ptr<Expression>> arguments,
-                   std::vector<std::shared_ptr<Expression>> targets,
+                   std::vector<std::shared_ptr<Expression>> inputs,
+                   std::vector<std::shared_ptr<Expression>> outputs,
                    std::vector<std::shared_ptr<Expression>> offsets,
                    std::optional<Location> loc = {})
-        : Expression(loc), callee(callee), inputs(arguments), outputs(targets), offsets(offsets), static_offsets() {}
+        : Apply(callee, inputs, outputs, offsets, {}, loc) {}
     explicit Apply(std::string callee,
-                   std::vector<std::shared_ptr<Expression>> arguments,
-                   std::vector<std::shared_ptr<Expression>> targets,
+                   std::vector<std::shared_ptr<Expression>> inputs,
+                   std::vector<std::shared_ptr<Expression>> outputs,
                    std::vector<int64_t> static_offsets,
                    std::optional<Location> loc = {})
-        : Expression(loc), callee(callee), inputs(arguments), outputs(targets), offsets(), static_offsets(static_offsets) {}
+        : Apply(callee, inputs, outputs, {}, static_offsets, loc) {}
+    explicit Apply(std::string callee,
+                   std::vector<std::shared_ptr<Expression>> inputs,
+                   std::vector<std::shared_ptr<Expression>> outputs,
+                   std::vector<std::shared_ptr<Expression>> offsets,
+                   std::vector<int64_t> static_offsets,
+                   std::optional<Location> loc = {})
+        : Expression(loc), callee(callee), inputs(inputs), outputs(outputs), offsets(offsets), static_offsets(static_offsets) {}
     std::string callee;
     std::vector<std::shared_ptr<Expression>> inputs;
     std::vector<std::shared_ptr<Expression>> outputs;
@@ -195,6 +202,10 @@ struct SampleIndirect : Expression {
     std::shared_ptr<Expression> fieldElement;
 };
 
+//------------------------------------------------------------------------------
+// Control flow
+//------------------------------------------------------------------------------
+
 struct For : Expression {
     explicit For(std::shared_ptr<Expression> start,
                  std::shared_ptr<Expression> end,
@@ -282,42 +293,44 @@ struct BinaryOperator : Expression {
     std::shared_ptr<Expression> rhs;
 };
 
-struct BinaryArithmeticOperator : BinaryOperator {
-    enum eOperation {
-        ADD,
-        SUB,
-        MUL,
-        DIV,
-        MOD,
-        BIT_AND,
-        BIT_OR,
-        BIT_XOR,
-        BIT_SHL,
-        BIT_SHR,
-    };
-    BinaryArithmeticOperator(std::shared_ptr<Expression> lhs,
-                             std::shared_ptr<Expression> rhs,
-                             eOperation operation,
-                             std::optional<Location> loc = {})
-        : BinaryOperator(lhs, rhs, loc), operation(operation) {}
-    eOperation operation;
+enum class eArithmeticFunction {
+    ADD,
+    SUB,
+    MUL,
+    DIV,
+    MOD,
+    BIT_AND,
+    BIT_OR,
+    BIT_XOR,
+    BIT_SHL,
+    BIT_SHR,
 };
 
-struct BinaryComparisonOperator : BinaryOperator {
-    enum eOperation {
-        EQ,
-        NEQ,
-        LT,
-        GT,
-        LTE,
-        GTE,
-    };
-    BinaryComparisonOperator(std::shared_ptr<Expression> lhs,
-                             std::shared_ptr<Expression> rhs,
-                             eOperation operation,
-                             std::optional<Location> loc = {})
+struct ArithmeticOperator : BinaryOperator {
+    ArithmeticOperator(std::shared_ptr<Expression> lhs,
+                       std::shared_ptr<Expression> rhs,
+                       eArithmeticFunction operation,
+                       std::optional<Location> loc = {})
         : BinaryOperator(lhs, rhs, loc), operation(operation) {}
-    eOperation operation;
+    eArithmeticFunction operation;
+};
+
+enum class eComparisonFunction {
+    EQ,
+    NEQ,
+    LT,
+    GT,
+    LTE,
+    GTE,
+};
+
+struct ComparisonOperator : BinaryOperator {
+    ComparisonOperator(std::shared_ptr<Expression> lhs,
+                       std::shared_ptr<Expression> rhs,
+                       eComparisonFunction operation,
+                       std::optional<Location> loc = {})
+        : BinaryOperator(lhs, rhs, loc), operation(operation) {}
+    eComparisonFunction operation;
 };
 
 

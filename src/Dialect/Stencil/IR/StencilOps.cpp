@@ -61,6 +61,16 @@ LogicalResult ApplyOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
                              << "' does not reference a valid function";
     }
 
+    // Verify that the dimensions match up
+    if (getNumResults() > 0) {
+        const auto numStencilDims = fn.getNumDimensions().getSExtValue();
+        const auto numMyDims = getResultTypes()[0].dyn_cast<mlir::ShapedType>().getRank();
+        if (numStencilDims != numMyDims) {
+            return emitOpError() << "number of stencil dimensions (" << numStencilDims << ")"
+                                 << " does not equal number of output dimensions (" << numMyDims << ")";
+        }
+    }
+
     // Verify that the operand and result types match the callee.
     auto fnType = fn.getFunctionType();
     const size_t numCalleeParams = fnType.getNumInputs();

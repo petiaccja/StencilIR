@@ -23,6 +23,38 @@ PYBIND11_MODULE(stencilir, m) {
 
     pybind11::class_<Expression, std::shared_ptr<Expression>> expression(m, "Expression", statement);
 
+    // Symbols
+    pybind11::class_<SymbolRef, std::shared_ptr<SymbolRef>>(m, "SymbolRef", expression)
+        .def(pybind11::init<std::string,
+                            std::optional<Location>>());
+
+    pybind11::class_<Assign, std::shared_ptr<Assign>>(m, "Assign", statement)
+        .def(pybind11::init<std::vector<std::string>,
+                            std::shared_ptr<Expression>,
+                            std::optional<Location>>());
+
+    // Stencil structure
+    pybind11::class_<Stencil, std::shared_ptr<Stencil>>(m, "Stencil")
+        .def(pybind11::init<std::string,
+                            std::vector<Parameter>,
+                            std::vector<Type>,
+                            std::vector<std::shared_ptr<Statement>>,
+                            size_t,
+                            std::optional<Location>>());
+
+    pybind11::class_<Apply, std::shared_ptr<Apply>>(m, "Apply", expression)
+        .def(pybind11::init<std::string,
+                            std::vector<std::shared_ptr<Expression>>,
+                            std::vector<std::shared_ptr<Expression>>,
+                            std::vector<std::shared_ptr<Expression>>,
+                            std::vector<int64_t>,
+                            std::optional<Location>>());
+
+    pybind11::class_<Return, std::shared_ptr<Return>>(m, "Return", statement)
+        .def(pybind11::init<std::vector<std::shared_ptr<Expression>>,
+                            std::optional<Location>>());
+
+    // Module structure
     pybind11::class_<Module, std::shared_ptr<Module>>(m, "Module")
         .def(pybind11::init<std::vector<std::shared_ptr<Function>>,
                             std::vector<std::shared_ptr<Stencil>>,
@@ -35,16 +67,127 @@ PYBIND11_MODULE(stencilir, m) {
                             std::vector<std::shared_ptr<Statement>>,
                             std::optional<Location>>());
 
-    pybind11::class_<Stencil, std::shared_ptr<Stencil>>(m, "Stencil")
-        .def(pybind11::init<std::string,
-                            std::vector<Parameter>,
-                            std::vector<Type>,
-                            std::vector<std::shared_ptr<Statement>>,
-                            size_t,
+    // Stencil instrinsics
+    pybind11::class_<Index, std::shared_ptr<Index>>(m, "Index", expression)
+        .def(pybind11::init<std::optional<Location>>());
+
+    pybind11::class_<Jump, std::shared_ptr<Jump>>(m, "Jump", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            std::vector<int64_t>,
                             std::optional<Location>>());
 
-    pybind11::class_<Return, std::shared_ptr<Return>>(m, "Return", statement)
+    pybind11::class_<Sample, std::shared_ptr<Sample>>(m, "Sample", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            std::shared_ptr<Expression>,
+                            std::optional<Location>>());
+
+    pybind11::class_<JumpIndirect, std::shared_ptr<JumpIndirect>>(m, "JumpIndirect", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            int64_t,
+                            std::shared_ptr<Expression>,
+                            std::shared_ptr<Expression>,
+                            std::optional<Location>>());
+
+    pybind11::class_<SampleIndirect, std::shared_ptr<SampleIndirect>>(m, "SampleIndirect", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            int64_t,
+                            std::shared_ptr<Expression>,
+                            std::shared_ptr<Expression>,
+                            std::optional<Location>>());
+
+    // Control flow
+    pybind11::class_<For, std::shared_ptr<For>>(m, "For", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            std::shared_ptr<Expression>,
+                            int64_t,
+                            std::string,
+                            std::vector<std::shared_ptr<Statement>>,
+                            std::vector<std::shared_ptr<Expression>>,
+                            std::vector<std::string>,
+                            std::optional<Location>>());
+
+    pybind11::class_<If, std::shared_ptr<If>>(m, "If", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            std::vector<std::shared_ptr<Statement>>,
+                            std::vector<std::shared_ptr<Statement>>,
+                            std::optional<Location>>());
+
+    pybind11::class_<Yield, std::shared_ptr<Yield>>(m, "Yield", expression)
         .def(pybind11::init<std::vector<std::shared_ptr<Expression>>,
+                            std::optional<Location>>());
+
+    // Tensors
+    pybind11::class_<AllocTensor, std::shared_ptr<AllocTensor>>(m, "AllocTensor", expression)
+        .def(pybind11::init<ScalarType,
+                            std::vector<std::shared_ptr<Expression>>,
+                            Location>());
+
+    pybind11::class_<Dim, std::shared_ptr<Dim>>(m, "Dim", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            std::shared_ptr<Expression>,
+                            Location>());
+
+    // Arithmetic-logic
+    pybind11::class_<Constant, std::shared_ptr<Constant>>(m, "Constant", expression)
+        .def_static("integral", [](int value, ScalarType type, std::optional<Location> loc) {
+            switch (type) {
+                case ScalarType::SINT8: return Constant(int8_t(value));
+                case ScalarType::SINT16: return Constant(int16_t(value));
+                case ScalarType::SINT32: return Constant(int32_t(value));
+                case ScalarType::SINT64: return Constant(int64_t(value));
+                case ScalarType::UINT8: return Constant(uint8_t(value));
+                case ScalarType::UINT16: return Constant(uint16_t(value));
+                case ScalarType::UINT32: return Constant(uint32_t(value));
+                case ScalarType::UINT64: return Constant(uint64_t(value));
+                default: throw std::invalid_argument("Provide an integer type.");
+            }
+        })
+        .def_static("floating", [](double value, ScalarType type, std::optional<Location> loc) {
+            switch (type) {
+                case ScalarType::FLOAT32: return Constant(float(value));
+                case ScalarType::FLOAT64: return Constant(double(value));
+                default: throw std::invalid_argument("Provide an floating point type.");
+            }
+        })
+        .def_static("index", [](ptrdiff_t value, std::optional<Location> loc) {
+            return Constant(index_type, value);
+        })
+        .def_static("boolean", [](bool value, std::optional<Location> loc) {
+            return Constant(value);
+        });
+
+    pybind11::enum_<eArithmeticFunction>(m, "ArithmeticFunction")
+        .value("ADD", eArithmeticFunction::ADD)
+        .value("SUB", eArithmeticFunction::SUB)
+        .value("MUL", eArithmeticFunction::MUL)
+        .value("DIV", eArithmeticFunction::DIV)
+        .value("MOD", eArithmeticFunction::MOD)
+        .value("BIT_AND", eArithmeticFunction::BIT_AND)
+        .value("BIT_OR", eArithmeticFunction::BIT_OR)
+        .value("BIT_XOR", eArithmeticFunction::BIT_XOR)
+        .value("BIT_SHL", eArithmeticFunction::BIT_SHL)
+        .value("BIT_SHR", eArithmeticFunction::BIT_SHR)
+        .export_values();
+
+    pybind11::class_<ArithmeticOperator, std::shared_ptr<ArithmeticOperator>>(m, "ArithmeticOperator", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            std::shared_ptr<Expression>,
+                            eArithmeticFunction,
+                            std::optional<Location>>());
+
+    pybind11::enum_<eComparisonFunction>(m, "ComparisonFunction")
+        .value("EQ,", eComparisonFunction::EQ)
+        .value("NEQ,", eComparisonFunction::NEQ)
+        .value("LT,", eComparisonFunction::LT)
+        .value("GT,", eComparisonFunction::GT)
+        .value("LTE,", eComparisonFunction::LTE)
+        .value("GTE,", eComparisonFunction::GTE)
+        .export_values();
+
+    pybind11::class_<ComparisonOperator, std::shared_ptr<ComparisonOperator>>(m, "ComparisonOperator", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            std::shared_ptr<Expression>,
+                            eComparisonFunction,
                             std::optional<Location>>());
 
     //----------------------------------
@@ -58,7 +201,6 @@ PYBIND11_MODULE(stencilir, m) {
         .def(pybind11::init<std::string,
                             int,
                             int>());
-
 
     pybind11::enum_<ScalarType>(m, "ScalarType")
         .value("SINT8", ScalarType::SINT8)
@@ -74,6 +216,10 @@ PYBIND11_MODULE(stencilir, m) {
         .value("FLOAT64", ScalarType::FLOAT64)
         .value("BOOL", ScalarType::BOOL)
         .export_values();
+
+    pybind11::class_<FieldType>(m, "FieldType")
+        .def(pybind11::init<ScalarType, size_t>());
+
     pybind11::class_<Type> type(m, "Type");
 
     //----------------------------------

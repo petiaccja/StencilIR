@@ -214,8 +214,8 @@ class StencilIRGenerator : public IRGenerator<ast::Node, GenerationResult, Stenc
                                               ast::AllocTensor,
                                               ast::Dim,
                                               ast::Print,
-                                              ast::BinaryArithmeticOperator,
-                                              ast::BinaryComparisonOperator,
+                                              ast::ArithmeticOperator,
+                                              ast::ComparisonOperator,
                                               ast::Constant> {
 public:
     StencilIRGenerator(mlir::MLIRContext& context) : builder(&context) {}
@@ -582,43 +582,30 @@ public:
 
     auto Generate(const ast::Constant& node) const -> GenerationResult {
         const auto loc = ConvertLocation(builder, node.location);
-
-        std::variant<int64_t, uint64_t, float, double> value;
-        switch (node.type) {
-            case ast::ScalarType::SINT8: value = static_cast<int64_t>(std::any_cast<int8_t>(node.value)); break;
-            case ast::ScalarType::SINT16: value = static_cast<int64_t>(std::any_cast<int16_t>(node.value)); break;
-            case ast::ScalarType::SINT32: value = static_cast<int64_t>(std::any_cast<int32_t>(node.value)); break;
-            case ast::ScalarType::SINT64: value = static_cast<int64_t>(std::any_cast<int64_t>(node.value)); break;
-            case ast::ScalarType::UINT8: value = static_cast<uint64_t>(std::any_cast<uint8_t>(node.value)); break;
-            case ast::ScalarType::UINT16: value = static_cast<uint64_t>(std::any_cast<uint16_t>(node.value)); break;
-            case ast::ScalarType::UINT32: value = static_cast<uint64_t>(std::any_cast<uint32_t>(node.value)); break;
-            case ast::ScalarType::UINT64: value = static_cast<uint64_t>(std::any_cast<uint64_t>(node.value)); break;
-            case ast::ScalarType::INDEX: value = static_cast<int64_t>(std::any_cast<int64_t>(node.value)); break;
-            case ast::ScalarType::FLOAT32: value = std::any_cast<float>(node.value); break;
-            case ast::ScalarType::FLOAT64: value = std::any_cast<double>(node.value); break;
-            case ast::ScalarType::BOOL: value = static_cast<int64_t>(std::any_cast<bool>(node.value)); break;
-            default: assert(false && "All cases should be implemented."); std::terminate();
-        }
         const auto type = ConvertType(builder, node.type);
 
-        const auto visitor = [&](auto value) -> mlir::Operation* {
+        auto op = ast::VisitType(node.type, [&](auto* t) -> mlir::Operation* {
+            using T = std::decay_t<std::remove_pointer_t<decltype(t)>>;
+            const auto value = std::any_cast<T>(node.value);
+
             if (node.type == ast::ScalarType::INDEX) {
                 return builder.create<mlir::arith::ConstantIndexOp>(loc, value);
             }
-            if constexpr (std::is_same_v<decltype(value), int64_t>) {
+            if (node.type == ast::ScalarType::BOOL) {
+                return builder.create<mlir::arith::ConstantIntOp>(loc, int64_t(value), type);
+            }
+            if constexpr (std::is_integral_v<T> && std::is_signed_v<T>) {
                 return builder.create<mlir::arith::ConstantIntOp>(loc, value, type);
             }
-            if constexpr (std::is_same_v<decltype(value), uint64_t>) {
-                const int64_t equivalent = std::bit_cast<int64_t>(value);
+            if constexpr (std::is_integral_v<T> && std::is_unsigned_v<T>) {
+                const int64_t equivalent = std::bit_cast<int64_t>(uint64_t(value));
                 return builder.create<mlir::arith::ConstantIntOp>(loc, equivalent, type);
             }
-            if constexpr (std::is_floating_point_v<decltype(value)>) {
+            if constexpr (std::is_floating_point_v<T>) {
                 return builder.create<mlir::arith::ConstantFloatOp>(loc, mlir::APFloat(value), type.dyn_cast<mlir::FloatType>());
             }
-            assert(false && "All cases should be implemented.");
-            std::terminate();
-        };
-        auto op = std::visit(visitor, value);
+            throw std::invalid_argument("Invalid type.");
+        });
         return { op };
     }
 
@@ -630,38 +617,38 @@ public:
         return { op };
     }
 
-    auto Generate(const ast::BinaryArithmeticOperator& node) const -> GenerationResult {
+    auto Generate(const ast::ArithmeticOperator& node) const -> GenerationResult {
         const auto loc = ConvertLocation(builder, node.location);
         auto [lhs, rhs] = PromoteToCommonType(builder, loc, Generate(*node.lhs), Generate(*node.rhs));
         bool isFloat = lhs.getType().isa<mlir::FloatType>();
         bool isUnsigned = lhs.getType().isUnsignedInteger();
         switch (node.operation) {
-            case ast::BinaryArithmeticOperator::ADD:
+            case ast::eArithmeticFunction::ADD:
                 return { isFloat ? builder.create<mlir::arith::AddFOp>(loc, lhs, rhs)
                                  : builder.create<mlir::arith::AddIOp>(loc, lhs, rhs) };
-            case ast::BinaryArithmeticOperator::SUB:
+            case ast::eArithmeticFunction::SUB:
                 return { isFloat ? builder.create<mlir::arith::SubFOp>(loc, lhs, rhs)
                                  : builder.create<mlir::arith::SubIOp>(loc, lhs, rhs) };
-            case ast::BinaryArithmeticOperator::MUL:
+            case ast::eArithmeticFunction::MUL:
                 return { isFloat ? builder.create<mlir::arith::MulFOp>(loc, lhs, rhs)
                                  : builder.create<mlir::arith::MulIOp>(loc, lhs, rhs) };
-            case ast::BinaryArithmeticOperator::DIV:
+            case ast::eArithmeticFunction::DIV:
                 return { isFloat      ? builder.create<mlir::arith::DivFOp>(loc, lhs, rhs)
                          : isUnsigned ? builder.create<mlir::arith::DivUIOp>(loc, lhs, rhs)
                                       : builder.create<mlir::arith::DivSIOp>(loc, lhs, rhs) };
-            case ast::BinaryArithmeticOperator::MOD:
+            case ast::eArithmeticFunction::MOD:
                 return { isFloat      ? builder.create<mlir::arith::RemFOp>(loc, lhs, rhs)
                          : isUnsigned ? builder.create<mlir::arith::RemUIOp>(loc, lhs, rhs)
                                       : builder.create<mlir::arith::RemSIOp>(loc, lhs, rhs) };
-            case ast::BinaryArithmeticOperator::BIT_AND:
+            case ast::eArithmeticFunction::BIT_AND:
                 return { builder.create<mlir::arith::AndIOp>(loc, lhs, rhs) };
-            case ast::BinaryArithmeticOperator::BIT_OR:
+            case ast::eArithmeticFunction::BIT_OR:
                 return { builder.create<mlir::arith::OrIOp>(loc, lhs, rhs) };
-            case ast::BinaryArithmeticOperator::BIT_XOR:
+            case ast::eArithmeticFunction::BIT_XOR:
                 return { builder.create<mlir::arith::XOrIOp>(loc, lhs, rhs) };
-            case ast::BinaryArithmeticOperator::BIT_SHL:
+            case ast::eArithmeticFunction::BIT_SHL:
                 return { builder.create<mlir::arith::ShLIOp>(loc, lhs, rhs) };
-            case ast::BinaryArithmeticOperator::BIT_SHR:
+            case ast::eArithmeticFunction::BIT_SHR:
                 return { isUnsigned ? builder.create<mlir::arith::ShRUIOp>(loc, lhs, rhs)
                                     : builder.create<mlir::arith::ShRSIOp>(loc, lhs, rhs) };
             default:
@@ -669,31 +656,31 @@ public:
         }
     }
 
-    auto Generate(const ast::BinaryComparisonOperator& node) const -> GenerationResult {
+    auto Generate(const ast::ComparisonOperator& node) const -> GenerationResult {
         const auto loc = ConvertLocation(builder, node.location);
         auto [lhs, rhs] = PromoteToCommonType(builder, loc, Generate(*node.lhs), Generate(*node.rhs));
         bool isFloat = lhs.getType().isa<mlir::FloatType>();
         bool isUnsigned = lhs.getType().isUnsignedInteger();
         switch (node.operation) {
-            case ast::BinaryComparisonOperator::EQ:
+            case ast::eComparisonFunction::EQ:
                 return { isFloat ? builder.create<mlir::arith::CmpFOp>(loc, mlir::arith::CmpFPredicate::OEQ, lhs, rhs)
                                  : builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::eq, lhs, rhs) };
-            case ast::BinaryComparisonOperator::NEQ:
+            case ast::eComparisonFunction::NEQ:
                 return { isFloat ? builder.create<mlir::arith::CmpFOp>(loc, mlir::arith::CmpFPredicate::ONE, lhs, rhs)
                                  : builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::ne, lhs, rhs) };
-            case ast::BinaryComparisonOperator::GT:
+            case ast::eComparisonFunction::GT:
                 return { isFloat      ? builder.create<mlir::arith::CmpFOp>(loc, mlir::arith::CmpFPredicate::OGT, lhs, rhs)
                          : isUnsigned ? builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::ugt, lhs, rhs)
                                       : builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::sgt, lhs, rhs) };
-            case ast::BinaryComparisonOperator::LT:
+            case ast::eComparisonFunction::LT:
                 return { isFloat      ? builder.create<mlir::arith::CmpFOp>(loc, mlir::arith::CmpFPredicate::OLT, lhs, rhs)
                          : isUnsigned ? builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::ult, lhs, rhs)
                                       : builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::slt, lhs, rhs) };
-            case ast::BinaryComparisonOperator::GTE:
+            case ast::eComparisonFunction::GTE:
                 return { isFloat      ? builder.create<mlir::arith::CmpFOp>(loc, mlir::arith::CmpFPredicate::OGE, lhs, rhs)
                          : isUnsigned ? builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::uge, lhs, rhs)
                                       : builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::sge, lhs, rhs) };
-            case ast::BinaryComparisonOperator::LTE:
+            case ast::eComparisonFunction::LTE:
                 return { isFloat      ? builder.create<mlir::arith::CmpFOp>(loc, mlir::arith::CmpFPredicate::OLE, lhs, rhs)
                          : isUnsigned ? builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::ule, lhs, rhs)
                                       : builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::sle, lhs, rhs) };
