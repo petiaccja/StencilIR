@@ -3,7 +3,9 @@
 #include <memory_resource>
 
 
-static Runner Compile(std::shared_ptr<ast::Module> ast, CompileOptions options);
+static Runner Compile(std::shared_ptr<ast::Module> ast,
+                      CompileOptions options,
+                      std::vector<StageResult>* stageResults = nullptr);
 static auto ExtractFunctions(std::shared_ptr<ast::Module> ast)
     -> std::unordered_map<std::string, std::vector<ast::Type>>;
 static void PythonToOpaque(pybind11::handle arg,
@@ -11,10 +13,13 @@ static void PythonToOpaque(pybind11::handle arg,
                            std::pmr::memory_resource& compatHeap,
                            std::pmr::vector<void*>& opaqueArgs);
 
+thread_local std::vector<StageResult> stageResults; // TODO: fix this hack.
 
-CompiledModule::CompiledModule(std::shared_ptr<ast::Module> ast, CompileOptions options)
-    : m_runner(Compile(ast, options)),
-      m_functions(ExtractFunctions(ast)) {}
+CompiledModule::CompiledModule(std::shared_ptr<ast::Module> ast, CompileOptions options, bool storeIr)
+    : m_runner(Compile(ast, options, (stageResults = {}, storeIr ? &stageResults : nullptr))),
+      m_functions(ExtractFunctions(ast)) {
+    m_ir = stageResults;
+}
 
 
 void CompiledModule::Invoke(std::string function, pybind11::args args) {
@@ -44,7 +49,12 @@ void CompiledModule::Invoke(std::string function, pybind11::args args) {
 }
 
 
-static Runner Compile(std::shared_ptr<ast::Module> ast, CompileOptions options) {
+std::vector<StageResult> CompiledModule::GetIR() const {
+    return m_ir;
+}
+
+
+static Runner Compile(std::shared_ptr<ast::Module> ast, CompileOptions options, std::vector<StageResult>* stageResults) {
     mlir::MLIRContext context;
 
     auto targetStages = [&] {
@@ -57,7 +67,7 @@ static Runner Compile(std::shared_ptr<ast::Module> ast, CompileOptions options) 
 
     const auto ir = ConvertASTToIR(context, *ast);
     Compiler compiler(std::move(targetStages));
-    auto llvm = compiler.Run(ir);
+    auto llvm = stageResults ? compiler.Run(ir, *stageResults) : compiler.Run(ir);
 
     return Runner{ llvm, optLevel };
 }

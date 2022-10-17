@@ -8,8 +8,8 @@
 using namespace ast;
 
 
-CompiledModule Compile(std::shared_ptr<Module> ast, CompileOptions options) {
-    return CompiledModule{ ast, options };
+CompiledModule Compile(std::shared_ptr<Module> ast, CompileOptions options, bool storeIr = false) {
+    return CompiledModule{ ast, options, storeIr };
 }
 
 
@@ -264,7 +264,12 @@ PYBIND11_MODULE(stencilir, m) {
         .def_readwrite("opt_level", &CompileOptions::optimizationLevel);
 
     pybind11::class_<CompiledModule>(m, "CompiledModule")
-        .def("invoke", &CompiledModule::Invoke);
+        .def("invoke", &CompiledModule::Invoke)
+        .def("get_ir", &CompiledModule::GetIR);
 
-    m.def("compile", &Compile);
+    pybind11::class_<StageResult>(m, "StageIR")
+        .def_readonly("stage", &StageResult::name)
+        .def_readonly("ir", &StageResult::ir);
+
+    m.def("compile", &Compile, pybind11::arg("ast"), pybind11::arg("options"), pybind11::arg("store_ir") = false);
 }
