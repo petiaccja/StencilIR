@@ -218,7 +218,8 @@ class StencilIRGenerator : public IRGenerator<ast::Node, GenerationResult, Stenc
                                               ast::Print,
                                               ast::ArithmeticOperator,
                                               ast::ComparisonOperator,
-                                              ast::Constant> {
+                                              ast::Constant,
+                                              ast::Cast> {
 public:
     StencilIRGenerator(mlir::MLIRContext& context) : builder(&context) {}
 
@@ -597,11 +598,13 @@ public:
                 return builder.create<mlir::arith::ConstantIntOp>(loc, int64_t(value), type);
             }
             if constexpr (std::is_integral_v<T> && std::is_signed_v<T>) {
-                return builder.create<mlir::arith::ConstantIntOp>(loc, value, type);
+                auto attr = mlir::IntegerAttr::get(type, value);
+                return builder.create<mlir::arith::ConstantOp>(loc, attr);
             }
             if constexpr (std::is_integral_v<T> && std::is_unsigned_v<T>) {
                 const int64_t equivalent = std::bit_cast<int64_t>(uint64_t(value));
-                return builder.create<mlir::arith::ConstantIntOp>(loc, equivalent, type);
+                auto attr = mlir::IntegerAttr::get(type, equivalent);
+                return builder.create<mlir::arith::ConstantOp>(loc, attr);
             }
             if constexpr (std::is_floating_point_v<T>) {
                 return builder.create<mlir::arith::ConstantFloatOp>(loc, mlir::APFloat(value), type.dyn_cast<mlir::FloatType>());
@@ -689,6 +692,59 @@ public:
             default:
                 throw std::logic_error("Binary op not implemented.");
         }
+    }
+
+    auto Generate(const ast::Cast& node) const -> GenerationResult {
+        auto loc = ConvertLocation(builder, node.location);
+        mlir::Value expr = Generate(*node.expr);
+        mlir::Type type = ConvertType(builder, node.type);
+
+        auto ftype = type.dyn_cast<mlir::FloatType>();
+        auto fexpr = expr.getType().dyn_cast<mlir::FloatType>();
+        auto itype = type.dyn_cast<mlir::IntegerType>();
+        auto iexpr = expr.getType().dyn_cast<mlir::IntegerType>();
+
+        if (type.isa<mlir::IndexType>() || expr.getType().isa<mlir::IndexType>()) {
+            if (iexpr) {
+                mlir::Type signlessType = builder.getIntegerType(iexpr.getWidth());
+                mlir::Value signlessExpr = builder.create<mlir::arith::BitcastOp>(loc, signlessType, expr);
+                return { builder.create<mlir::arith::IndexCastOp>(loc, type, signlessExpr) };
+            }
+            return { builder.create<mlir::arith::IndexCastOp>(loc, type, expr) };
+        }
+        if (ftype && fexpr) {
+            if (ftype.getWidth() > fexpr.getWidth()) {
+                return { builder.create<mlir::arith::ExtFOp>(loc, type, expr) };
+            }
+            else if (ftype.getWidth() < fexpr.getWidth()) {
+                return { builder.create<mlir::arith::TruncFOp>(loc, type, expr) };
+            }
+            else {
+                return { { expr } };
+            }
+        }
+        if (itype && iexpr) {
+            bool isSigned = !(itype.isUnsigned() && iexpr.isUnsigned());
+            if (ftype.getWidth() > fexpr.getWidth()) {
+                return isSigned ? GenerationResult{ builder.create<mlir::arith::ExtSIOp>(loc, type, expr) }
+                                : GenerationResult{ builder.create<mlir::arith::ExtUIOp>(loc, type, expr) };
+            }
+            else if (ftype.getWidth() < fexpr.getWidth()) {
+                return { builder.create<mlir::arith::TruncIOp>(loc, type, expr) };
+            }
+            else {
+                return { { expr } };
+            }
+        }
+        if (itype && fexpr) {
+            return itype.isUnsigned() ? GenerationResult{ builder.create<mlir::arith::FPToUIOp>(loc, type, expr) }
+                                      : GenerationResult{ builder.create<mlir::arith::FPToSIOp>(loc, type, expr) };
+        }
+        if (ftype && iexpr) {
+            return iexpr.isUnsigned() ? GenerationResult{ builder.create<mlir::arith::UIToFPOp>(loc, type, expr) }
+                                      : GenerationResult{ builder.create<mlir::arith::SIToFPOp>(loc, type, expr) };
+        }
+        throw std::invalid_argument("No conversion implemented between given types.");
     }
 
 

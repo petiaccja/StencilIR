@@ -101,7 +101,9 @@ struct JumpIndirectOpLowering : public OpRewritePattern<stencil::JumpIndirectOp>
         auto mapElement = op.getMapElement();
         std::array<Value, 2> mapIndices = { inputIndexElem, mapElement };
         Value newIndexElem = rewriter.create<memref::LoadOp>(loc, map, mapIndices);
-
+        if (!newIndexElem.getType().isa<IndexType>()) {
+            newIndexElem = rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(), newIndexElem);
+        }
         Value outputIndex = rewriter.create<vector::InsertElementOp>(loc, newIndexElem, inputIndex, dimIndex);
 
         rewriter.replaceOp(op, outputIndex);

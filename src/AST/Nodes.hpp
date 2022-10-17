@@ -360,6 +360,13 @@ struct ComparisonOperator : BinaryOperator {
     eComparisonFunction operation;
 };
 
+struct Cast : Expression {
+    Cast(std::shared_ptr<Expression> expr,
+         Type type) : expr(expr), type(type) {}
+    std::shared_ptr<Expression> expr;
+    Type type;
+};
+
 
 //------------------------------------------------------------------------------
 // Misc

@@ -205,6 +205,10 @@ PYBIND11_MODULE(stencilir, m) {
                             eComparisonFunction,
                             std::optional<Location>>());
 
+    pybind11::class_<Cast, std::shared_ptr<Cast>>(m, "Cast", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            Type>());
+
     //----------------------------------
     // AST structures
     //----------------------------------

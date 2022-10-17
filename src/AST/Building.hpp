@@ -220,6 +220,10 @@ inline auto gte(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs
     return std::make_shared<ComparisonOperator>(lhs, rhs, eComparisonFunction::GTE, loc);
 }
 
+inline auto cast(std::shared_ptr<Expression> expr, Type type) {
+    return std::make_shared<Cast>(expr, type);
+}
+
 
 //------------------------------------------------------------------------------
 // Tensor
