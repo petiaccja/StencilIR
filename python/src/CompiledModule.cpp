@@ -1,6 +1,7 @@
 #include "CompiledModule.hpp"
 
 #include <memory_resource>
+#include <new>
 
 
 static Runner Compile(std::shared_ptr<ast::Module> ast,
@@ -96,20 +97,21 @@ static void PythonToOpaque(pybind11::handle arg,
                            ast::Type type,
                            std::pmr::memory_resource& compatHeap,
                            std::pmr::vector<void*>& opaqueArgs) {
-    static const auto AppendArg = [&](auto arg) {
+    const auto AppendArg = [&](auto arg) {
         const auto compatibleArg = Runner::MakeCompatibleArgument(arg);
+        using HeapArgT = std::remove_const_t<decltype(compatibleArg)>;
 
         // Must move compatibleArg to heap
         static_assert(std::is_trivially_destructible_v<decltype(compatibleArg)>, "Could allow other types as well.");
         void* const memoryLocation = compatHeap.allocate(sizeof(compatibleArg), alignof(decltype(compatibleArg)));
-        auto& heapArg = *static_cast<std::remove_const_t<decltype(compatibleArg)>*>(memoryLocation);
-        heapArg = compatibleArg;
+        auto& heapArg = *static_cast<HeapArgT*>(memoryLocation);
+        new (&heapArg) HeapArgT(compatibleArg);
 
         // Make opaque pointers to the argument.
         const auto opaqueArg = Runner::MakeOpaqueArgument(heapArg); // This is a tuple of void*'s
         std::apply([&](auto... opaquePointers) { (..., opaqueArgs.push_back(opaquePointers)); }, opaqueArg); // Essentially tuple foreach
     };
-    static const auto visitor = [&](auto type) {
+    const auto visitor = [&](auto type) {
         if constexpr (std::is_same_v<decltype(type), ast::ScalarType>) {
             ast::VisitType(type, [&](auto* t) {
                 using T = std::decay_t<std::remove_pointer_t<decltype(t)>>;
