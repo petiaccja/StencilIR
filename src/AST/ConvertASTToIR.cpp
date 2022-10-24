@@ -81,14 +81,20 @@ static mlir::Type ConvertType(mlir::OpBuilder& builder, ast::Type type, const Ty
         const TypeConversionOptions& options;
         mlir::Type operator()(const ast::ScalarType& type) const {
             switch (type) {
-                case ast::ScalarType::SINT8: return builder.getIntegerType(8, true);
-                case ast::ScalarType::SINT16: return builder.getIntegerType(16, true);
-                case ast::ScalarType::SINT32: return builder.getIntegerType(32, true);
-                case ast::ScalarType::SINT64: return builder.getIntegerType(64, true);
-                case ast::ScalarType::UINT8: return builder.getIntegerType(8, false);
-                case ast::ScalarType::UINT16: return builder.getIntegerType(16, false);
-                case ast::ScalarType::UINT32: return builder.getIntegerType(32, false);
-                case ast::ScalarType::UINT64: return builder.getIntegerType(64, false);
+                case ast::ScalarType::SINT8: return builder.getIntegerType(8);
+                case ast::ScalarType::SINT16: return builder.getIntegerType(16);
+                case ast::ScalarType::SINT32: return builder.getIntegerType(32);
+                case ast::ScalarType::SINT64: return builder.getIntegerType(64);
+                // case ast::ScalarType::UINT8: return builder.getIntegerType(8, false);
+                // case ast::ScalarType::UINT16: return builder.getIntegerType(16, false);
+                // case ast::ScalarType::UINT32: return builder.getIntegerType(32, false);
+                // case ast::ScalarType::UINT64: return builder.getIntegerType(64, false);
+                case ast::ScalarType::UINT8: [[fallthrough]];
+                case ast::ScalarType::UINT16: [[fallthrough]];
+                case ast::ScalarType::UINT32: [[fallthrough]];
+                case ast::ScalarType::UINT64:
+                    assert(false && "Not supported due to stupid arith.constant");
+                    std::terminate();
                 case ast::ScalarType::INDEX: return builder.getIndexType();
                 case ast::ScalarType::FLOAT32: return builder.getF32Type();
                 case ast::ScalarType::FLOAT64: return builder.getF64Type();
@@ -164,6 +170,13 @@ static mlir::Value PromoteValue(mlir::OpBuilder& builder, mlir::Location loc, ml
 static std::pair<mlir::Value, mlir::Value> PromoteToCommonType(mlir::OpBuilder& builder, mlir::Location loc, mlir::Value lhs, mlir::Value rhs) {
     const auto lhsType = lhs.getType();
     const auto rhsType = rhs.getType();
+    std::string str;
+    llvm::raw_string_ostream os(str);
+    os << "The following types don't have a common type: ";
+    lhsType.print(os);
+    os << ", ";
+    rhsType.print(os);
+    os << ".";
     if (lhsType == rhsType) {
         return { lhs, rhs };
     }
@@ -173,7 +186,7 @@ static std::pair<mlir::Value, mlir::Value> PromoteToCommonType(mlir::OpBuilder& 
     if (auto promotedRhs = PromoteValue(builder, loc, rhs, lhsType)) {
         return { lhs, promotedRhs };
     }
-    throw std::logic_error("The two types don't have a common type.");
+    throw std::logic_error(std::move(str));
 }
 
 
@@ -598,13 +611,13 @@ public:
                 return builder.create<mlir::arith::ConstantIntOp>(loc, int64_t(value), type);
             }
             if constexpr (std::is_integral_v<T> && std::is_signed_v<T>) {
-                auto attr = mlir::IntegerAttr::get(type, value);
-                return builder.create<mlir::arith::ConstantOp>(loc, attr);
+                auto signlessType = builder.getIntegerType(type.dyn_cast<mlir::IntegerType>().getWidth());
+                return builder.create<mlir::arith::ConstantIntOp>(loc, value, signlessType);
             }
             if constexpr (std::is_integral_v<T> && std::is_unsigned_v<T>) {
+                auto signlessType = builder.getIntegerType(type.dyn_cast<mlir::IntegerType>().getWidth());
                 const int64_t equivalent = std::bit_cast<int64_t>(uint64_t(value));
-                auto attr = mlir::IntegerAttr::get(type, equivalent);
-                return builder.create<mlir::arith::ConstantOp>(loc, attr);
+                return builder.create<mlir::arith::ConstantIntOp>(loc, equivalent, signlessType);
             }
             if constexpr (std::is_floating_point_v<T>) {
                 return builder.create<mlir::arith::ConstantFloatOp>(loc, mlir::APFloat(value), type.dyn_cast<mlir::FloatType>());
