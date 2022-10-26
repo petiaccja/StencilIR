@@ -77,6 +77,13 @@ inline auto function(std::string name,
 }
 
 
+inline auto call(std::string name,
+                 std::vector<std::shared_ptr<Expression>> args,
+                 std::optional<Location> loc = {}) {
+    return std::make_shared<Call>(name, args, loc);
+}
+
+
 inline auto module_(std::vector<std::shared_ptr<Function>> functions = {},
                     std::vector<std::shared_ptr<Stencil>> stencils = {},
                     std::optional<Location> loc = {}) {

@@ -198,6 +198,8 @@ struct GenerationResult {
 
 class StencilIRGenerator : public IRGenerator<ast::Node, GenerationResult, StencilIRGenerator,
                                               ast::Module,
+                                              ast::Function,
+                                              ast::Call,
                                               ast::Stencil,
                                               ast::Return,
                                               ast::Apply,
@@ -380,6 +382,21 @@ public:
         return { op };
     }
 
+    auto Generate(const ast::Call& node) const -> GenerationResult {
+        const auto loc = ConvertLocation(builder, node.location);
+        const auto parentOp = builder.getBlock()->getParentOp();
+        const auto calleeAttr = builder.getStringAttr(node.callee);
+        const auto calleeOp = mlir::SymbolTable::lookupNearestSymbolFrom(parentOp, calleeAttr);
+        const auto calleeFuncOp = mlir::dyn_cast<mlir::func::FuncOp>(calleeOp);
+        if (!calleeFuncOp) {
+            throw std::invalid_argument("Function not found: " + node.callee);
+        }
+        mlir::SmallVector<mlir::Value, 8> args;
+        for (auto& arg : node.args) {
+            args.push_back(Generate(*arg));
+        }
+        return { builder.create<mlir::func::CallOp>(loc, calleeFuncOp, args) };
+    }
 
     auto Generate(const ast::Module& node) const -> GenerationResult {
         auto op = builder.create<mlir::ModuleOp>(ConvertLocation(builder, node.location));

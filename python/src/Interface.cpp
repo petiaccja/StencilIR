@@ -67,6 +67,10 @@ PYBIND11_MODULE(stencilir, m) {
                             std::vector<std::shared_ptr<Statement>>,
                             std::optional<Location>>());
 
+    pybind11::class_<Call, std::shared_ptr<Call>>(m, "Call")
+        .def(pybind11::init<std::string,
+                            std::vector<std::shared_ptr<Expression>>>());
+
     // Stencil instrinsics
     pybind11::class_<Index, std::shared_ptr<Index>>(m, "Index", expression)
         .def(pybind11::init<std::optional<Location>>());

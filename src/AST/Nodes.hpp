@@ -140,6 +140,16 @@ struct Function : Node {
 };
 
 
+struct Call : Expression {
+    explicit Call(std::string callee,
+                  std::vector<std::shared_ptr<Expression>> args,
+                  std::optional<Location> loc = {})
+        : Expression(loc), callee(callee), args(args) {}
+    std::string callee;
+    std::vector<std::shared_ptr<Expression>> args;
+};
+
+
 struct Module : Node {
     explicit Module(std::vector<std::shared_ptr<Function>> functions = {},
                     std::vector<std::shared_ptr<Stencil>> stencils = {},
