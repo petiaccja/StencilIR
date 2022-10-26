@@ -1,0 +1,22 @@
+#include "Checker.hpp"
+
+#include <AST/Building.hpp>
+
+#include <catch2/catch.hpp>
+
+
+TEST_CASE("Function: create", "[AST]") {
+    const auto ast = ast::module_({
+        ast::function("funcname",
+                      { ast::Parameter{ "a", ast::ScalarType::FLOAT32 } },
+                      { ast::ScalarType::FLOAT32 },
+                      { ast::return_({ ast::symref("a") }) }),
+    });
+
+    const auto pattern = R"(
+        // CHECK: func @funcname(%[[ARG:.*]]: f32) -> f32
+        // CHECK-NEXT: return %[[ARG]]
+    )";
+
+    REQUIRE(Check(*ast, pattern));
+}

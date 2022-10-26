@@ -154,7 +154,7 @@ struct Module : Node {
     explicit Module(std::vector<std::shared_ptr<Function>> functions = {},
                     std::vector<std::shared_ptr<Stencil>> stencils = {},
                     std::optional<Location> loc = {})
-        : Node(loc), stencils(stencils), functions(functions) {}
+        : Node(loc), functions(functions), stencils(stencils){}
     std::vector<std::shared_ptr<Function>> functions;
     std::vector<std::shared_ptr<Stencil>> stencils;
 };
