@@ -23,8 +23,13 @@ mlir::ModuleOp Compiler::Run(mlir::ModuleOp module, std::vector<StageResult>& st
 
     std::stringstream diagnostics;
     mlir::ScopedDiagnosticHandler diagHandler(module->getContext(), [&](mlir::Diagnostic& diag) {
+        std::string out;
+        llvm::raw_string_ostream os(out);
+        diag.getLocation().print(os);
+        out += ": ";
+        diag.print(os);
         diagnostics << "\n"
-                    << diag.str();
+                    << out;
     });
 
     size_t index = 1;
