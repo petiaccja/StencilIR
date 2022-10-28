@@ -40,8 +40,17 @@ Runner::Runner(mlir::ModuleOp& llvmIr, int optLevel) {
 }
 
 void Runner::Invoke(std::string_view name, std::span<void*> args) const {
-    auto result = m_engine->invokePacked(name, { args.data(), args.size() });
-    if (result) {
-        throw std::runtime_error("Invoking JIT-ed function failed.");
+    // TODO: this shit's gonna be failing until the MLIR execution engine
+    //  and/or all support stuff is --whole-archive linked into the DLL or whatnot.
+    llvm::Error error = m_engine->invokePacked(name, { args.data(), args.size() });
+    if (error) {
+        std::string message;
+        error = llvm::handleErrors(std::move(error), [&](llvm::ErrorInfoBase& err) {
+            message = err.message();
+        });
+        if (error) {
+            throw std::runtime_error("Error while handling errors. Seriously, what the fuck is this?");
+        }
+        throw std::runtime_error("Invoking JIT-ed function failed: " + message);
     }
 }
