@@ -20,6 +20,7 @@ target_sources(TestAST
     PRIVATE
         Test_Function.cpp
         Test_Call.cpp
+        Test_If.cpp
 )
 
 target_link_libraries(TestAST LLVMFileCheck LLVMSupport)

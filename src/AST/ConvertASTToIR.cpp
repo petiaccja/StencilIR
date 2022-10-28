@@ -414,7 +414,6 @@ public:
     auto Generate(const ast::Module& node) const -> GenerationResult {
         auto op = builder.create<mlir::ModuleOp>(ConvertLocation(builder, node.location));
 
-        auto loc = ConvertLocation(builder, node.location);
         builder.setInsertionPointToEnd(op.getBody());
 
         for (auto& kernel : node.stencils) {
@@ -527,7 +526,7 @@ public:
         body.clear();
         symbolTable.RunInScope([&, this] {
             symbolTable.Assign(node.loopVarSymbol, op.getInductionVar());
-            for (int i = 0; i < op.getNumIterOperands(); ++i) {
+            for (size_t i = 0; i < op.getNumIterOperands(); ++i) {
                 symbolTable.Assign(node.iterArgSymbols[i], op.getRegionIterArgs()[i]);
             }
             InsertInBlock(body, [&]() {
@@ -567,32 +566,38 @@ public:
         });
 
         // Extract result types from deduction op.
-        const auto resultTypesView = deductionOp.thenYield()->getOperandTypes();
-        mlir::SmallVector<mlir::Type, 4> resultTypes = { resultTypesView.begin(), resultTypesView.end() };
+        mlir::SmallVector<mlir::Type, 4> resultTypes;
+        if (!deductionOp.thenBlock()->empty()) {
+            const auto resultTypesView = deductionOp.thenYield()->getOperandTypes();
+            resultTypes = { resultTypesView.begin(), resultTypesView.end() };
+        }
         deductionOp->erase();
 
         // Create the actual IfOp with result types and both blocks.
-        auto op = builder.create<mlir::scf::IfOp>(loc, resultTypes, condition, !node.elseBody.empty());
+        const bool hasElseBlock = !node.elseBody.empty();
+        auto op = builder.create<mlir::scf::IfOp>(loc, resultTypes, condition, hasElseBlock);
 
         auto& thenBlock = *op.thenBlock();
-        deductionBlock.clear();
+        thenBlock.clear();
         symbolTable.RunInScope([&] {
-            InsertInBlock(deductionBlock, [&] {
+            InsertInBlock(thenBlock, [&] {
                 for (const auto& statement : node.thenBody) {
                     Generate(*statement);
                 }
             });
         });
 
-        auto& elseBlock = *op.elseBlock();
-        elseBlock.clear();
-        symbolTable.RunInScope([&] {
-            InsertInBlock(elseBlock, [&] {
-                for (const auto& statement : node.elseBody) {
-                    Generate(*statement);
-                }
+        if (hasElseBlock) {
+            auto& elseBlock = *op.elseBlock();
+            elseBlock.clear();
+            symbolTable.RunInScope([&] {
+                InsertInBlock(elseBlock, [&] {
+                    for (const auto& statement : node.elseBody) {
+                        Generate(*statement);
+                    }
+                });
             });
-        });
+        }
 
         // Return the actual IfOp, not the deduction which has been erased.
         return { op };
@@ -686,9 +691,8 @@ public:
             case ast::eArithmeticFunction::BIT_SHR:
                 return { isUnsigned ? builder.create<mlir::arith::ShRUIOp>(loc, lhs, rhs)
                                     : builder.create<mlir::arith::ShRSIOp>(loc, lhs, rhs) };
-            default:
-                throw std::logic_error("Binary op not implemented.");
         }
+        throw std::logic_error("Binary op not implemented.");
     }
 
     auto Generate(const ast::ComparisonOperator& node) const -> GenerationResult {
@@ -719,9 +723,8 @@ public:
                 return { isFloat      ? builder.create<mlir::arith::CmpFOp>(loc, mlir::arith::CmpFPredicate::OLE, lhs, rhs)
                          : isUnsigned ? builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::ule, lhs, rhs)
                                       : builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::sle, lhs, rhs) };
-            default:
-                throw std::logic_error("Binary op not implemented.");
         }
+        throw std::logic_error("Binary op not implemented.");
     }
 
     auto Generate(const ast::Cast& node) const -> GenerationResult {
