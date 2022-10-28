@@ -24,6 +24,7 @@ target_sources(TestAST
         Test_Return.cpp
         Test_Yield.cpp
         Test_Assign.cpp
+        Test_Pack.cpp
 )
 
 target_link_libraries(TestAST LLVMFileCheck LLVMSupport)

@@ -66,6 +66,14 @@ struct Assign : Statement {
 };
 
 
+struct Pack : Expression {
+    explicit Pack(std::vector<std::shared_ptr<Expression>> exprs,
+                  std::optional<Location> loc = {})
+        : Expression(loc), exprs(exprs) {}
+    std::vector<std::shared_ptr<Expression>> exprs;
+};
+
+
 //------------------------------------------------------------------------------
 // Stencil structure
 //------------------------------------------------------------------------------
@@ -154,7 +162,7 @@ struct Module : Node {
     explicit Module(std::vector<std::shared_ptr<Function>> functions = {},
                     std::vector<std::shared_ptr<Stencil>> stencils = {},
                     std::optional<Location> loc = {})
-        : Node(loc), functions(functions), stencils(stencils){}
+        : Node(loc), functions(functions), stencils(stencils) {}
     std::vector<std::shared_ptr<Function>> functions;
     std::vector<std::shared_ptr<Stencil>> stencils;
 };

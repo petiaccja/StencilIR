@@ -33,6 +33,12 @@ inline auto assign(std::string name,
 }
 
 
+inline auto pack(std::vector<std::shared_ptr<Expression>> exprs,
+                 std::optional<Location> loc = {}) {
+    return std::make_shared<Pack>(exprs, loc);
+}
+
+
 //------------------------------------------------------------------------------
 // Stencil structure
 //------------------------------------------------------------------------------

@@ -218,6 +218,7 @@ class StencilIRGenerator : public IRGenerator<ast::Node, GenerationResult, Stenc
                                               ast::Apply,
                                               ast::SymbolRef,
                                               ast::Assign,
+                                              ast::Pack,
                                               ast::Index,
                                               ast::Jump,
                                               ast::Sample,
@@ -309,6 +310,17 @@ public:
             symbolTable.Assign(node.names[i], values[i]);
         }
         return {};
+    }
+
+    auto Generate(const ast::Pack& node) const -> GenerationResult {
+        mlir::SmallVector<mlir::Value, 6> values;
+        for (const auto& expr : node.exprs) {
+            const auto generationResult = Generate(*expr);
+            for (const auto& v : generationResult.values) {
+                values.push_back(v);
+            }
+        }
+        return { std::move(values) };
     }
 
     //--------------------------------------------------------------------------
