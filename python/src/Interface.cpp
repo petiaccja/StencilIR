@@ -200,12 +200,12 @@ PYBIND11_MODULE(stencilir, m) {
                             std::optional<Location>>());
 
     pybind11::enum_<eComparisonFunction>(m, "ComparisonFunction")
-        .value("EQ,", eComparisonFunction::EQ)
-        .value("NEQ,", eComparisonFunction::NEQ)
-        .value("LT,", eComparisonFunction::LT)
-        .value("GT,", eComparisonFunction::GT)
-        .value("LTE,", eComparisonFunction::LTE)
-        .value("GTE,", eComparisonFunction::GTE)
+        .value("EQ", eComparisonFunction::EQ)
+        .value("NEQ", eComparisonFunction::NEQ)
+        .value("LT", eComparisonFunction::LT)
+        .value("GT", eComparisonFunction::GT)
+        .value("LTE", eComparisonFunction::LTE)
+        .value("GTE", eComparisonFunction::GTE)
         .export_values();
 
     pybind11::class_<ComparisonOperator, std::shared_ptr<ComparisonOperator>>(m, "ComparisonOperator", expression)
