@@ -30,7 +30,7 @@ PYBIND11_MODULE(stencilir, m) {
 
     pybind11::class_<Assign, std::shared_ptr<Assign>>(m, "Assign", statement)
         .def(pybind11::init<std::vector<std::string>,
-                            std::shared_ptr<Expression>,
+                            std::vector<std::shared_ptr<Expression>>,
                             std::optional<Location>>());
 
     // Stencil structure

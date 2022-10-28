@@ -58,11 +58,11 @@ struct SymbolRef : Expression {
 
 struct Assign : Statement {
     explicit Assign(std::vector<std::string> names,
-                    std::shared_ptr<Expression> expr,
+                    std::vector<std::shared_ptr<Expression>> exprs,
                     std::optional<Location> loc = {})
-        : Statement(loc), names(names), expr(expr) {}
+        : Statement(loc), names(names), exprs(exprs) {}
     std::vector<std::string> names;
-    std::shared_ptr<Expression> expr;
+    std::vector<std::shared_ptr<Expression>> exprs;
 };
 
 

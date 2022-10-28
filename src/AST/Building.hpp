@@ -20,9 +20,16 @@ inline auto symref(std::string name,
 
 
 inline auto assign(std::vector<std::string> names,
+                   std::vector<std::shared_ptr<Expression>> exprs,
+                   std::optional<Location> loc = {}) {
+    return std::make_shared<Assign>(names, exprs, loc);
+}
+
+
+inline auto assign(std::string name,
                    std::shared_ptr<Expression> expr,
                    std::optional<Location> loc = {}) {
-    return std::make_shared<Assign>(names, expr, loc);
+    return assign(std::vector{ name }, std::vector{ expr }, loc);
 }
 
 
@@ -150,7 +157,7 @@ inline auto for_(std::shared_ptr<Expression> start,
 
 inline auto if_(std::shared_ptr<Expression> condition,
                 std::vector<std::shared_ptr<Statement>> bodyTrue,
-                std::vector<std::shared_ptr<Statement>> bodyFalse,
+                std::vector<std::shared_ptr<Statement>> bodyFalse = {},
                 std::optional<Location> loc = {}) {
     return std::make_shared<If>(condition, bodyTrue, bodyFalse);
 };

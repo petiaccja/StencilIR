@@ -23,7 +23,7 @@ static std::shared_ptr<ast::Module> CreateAST() {
     // Kernel logic
     auto field = ast::symref("cellK");
 
-    auto assign_index = ast::assign({ "index" }, ast::index());
+    auto assign_index = ast::assign("index", ast::index());
     auto index = ast::symref("index");
 
     auto neighbour = ast::sample_indirect(index, 0, edgeToCell, ast::symref("elementIdx"));

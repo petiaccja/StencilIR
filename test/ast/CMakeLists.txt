@@ -21,6 +21,9 @@ target_sources(TestAST
         Test_Function.cpp
         Test_Call.cpp
         Test_If.cpp
+        Test_Return.cpp
+        Test_Yield.cpp
+        Test_Assign.cpp
 )
 
 target_link_libraries(TestAST LLVMFileCheck LLVMSupport)

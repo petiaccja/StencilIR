@@ -295,12 +295,18 @@ public:
     }
 
     auto Generate(const ast::Assign& node) const -> GenerationResult {
-        const auto ir = Generate(*node.expr);
-        if (ir.values.size() != node.names.size()) {
+        mlir::SmallVector<mlir::Value, 6> values;
+        for (const auto& expr : node.exprs) {
+            const auto generationResult = Generate(*expr);
+            for (const auto& v : generationResult.values) {
+                values.push_back(v);
+            }
+        }
+        if (values.size() != node.names.size()) {
             throw std::invalid_argument("Assign must have the same number of names as values.");
         }
-        for (size_t i = 0; i < ir.values.size(); ++i) {
-            symbolTable.Assign(node.names[i], ir.values[i]);
+        for (size_t i = 0; i < values.size(); ++i) {
+            symbolTable.Assign(node.names[i], values[i]);
         }
         return {};
     }
@@ -359,7 +365,10 @@ public:
         const auto loc = ConvertLocation(builder, node.location);
         std::vector<mlir::Value> values;
         for (const auto& value : node.values) {
-            values.push_back(Generate(*value));
+            const auto generationResult = Generate(*value);
+            for (const auto& v : generationResult.values) {
+                values.push_back(v);
+            }
         }
 
         mlir::Operation* parentOp = std::any_cast<mlir::Operation*>(symbolTable.Info());
@@ -406,7 +415,10 @@ public:
         }
         mlir::SmallVector<mlir::Value, 8> args;
         for (auto& arg : node.args) {
-            args.push_back(Generate(*arg));
+            const auto generationResult = Generate(*arg);
+            for (const auto& v : generationResult.values) {
+                args.push_back(v);
+            }
         }
         return { builder.create<mlir::func::CallOp>(loc, calleeFuncOp, args) };
     }
@@ -607,7 +619,10 @@ public:
         const auto loc = ConvertLocation(builder, node.location);
         std::vector<mlir::Value> values;
         for (const auto& value : node.values) {
-            values.push_back(Generate(*value));
+            const auto generationResult = Generate(*value);
+            for (const auto& v : generationResult.values) {
+                values.push_back(v);
+            }
         }
 
         auto op = builder.create<mlir::scf::YieldOp>(loc, values);
