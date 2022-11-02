@@ -13,6 +13,8 @@ target_sources(Execution
     PRIVATE
         Execution.cpp
         Execution.hpp
+        DynamicLinking.cpp
+        DynamicLinking.hpp
 )
 
 target_include_directories(Execution INTERFACE ${CMAKE_CURRENT_LIST_DIR}/..)
@@ -36,4 +38,8 @@ target_link_libraries(Execution
     MLIRLLVMToLLVMIRTranslation
     MLIRExecutionEngine
     MLIRExecutionEngineUtils
+)
+
+target_link_libraries(Execution
+    mlir_c_runner_utils
 )

@@ -2,6 +2,7 @@ import os
 import pathlib
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
+import shutil
 
 
 class CMakeExtension(Extension):
@@ -41,16 +42,14 @@ class CMakeBuild(build_ext):
             '-G', 'Ninja',
             '-S', ext.cmake_source_dir,
             '-B', str(build_temp),
-            '-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=' + str(extdir.parent.absolute()),
-            '-DCMAKE_BUILD_TYPE=' + cmake_build_type,
-            "-DMLIR_DIR=/home/petiaccja/Programming/Library/llvm-project-build-debug/lib/cmake/mlir",
-            "-DLLVM_DIR=/home/petiaccja/Programming/Library/llvm-project-build-debug/lib/cmake/llvm"
+            f'-DCMAKE_BUILD_TYPE={cmake_build_type}'
         ]
 
         build_command = [
             'cmake',
             '--build', str(build_temp),
             '--config', cmake_build_type,
+            '--target', "install",
             '--', '-j4'
         ]
 
@@ -58,6 +57,12 @@ class CMakeBuild(build_ext):
         self.spawn(configure_command)
         if not self.dry_run:
             self.spawn(build_command)
+
+        # Copy binaries
+        install_dir = build_temp / "install" / "python"
+        for file in install_dir.glob("*"):
+            shutil.copy(file, extdir.parent.absolute())
+
         # Troubleshooting: if fail on line above then delete all possible 
         # temporary CMake files including "CMakeCache.txt" in top level dir.
         os.chdir(str(cwd))

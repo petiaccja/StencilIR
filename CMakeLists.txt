@@ -74,3 +74,11 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 add_subdirectory(src)
 add_subdirectory(test)
 add_subdirectory(python/src)
+
+# Distribution
+set_target_properties(stencilir PROPERTIES INSTALL_RPATH "$ORIGIN")
+install(
+	TARGETS stencilir
+	RUNTIME_DEPENDENCIES
+	DESTINATION "${CMAKE_BINARY_DIR}/install/python"
+)

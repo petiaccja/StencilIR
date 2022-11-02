@@ -1,5 +1,7 @@
 #include "Execution.hpp"
 
+#include "DynamicLinking.hpp"
+
 #include <llvm/Support/TargetSelect.h>
 #include <mlir/ExecutionEngine/ExecutionEngine.h>
 #include <mlir/ExecutionEngine/OptUtils.h>
@@ -16,11 +18,31 @@ Runner::Runner(mlir::ModuleOp& llvmIr, int optLevel) {
     constexpr auto targetMachine = nullptr;
     auto optPipeline = mlir::makeOptimizingTransformer(optLevel, sizeLevel, targetMachine);
 
+
+    const auto runnerUtilsLibPath = GetModulePath(R"(.*mlir_c_runner_utils.*)");
+    if (!runnerUtilsLibPath) {
+        throw std::runtime_error("Could not find MLIR runner utilities shared library.");
+    }
+    const auto runnerUtilsLibPathStr = runnerUtilsLibPath->string();
+    std::vector<mlir::StringRef> sharedLibPaths = {
+        runnerUtilsLibPathStr
+    };
+
     mlir::ExecutionEngineOptions engineOptions;
     engineOptions.transformer = optPipeline;
+    engineOptions.enableGDBNotificationListener = true;
+    engineOptions.enablePerfNotificationListener = true;
+    engineOptions.sharedLibPaths = sharedLibPaths;
     auto maybeEngine = mlir::ExecutionEngine::create(llvmIr, engineOptions);
+
     if (!maybeEngine) {
-        throw std::runtime_error("failed to construct an execution engine");
+        llvm::Error error = maybeEngine.takeError();
+        std::string str;
+        llvm::raw_string_ostream os(str);
+        llvm::handleAllErrors(std::move(error), [&](const llvm::ErrorInfoBase& error) {
+            error.log(os);
+        });
+        throw std::runtime_error("Failed to construct an execution engine: " + str);
     }
 
     m_engine = std::move(maybeEngine.get());
@@ -39,15 +61,15 @@ Runner::Runner(mlir::ModuleOp& llvmIr, int optLevel) {
     ss << *llvmModule;
 }
 
+
 void Runner::Invoke(std::string_view name, std::span<void*> args) const {
-    // TODO: this shit's gonna be failing until the MLIR execution engine
-    //  and/or all support stuff is --whole-archive linked into the DLL or whatnot.
     llvm::Error error = m_engine->invokePacked(name, { args.data(), args.size() });
     if (error) {
         std::string message;
-        error = llvm::handleErrors(std::move(error), [&](llvm::ErrorInfoBase& err) {
-            message = err.message();
-        });
+        llvm::raw_string_ostream os(message);
+        error = llvm::handleErrors(
+            std::move(error),
+            [&](llvm::ErrorInfoBase& err) { err.log(os); });
         if (error) {
             throw std::runtime_error("Error while handling errors. Seriously, what the fuck is this?");
         }
