@@ -4,6 +4,7 @@
 #include <Dialect/Stencil/Transforms/BufferizableOpInterfaceImpl.hpp>
 
 #include <mlir/Conversion/Passes.h>
+#include <mlir/Dialect/Arithmetic/Transforms/Passes.h>
 #include <mlir/Dialect/Bufferization/Transforms/FuncBufferizableOpInterfaceImpl.h>
 #include <mlir/Dialect/Bufferization/Transforms/OneShotAnalysis.h>
 #include <mlir/Dialect/Bufferization/Transforms/OneShotModuleBufferize.h>
@@ -46,6 +47,7 @@ Stage CreateBufferizationStage(mlir::MLIRContext& context) {
     stage.passes->addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createBufferLoopHoistingPass());
     stage.passes->addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createBufferDeallocationPass());
     stage.passes->addPass(mlir::createCanonicalizerPass());
+    stage.passes->addPass(mlir::createCSEPass());
 
     return stage;
 }
@@ -53,8 +55,8 @@ Stage CreateBufferizationStage(mlir::MLIRContext& context) {
 
 std::vector<Stage> TargetCPUPipeline(mlir::MLIRContext& context) {
     Stage canonicalization{ "canonicalization", context };
-    canonicalization.passes->addPass(mlir::createCanonicalizerPass());
     canonicalization.passes->addPass(mlir::createCSEPass());
+    canonicalization.passes->addPass(mlir::createCanonicalizerPass());
     canonicalization.passes->addPass(mlir::createTopologicalSortPass());
 
     Stage bufferization = CreateBufferizationStage(context);
@@ -65,18 +67,21 @@ std::vector<Stage> TargetCPUPipeline(mlir::MLIRContext& context) {
     Stage standard{ "standard", context };
     standard.passes->addPass(createStencilOpsToStandardPass());
     standard.passes->addPass(createStencilPrintToLLVMPass());
-    standard.passes->addPass(mlir::createCanonicalizerPass());
     standard.passes->addPass(mlir::createCSEPass());
+    standard.passes->addPass(mlir::createCanonicalizerPass());
 
     Stage llvm{ "llvm", context };
     llvm.passes->addPass(mlir::createConvertSCFToCFPass());
     llvm.passes->addPass(mlir::createConvertVectorToLLVMPass());
     llvm.passes->addPass(mlir::createMemRefToLLVMPass());
     llvm.passes->addPass(mlir::createConvertFuncToLLVMPass());
+    llvm.passes->addPass(mlir::arith::createArithmeticExpandOpsPass());
     llvm.passes->addPass(mlir::arith::createConvertArithmeticToLLVMPass());
+    llvm.passes->addPass(mlir::createConvertMathToLLVMPass());
+    llvm.passes->addPass(mlir::createConvertMathToLibmPass());
     llvm.passes->addPass(mlir::cf::createConvertControlFlowToLLVMPass());
-    llvm.passes->addPass(mlir::createCanonicalizerPass());
     llvm.passes->addPass(mlir::createCSEPass());
+    llvm.passes->addPass(mlir::createCanonicalizerPass());
 
     std::array stages{ std::move(canonicalization),
                        std::move(bufferization),

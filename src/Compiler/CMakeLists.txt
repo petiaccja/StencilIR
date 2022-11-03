@@ -59,6 +59,8 @@ target_link_libraries(Compiler
     MLIRAffineToStandard
     MLIRAffineTransforms
     MLIRLinalgToStandard
+    MLIRMathToLibm
+    MLIRMathToLLVM
 
     MLIRGPUToVulkanTransforms
     MLIRGPUTransforms
