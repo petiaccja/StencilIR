@@ -214,6 +214,16 @@ PYBIND11_MODULE(stencilir, m) {
                             eComparisonFunction,
                             std::optional<Location>>());
 
+    pybind11::class_<Min, std::shared_ptr<Min>>(m, "Min", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            std::shared_ptr<Expression>,
+                            std::optional<Location>>());
+
+    pybind11::class_<Max, std::shared_ptr<Max>>(m, "Max", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            std::shared_ptr<Expression>,
+                            std::optional<Location>>());
+
     pybind11::class_<Cast, std::shared_ptr<Cast>>(m, "Cast", expression)
         .def(pybind11::init<std::shared_ptr<Expression>,
                             Type>());

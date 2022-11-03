@@ -378,6 +378,24 @@ struct ComparisonOperator : BinaryOperator {
     eComparisonFunction operation;
 };
 
+struct Min : Expression {
+    Min(std::shared_ptr<Expression> lhs,
+        std::shared_ptr<Expression> rhs,
+        std::optional<Location> loc = {})
+        : Expression(loc), lhs(lhs), rhs(rhs) {}
+    std::shared_ptr<Expression> lhs;
+    std::shared_ptr<Expression> rhs;
+};
+
+struct Max : Expression {
+    Max(std::shared_ptr<Expression> lhs,
+        std::shared_ptr<Expression> rhs,
+        std::optional<Location> loc = {})
+        : Expression(loc), lhs(lhs), rhs(rhs) {}
+    std::shared_ptr<Expression> lhs;
+    std::shared_ptr<Expression> rhs;
+};
+
 struct Cast : Expression {
     Cast(std::shared_ptr<Expression> expr,
          Type type) : expr(expr), type(type) {}

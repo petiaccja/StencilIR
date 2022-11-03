@@ -234,6 +234,8 @@ class StencilIRGenerator : public IRGenerator<ast::Node, GenerationResult, Stenc
                                               ast::Print,
                                               ast::ArithmeticOperator,
                                               ast::ComparisonOperator,
+                                              ast::Min,
+                                              ast::Max,
                                               ast::Constant,
                                               ast::Cast> {
 public:
@@ -752,6 +754,28 @@ public:
                                       : builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::sle, lhs, rhs) };
         }
         throw std::logic_error("Binary op not implemented.");
+    }
+
+    auto Generate(const ast::Min& node) const -> GenerationResult {
+        const auto loc = ConvertLocation(builder, node.location);
+        auto [lhs, rhs] = PromoteToCommonType(builder, loc, Generate(*node.lhs), Generate(*node.rhs));
+        bool isFloat = lhs.getType().isa<mlir::FloatType>();
+        bool isUnsigned = lhs.getType().isUnsignedInteger();
+
+        return { isFloat      ? builder.create<mlir::arith::MinFOp>(loc, lhs, rhs)
+                 : isUnsigned ? builder.create<mlir::arith::MinUIOp>(loc, lhs, rhs)
+                              : builder.create<mlir::arith::MinSIOp>(loc, lhs, rhs) };
+    }
+
+    auto Generate(const ast::Max& node) const -> GenerationResult {
+        const auto loc = ConvertLocation(builder, node.location);
+        auto [lhs, rhs] = PromoteToCommonType(builder, loc, Generate(*node.lhs), Generate(*node.rhs));
+        bool isFloat = lhs.getType().isa<mlir::FloatType>();
+        bool isUnsigned = lhs.getType().isUnsignedInteger();
+
+        return { isFloat      ? builder.create<mlir::arith::MaxFOp>(loc, lhs, rhs)
+                 : isUnsigned ? builder.create<mlir::arith::MaxUIOp>(loc, lhs, rhs)
+                              : builder.create<mlir::arith::MaxSIOp>(loc, lhs, rhs) };
     }
 
     auto Generate(const ast::Cast& node) const -> GenerationResult {
