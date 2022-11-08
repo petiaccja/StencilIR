@@ -31,7 +31,9 @@ PYBIND11_MODULE(stencilir, m) {
     pybind11::class_<Assign, std::shared_ptr<Assign>>(m, "Assign", statement)
         .def(pybind11::init<std::vector<std::string>,
                             std::vector<std::shared_ptr<Expression>>,
-                            std::optional<Location>>());
+                            std::optional<Location>>())
+        .def_readwrite("names", &Assign::names)
+        .def_readwrite("exprs", &Assign::exprs);
 
     pybind11::class_<Pack, std::shared_ptr<Pack>>(m, "Pack", expression)
         .def(pybind11::init<std::vector<std::shared_ptr<Expression>>,
@@ -233,12 +235,17 @@ PYBIND11_MODULE(stencilir, m) {
     //----------------------------------
     pybind11::class_<Parameter>(m, "Parameter")
         .def(pybind11::init<std::string,
-                            Type>());
+                            Type>())
+        .def_readwrite("name", &Parameter::name)
+        .def_readwrite("type", &Parameter::type);
 
     pybind11::class_<Location>(m, "Location")
         .def(pybind11::init<std::string,
                             int,
-                            int>());
+                            int>())
+        .def_readwrite("file", &Location::file)
+        .def_readwrite("line", &Location::line)
+        .def_readwrite("column", &Location::col);
 
     pybind11::enum_<ScalarType>(m, "ScalarType")
         .value("SINT8", ScalarType::SINT8)
@@ -256,7 +263,9 @@ PYBIND11_MODULE(stencilir, m) {
         .export_values();
 
     pybind11::class_<FieldType>(m, "FieldType")
-        .def(pybind11::init<ScalarType, size_t>());
+        .def(pybind11::init<ScalarType, size_t>())
+        .def_readwrite("element_type", &FieldType::elementType)
+        .def_readwrite("num_dimensions", &FieldType::numDimensions);
 
     pybind11::class_<Type> type(m, "Type");
 
