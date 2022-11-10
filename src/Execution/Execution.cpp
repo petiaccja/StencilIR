@@ -33,6 +33,10 @@ Runner::Runner(mlir::ModuleOp& llvmIr, int optLevel) {
     engineOptions.enableGDBNotificationListener = true;
     engineOptions.enablePerfNotificationListener = true;
     engineOptions.sharedLibPaths = sharedLibPaths;
+    engineOptions.jitCodeGenOptLevel = optLevel == 0   ? llvm::CodeGenOpt::None
+                                       : optLevel == 1 ? llvm::CodeGenOpt::Less
+                                       : optLevel == 2 ? llvm::CodeGenOpt::Default
+                                                       : llvm::CodeGenOpt::Aggressive;
     auto maybeEngine = mlir::ExecutionEngine::create(llvmIr, engineOptions);
 
     if (!maybeEngine) {
