@@ -228,7 +228,8 @@ PYBIND11_MODULE(stencilir, m) {
 
     pybind11::class_<Cast, std::shared_ptr<Cast>>(m, "Cast", expression)
         .def(pybind11::init<std::shared_ptr<Expression>,
-                            Type>());
+                            Type,
+                            std::optional<Location>>());
 
     //----------------------------------
     // AST structures

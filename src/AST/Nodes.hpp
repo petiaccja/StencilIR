@@ -398,7 +398,9 @@ struct Max : Expression {
 
 struct Cast : Expression {
     Cast(std::shared_ptr<Expression> expr,
-         Type type) : expr(expr), type(type) {}
+         Type type,
+         std::optional<Location> loc = {})
+        : Expression(loc), expr(expr), type(type) {}
     std::shared_ptr<Expression> expr;
     Type type;
 };

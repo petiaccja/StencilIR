@@ -247,8 +247,8 @@ inline auto max(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs
     return std::make_shared<Max>(lhs, rhs, loc);
 }
 
-inline auto cast(std::shared_ptr<Expression> expr, Type type) {
-    return std::make_shared<Cast>(expr, type);
+inline auto cast(std::shared_ptr<Expression> expr, Type type, std::optional<Location> loc = {}) {
+    return std::make_shared<Cast>(expr, type, loc);
 }
 
 
