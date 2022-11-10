@@ -110,7 +110,7 @@ PYBIND11_MODULE(stencilir, m) {
     pybind11::class_<For, std::shared_ptr<For>>(m, "For", expression)
         .def(pybind11::init<std::shared_ptr<Expression>,
                             std::shared_ptr<Expression>,
-                            int64_t,
+                            std::shared_ptr<Expression>,
                             std::string,
                             std::vector<std::shared_ptr<Statement>>,
                             std::vector<std::shared_ptr<Expression>>,

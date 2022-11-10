@@ -37,7 +37,7 @@ static std::shared_ptr<ast::Module> CreateAST() {
     auto acc = ast::if_(isNeighbourValid, { ast::yield({ accUpdated }) }, { ast::yield({ accSame }) });
     auto sum = ast::for_(ast::constant(ast::index_type, 0),
                          ast::dim(edgeToCell, ast::constant(ast::index_type, 1)),
-                         1,
+                         ast::constant(ast::index_type, 1),
                          "elementIdx",
                          { ast::yield({ acc }) },
                          { ast::constant(0.0f) },

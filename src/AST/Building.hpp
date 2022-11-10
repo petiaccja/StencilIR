@@ -151,7 +151,7 @@ inline auto sample_indirect(std::shared_ptr<Expression> index,
 
 inline auto for_(std::shared_ptr<Expression> start,
                  std::shared_ptr<Expression> end,
-                 int64_t step,
+                 std::shared_ptr<Expression> step,
                  std::string loopVarSymbol,
                  std::vector<std::shared_ptr<Statement>> body,
                  std::vector<std::shared_ptr<Expression>> initArgs,

@@ -227,7 +227,7 @@ struct SampleIndirect : Expression {
 struct For : Expression {
     explicit For(std::shared_ptr<Expression> start,
                  std::shared_ptr<Expression> end,
-                 int64_t step,
+                 std::shared_ptr<Expression> step,
                  std::string loopVarSymbol,
                  std::vector<std::shared_ptr<Statement>> body,
                  std::vector<std::shared_ptr<Expression>> initArgs,
@@ -236,7 +236,7 @@ struct For : Expression {
         : Expression(loc), start(start), end(end), step(step), loopVarSymbol(loopVarSymbol), body(body), initArgs(initArgs), iterArgSymbols(iterArgSymbols) {}
     std::shared_ptr<Expression> start;
     std::shared_ptr<Expression> end;
-    int64_t step;
+    std::shared_ptr<Expression> step;
     std::string loopVarSymbol;
     std::vector<std::shared_ptr<Statement>> body;
     std::vector<std::shared_ptr<Expression>> initArgs;

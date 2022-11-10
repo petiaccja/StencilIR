@@ -540,7 +540,7 @@ public:
 
         const mlir::Value start = Generate(*node.start);
         const mlir::Value end = Generate(*node.end);
-        const mlir::Value step = builder.create<mlir::arith::ConstantIndexOp>(loc, node.step);
+        const mlir::Value step = Generate(*node.step);
         mlir::SmallVector<mlir::Value, 4> initArgs;
         for (auto& v : node.initArgs) {
             initArgs.push_back(Generate(*v));
