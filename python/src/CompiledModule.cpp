@@ -42,8 +42,17 @@ void CompiledModule::Invoke(std::string function, pybind11::args args) {
     }
 
     auto typeIt = functionIt->second.begin();
+    size_t argumentIdx = 0;
     for (const auto& arg : args) {
-        PythonToOpaque(arg, *(typeIt++), compatHeap, opaqueArgs);
+        try {
+            PythonToOpaque(arg, *(typeIt++), compatHeap, opaqueArgs);
+        }
+        catch (std::exception& ex) {
+            std::stringstream msg;
+            msg << "cannot forward argument " << argumentIdx++ << ": "
+                << ex.what();
+            throw std::invalid_argument(msg.str());
+        }
     }
 
     m_runner.Invoke(function, std::span{ opaqueArgs });
@@ -93,6 +102,16 @@ static std::string_view GetPythonFormatString(ast::ScalarType type) {
     });
 }
 
+static bool ComparePythonFormatStrings(std::string lhs, std::string rhs) {
+    if constexpr (sizeof(long) == sizeof(int64_t)) {
+        std::replace(lhs.begin(), lhs.end(), 'q', 'l');
+        std::replace(lhs.begin(), lhs.end(), 'Q', 'l');
+        std::replace(rhs.begin(), rhs.end(), 'q', 'l');
+        std::replace(rhs.begin(), rhs.end(), 'Q', 'l');
+    }
+    return lhs == rhs;
+}
+
 static void PythonToOpaque(pybind11::handle arg,
                            ast::Type type,
                            std::pmr::memory_resource& compatHeap,
@@ -121,11 +140,18 @@ static void PythonToOpaque(pybind11::handle arg,
         else {
             const auto buffer = arg.cast<pybind11::buffer>();
             const auto request = buffer.request(true);
-            if (request.format != GetPythonFormatString(type.elementType)) {
-                throw std::invalid_argument("Buffer argument has different element type than the function expects.");
+            const auto expectedElementType = GetPythonFormatString(type.elementType);
+            if (!ComparePythonFormatStrings(request.format, expectedElementType.data())) {
+                std::stringstream msg;
+                msg << "buffer argument element type \"" << request.format
+                    << "\", expected \"" << expectedElementType.data() << "\"";
+                throw std::invalid_argument(msg.str());
             }
             if (request.shape.size() != type.numDimensions) {
-                throw std::invalid_argument("Buffer argument has different rank than the function expects.");
+                std::stringstream msg;
+                msg << "buffer argument has rank " << request.shape.size()
+                    << "\", expected rank " << type.numDimensions;
+                throw std::invalid_argument(msg.str());
             }
             AppendArg(request.ptr); // ptr
             AppendArg(request.ptr); // aligned ptr
@@ -135,7 +161,7 @@ static void PythonToOpaque(pybind11::handle arg,
             }
             for (auto& stride : request.strides) { // strides
                 if (stride % request.itemsize != 0) {
-                    throw std::invalid_argument("Buffer strides must be multiples of itemsize.");
+                    throw std::invalid_argument("buffer strides must be multiples of itemsize");
                 }
                 AppendArg(size_t(stride / request.itemsize));
             }

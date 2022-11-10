@@ -32,7 +32,9 @@ mlir::ModuleOp Compiler::Run(mlir::ModuleOp module, std::vector<StageResult>& st
                     << out;
     });
 
-    size_t index = 1;
+    size_t index = 0;
+    stageResults.push_back({ std::to_string(index++) + "_input", to_string(module) });
+
     for (const auto& stage : m_stages) {
         const auto passesResult = stage.passes->run(module);
         if (failed(passesResult)) {
