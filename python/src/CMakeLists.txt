@@ -8,4 +8,4 @@ target_sources(stencilir
         CompiledModule.cpp
         CompiledModule.hpp)
 
-target_link_libraries(stencilir PUBLIC AST Compiler Execution)
+target_link_libraries(stencilir PUBLIC AST Compiler Execution Diagnostics)

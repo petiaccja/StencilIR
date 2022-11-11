@@ -26,7 +26,7 @@ target_include_directories(AST PUBLIC ${MLIR_INCLUDE_DIRS})
 target_link_directories(AST PUBLIC ${LLVM_BUILD_LIBRARY_DIR})
 target_compile_definitions(AST PUBLIC ${LLVM_DEFINITIONS})
 
-target_link_libraries(AST StencilDialect)
+target_link_libraries(AST StencilDialect Diagnostics)
 
 target_link_libraries(AST
     MLIRIR

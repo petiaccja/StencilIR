@@ -3,6 +3,7 @@
 #include <pybind11/stl.h>
 
 #include <AST/Nodes.hpp>
+#include <Diagnostics/Exception.hpp>
 
 
 using namespace ast;
@@ -301,4 +302,15 @@ PYBIND11_MODULE(stencilir, m) {
         .def_readonly("ir", &StageResult::ir);
 
     m.def("compile", &Compile, pybind11::arg("ast"), pybind11::arg("options"), pybind11::arg("store_ir") = false);
+
+    //----------------------------------
+    // Error handling
+    //----------------------------------
+    pybind11::exception<Exception> _exception(m, "Exception");
+    pybind11::register_exception<NotImplementedError>(m, "NotImplementedError", _exception);
+    pybind11::register_exception<UndefinedSymbolError>(m, "UndefinedSymbolError", _exception);
+    pybind11::register_exception<ArgumentTypeError>(m, "ArgumentTypeError", _exception);
+    pybind11::register_exception<ArgumentCountError>(m, "ArgumentCountError", _exception);
+    pybind11::exception<DiagnosticError> _diagnosticError(m, "DiagnosticError", _exception);
+    pybind11::register_exception<InternalDiagnosticError>(m, "InternalDiagnosticError", _diagnosticError);
 }

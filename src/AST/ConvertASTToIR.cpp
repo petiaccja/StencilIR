@@ -5,6 +5,9 @@
 #include "SymbolTable.hpp"
 #include "Types.hpp"
 
+#include <Diagnostics/Exception.hpp>
+#include <Diagnostics/Formatting.hpp>
+#include <Diagnostics/Handlers.hpp>
 #include <Dialect/Stencil/IR/StencilOps.hpp>
 
 #include <llvm/ADT/ArrayRef.h>
@@ -34,6 +37,7 @@
 #include <mlir/IR/Types.h>
 #include <mlir/IR/Value.h>
 #include <mlir/IR/ValueRange.h>
+#include <mlir/IR/Verifier.h>
 #include <mlir/Support/LLVM.h>
 
 #include <algorithm>
@@ -66,6 +70,13 @@ static mlir::Location ConvertLocation(mlir::OpBuilder& builder, const std::optio
         return mlir::FileLineColLoc::get(fileattr, location->line, location->col);
     }
     return builder.getUnknownLoc();
+}
+
+static std::string FormatType(mlir::Type type) {
+    std::string s;
+    llvm::raw_string_ostream os{ s };
+    type.print(os);
+    return s;
 }
 
 struct TypeConversionOptions {
@@ -170,13 +181,6 @@ static mlir::Value PromoteValue(mlir::OpBuilder& builder, mlir::Location loc, ml
 static std::pair<mlir::Value, mlir::Value> PromoteToCommonType(mlir::OpBuilder& builder, mlir::Location loc, mlir::Value lhs, mlir::Value rhs) {
     const auto lhsType = lhs.getType();
     const auto rhsType = rhs.getType();
-    std::string str;
-    llvm::raw_string_ostream os(str);
-    os << "The following types don't have a common type: ";
-    lhsType.print(os);
-    os << ", ";
-    rhsType.print(os);
-    os << ".";
     if (lhsType == rhsType) {
         return { lhs, rhs };
     }
@@ -186,9 +190,8 @@ static std::pair<mlir::Value, mlir::Value> PromoteToCommonType(mlir::OpBuilder& 
     if (auto promotedRhs = PromoteValue(builder, loc, rhs, lhsType)) {
         return { lhs, promotedRhs };
     }
-    throw std::logic_error(std::move(str));
+    throw OperandTypeError(loc, { FormatType(lhsType), FormatType(rhsType) });
 }
-
 
 
 //------------------------------------------------------------------------------
@@ -198,12 +201,13 @@ static std::pair<mlir::Value, mlir::Value> PromoteToCommonType(mlir::OpBuilder& 
 struct GenerationResult {
     GenerationResult() = default;
     GenerationResult(mlir::Operation* op) : op(op), values{ op->getResults() } {}
-    GenerationResult(mlir::SmallVector<mlir::Value> values) : values(values) {}
+    GenerationResult(mlir::SmallVector<mlir::Value> values) : values(values) { assert(!values.empty()); }
     operator mlir::Value() const {
         if (values.size() == 1) {
             return values.front();
         }
-        throw std::logic_error("Result has multiple values when 1 value was requested");
+        mlir::Location location = op ? op->getLoc() : mlir::UnknownLoc::get(values.front().getContext());
+        throw ArgumentCountError(location, 1, int(values.size()));
     }
     mlir::Operation* op = nullptr;
     mlir::SmallVector<mlir::Value> values;
@@ -292,7 +296,7 @@ public:
     auto Generate(const ast::SymbolRef& node) const -> GenerationResult {
         const auto value = symbolTable.Lookup(node.name);
         if (!value) {
-            throw std::invalid_argument("Undefined symbol: " + node.name);
+            throw UndefinedSymbolError{ ConvertLocation(builder, node.location), node.name };
         }
         return { { *value } };
     }
@@ -306,7 +310,7 @@ public:
             }
         }
         if (values.size() != node.names.size()) {
-            throw std::invalid_argument("Assign must have the same number of names as values.");
+            throw ArgumentCountError{ ConvertLocation(builder, node.location), int(node.names.size()), int(values.size()) };
         }
         for (size_t i = 0; i < values.size(); ++i) {
             symbolTable.Assign(node.names[i], values[i]);
@@ -391,11 +395,10 @@ public:
             auto op = builder.create<mlir::func::ReturnOp>(loc, values);
             return { op };
         }
-        else if (mlir::isa<stencil::StencilOp>(parentOp)) {
+        else {
             auto op = builder.create<stencil::ReturnOp>(loc, values);
             return { op };
         }
-        throw std::invalid_argument("ReturnOp must have either FuncOp or StencilOp as parent.");
     }
 
     //--------------------------------------------------------------------------
@@ -425,7 +428,7 @@ public:
         const auto calleeOp = mlir::SymbolTable::lookupNearestSymbolFrom(parentOp, calleeAttr);
         const auto calleeFuncOp = mlir::dyn_cast<mlir::func::FuncOp>(calleeOp);
         if (!calleeFuncOp) {
-            throw std::invalid_argument("Function not found: " + node.callee);
+            throw UndefinedSymbolError{ loc, node.callee };
         }
         mlir::SmallVector<mlir::Value, 8> args;
         for (auto& arg : node.args) {
@@ -466,7 +469,10 @@ public:
             currentStencil = mlir::dyn_cast<stencil::StencilOp>(op);
         }
         if (!currentStencil) {
-            throw std::invalid_argument("IndexOp can only be used inside StencilOps");
+            auto msg = FormatDiagnostic(FormatLocation(loc),
+                                        FormatSeverity(mlir::DiagnosticSeverity::Error),
+                                        "index op can only be used within stencils");
+            throw Exception(std::move(msg));
         }
         const int64_t numDims = currentStencil.getNumDimensions().getSExtValue();
         const auto indexType = mlir::VectorType::get({ numDims }, builder.getIndexType());
@@ -490,7 +496,7 @@ public:
 
         auto fieldType = field.getType();
         if (!fieldType.isa<mlir::ShapedType>()) {
-            throw std::invalid_argument("SampleOp must be used to sample fields.");
+            throw ArgumentTypeError{ loc, FormatType(fieldType), 0 };
         }
         auto elementType = fieldType.dyn_cast<mlir::ShapedType>().getElementType();
 
@@ -519,7 +525,7 @@ public:
 
         auto fieldType = field.getType();
         if (!fieldType.isa<mlir::ShapedType>()) {
-            throw std::invalid_argument("SampleIndirectOp must be used to sample fields.");
+            throw ArgumentTypeError{ loc, FormatType(fieldType), 0 };
         }
         auto elementType = fieldType.dyn_cast<mlir::ShapedType>().getElementType();
 
@@ -533,10 +539,6 @@ public:
 
     auto Generate(const ast::For& node) const -> GenerationResult {
         const auto loc = ConvertLocation(builder, node.location);
-
-        if (node.initArgs.size() != node.iterArgSymbols.size()) {
-            throw std::invalid_argument("for loop must have the same number of init args as iter args");
-        }
 
         const mlir::Value start = Generate(*node.start);
         const mlir::Value end = Generate(*node.end);
@@ -673,7 +675,7 @@ public:
             if constexpr (std::is_floating_point_v<T>) {
                 return builder.create<mlir::arith::ConstantFloatOp>(loc, mlir::APFloat(value), type.dyn_cast<mlir::FloatType>());
             }
-            throw std::invalid_argument("Invalid type.");
+            throw ArgumentTypeError{ loc, FormatType(type), 0 };
         });
         return { op };
     }
@@ -721,7 +723,7 @@ public:
                 return { isUnsigned ? builder.create<mlir::arith::ShRUIOp>(loc, lhs, rhs)
                                     : builder.create<mlir::arith::ShRSIOp>(loc, lhs, rhs) };
         }
-        throw std::logic_error("Binary op not implemented.");
+        throw NotImplementedError("switch does not cover operator");
     }
 
     auto Generate(const ast::ComparisonOperator& node) const -> GenerationResult {
@@ -753,7 +755,7 @@ public:
                          : isUnsigned ? builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::ule, lhs, rhs)
                                       : builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::sle, lhs, rhs) };
         }
-        throw std::logic_error("Binary op not implemented.");
+        throw NotImplementedError("switch does not cover operator");
     }
 
     auto Generate(const ast::Min& node) const -> GenerationResult {
@@ -923,8 +925,11 @@ mlir::ModuleOp ConvertASTToIR(mlir::MLIRContext& context, const ast::Module& nod
 
     auto ir = generator.Generate(node);
     auto module = mlir::dyn_cast<mlir::ModuleOp>(ir.op);
-    if (failed(module.verify())) {
-        throw std::logic_error("MLIR module is not correct.");
+
+    ScopedDiagnosticCollector diagnostics{ context };
+    mlir::LogicalResult verificationResult = mlir::verify(module);
+    if (failed(verificationResult)) {
+        throw DiagnosticError(diagnostics.TakeDiagnostics());
     }
     return module;
 }

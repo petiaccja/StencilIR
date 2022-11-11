@@ -26,7 +26,7 @@ target_include_directories(Conversion PUBLIC ${MLIR_INCLUDE_DIRS})
 target_link_directories(Conversion PUBLIC ${LLVM_BUILD_LIBRARY_DIR})
 target_compile_definitions(Conversion PUBLIC ${LLVM_DEFINITIONS})
 
-target_link_libraries(Conversion StencilDialect AST)
+target_link_libraries(Conversion StencilDialect AST Diagnostics)
 
 target_link_libraries(Conversion
     MLIRAnalysis
