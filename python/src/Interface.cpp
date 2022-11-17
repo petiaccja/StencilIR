@@ -128,6 +128,10 @@ PYBIND11_MODULE(stencilir, m) {
         .def(pybind11::init<std::vector<std::shared_ptr<Expression>>,
                             std::optional<Location>>());
 
+    pybind11::class_<Block, std::shared_ptr<Block>>(m, "Block", expression)
+        .def(pybind11::init<std::vector<std::shared_ptr<Statement>>,
+                            std::optional<Location>>());
+
     // Tensors
     pybind11::class_<AllocTensor, std::shared_ptr<AllocTensor>>(m, "AllocTensor", expression)
         .def(pybind11::init<ScalarType,
