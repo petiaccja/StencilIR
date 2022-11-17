@@ -574,47 +574,34 @@ public:
 
         const mlir::Value condition = Generate(*node.condition);
 
-        // Create an IfOp without results.
-        auto deductionOp = builder.create<mlir::scf::IfOp>(loc, condition, false);
+        auto insertionBlock = builder.getInsertionBlock();
+        auto insertionPoint = builder.getInsertionPoint();
 
-        // Fill in the IfOp's then block to deduce the yielded result types.
-        auto& deductionBlock = *deductionOp.thenBlock();
-        deductionBlock.clear();
+        // Create a block to infer result types.
+        auto currentRegion = builder.getInsertionBlock()->getParent();
+        auto& block = *builder.createBlock(currentRegion, currentRegion->end());
         symbolTable.RunInScope([&] {
-            InsertInBlock(deductionBlock, [&] {
+            InsertInBlock(block, [&] {
                 for (const auto& statement : node.thenBody) {
-                    // We only need to generate Assign and Yield ops.
-                    // All the rest can't provide an argument to Yield.
-                    const ast::Statement& stmt = *statement;
-                    if (typeid(stmt) == typeid(ast::Assign)
-                        || typeid(stmt) == typeid(ast::Yield)) {
-                        Generate(*statement);
-                    }
+                    Generate(*statement);
                 }
             });
         });
-
-        // Extract result types from deduction op.
         mlir::SmallVector<mlir::Type, 4> resultTypes;
-        if (!deductionOp.thenBlock()->empty()) {
-            const auto resultTypesView = deductionOp.thenYield()->getOperandTypes();
+        if (!block.empty()) {
+            const auto resultTypesView = block.getTerminator()->getOperandTypes();
             resultTypes = { resultTypesView.begin(), resultTypesView.end() };
         }
-        deductionOp->erase();
+
+        builder.setInsertionPoint(insertionBlock, insertionPoint);
 
         // Create the actual IfOp with result types and both blocks.
         const bool hasElseBlock = !node.elseBody.empty();
         auto op = builder.create<mlir::scf::IfOp>(loc, resultTypes, condition, hasElseBlock);
 
         auto& thenBlock = *op.thenBlock();
-        thenBlock.clear();
-        symbolTable.RunInScope([&] {
-            InsertInBlock(thenBlock, [&] {
-                for (const auto& statement : node.thenBody) {
-                    Generate(*statement);
-                }
-            });
-        });
+        block.moveBefore(&thenBlock);
+        thenBlock.erase();
 
         if (hasElseBlock) {
             auto& elseBlock = *op.elseBlock();
@@ -648,7 +635,7 @@ public:
 
     auto Generate(const ast::Block& node) const -> GenerationResult {
         const auto loc = ConvertLocation(builder, node.location);
-        
+
         auto insertionBlock = builder.getInsertionBlock();
         auto insertionPoint = builder.getInsertionPoint();
 
@@ -666,7 +653,7 @@ public:
             const auto resultTypesView = block.getTerminator()->getOperandTypes();
             resultTypes = { resultTypesView.begin(), resultTypesView.end() };
         }
-        
+
         builder.setInsertionPoint(insertionBlock, insertionPoint);
 
         auto op = builder.create<mlir::scf::ExecuteRegionOp>(loc, resultTypes);
