@@ -261,6 +261,12 @@ struct Yield : Statement {
     std::vector<std::shared_ptr<Expression>> values;
 };
 
+struct Block : Expression {
+    explicit Block(std::vector<std::shared_ptr<Statement>> body,
+                   std::optional<Location> loc = {})
+        : Expression(loc), body(body) {}
+    std::vector<std::shared_ptr<Statement>> body;
+};
 
 //------------------------------------------------------------------------------
 // Tensors

@@ -26,6 +26,7 @@ target_sources(TestAST
         Test_Assign.cpp
         Test_Pack.cpp
         Test_ArithmeticLogic.cpp
+        Test_Block.cpp
 )
 
 target_link_libraries(TestAST LLVMFileCheck LLVMSupport)

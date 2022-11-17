@@ -175,6 +175,12 @@ inline auto yield(std::vector<std::shared_ptr<Expression>> values = {},
 }
 
 
+inline auto block(std::vector<std::shared_ptr<Statement>> body,
+                  std::optional<Location> loc = {}) {
+    return std::make_shared<Block>(body, loc);
+}
+
+
 //------------------------------------------------------------------------------
 // Arithmetic-logic
 //------------------------------------------------------------------------------

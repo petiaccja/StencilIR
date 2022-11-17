@@ -230,6 +230,7 @@ class StencilIRGenerator : public IRGenerator<ast::Node, GenerationResult, Stenc
                                               ast::For,
                                               ast::If,
                                               ast::Yield,
+                                              ast::Block,
                                               ast::SampleIndirect,
                                               ast::AllocTensor,
                                               ast::Dim,
@@ -645,6 +646,36 @@ public:
         return { op };
     }
 
+    auto Generate(const ast::Block& node) const -> GenerationResult {
+        const auto loc = ConvertLocation(builder, node.location);
+        
+        auto insertionBlock = builder.getInsertionBlock();
+        auto insertionPoint = builder.getInsertionPoint();
+
+        auto currentRegion = builder.getInsertionBlock()->getParent();
+        auto& block = *builder.createBlock(currentRegion, currentRegion->end());
+        symbolTable.RunInScope([&] {
+            InsertInBlock(block, [&] {
+                for (const auto& statement : node.body) {
+                    Generate(*statement);
+                }
+            });
+        });
+        mlir::SmallVector<mlir::Type, 4> resultTypes;
+        if (!block.empty()) {
+            const auto resultTypesView = block.getTerminator()->getOperandTypes();
+            resultTypes = { resultTypesView.begin(), resultTypesView.end() };
+        }
+        
+        builder.setInsertionPoint(insertionBlock, insertionPoint);
+
+        auto op = builder.create<mlir::scf::ExecuteRegionOp>(loc, resultTypes);
+        auto& sentinelBlock = op.getRegion().emplaceBlock();
+        block.moveBefore(&sentinelBlock);
+        sentinelBlock.erase();
+        return { op };
+    }
+
     //--------------------------------------------------------------------------
     // Arithmetic and misc
     //--------------------------------------------------------------------------
@@ -929,6 +960,7 @@ mlir::ModuleOp ConvertASTToIR(mlir::MLIRContext& context, const ast::Module& nod
     ScopedDiagnosticCollector diagnostics{ context };
     mlir::LogicalResult verificationResult = mlir::verify(module);
     if (failed(verificationResult)) {
+        module->dump();
         throw DiagnosticError(diagnostics.TakeDiagnostics());
     }
     return module;
