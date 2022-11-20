@@ -241,6 +241,31 @@ void ApplyOp::getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffec
     for (const auto& output : getOutputs()) {
         effects.emplace_back(MemoryEffects::Write::get(), output, SideEffects::DefaultResource::get());
     }
+    auto stencilAttr = (*this)->getAttrOfType<FlatSymbolRefAttr>("callee");
+    auto callee = SymbolTable::lookupNearestSymbolFrom(*this, stencilAttr.getAttr());
+    if (auto stencil = mlir::dyn_cast<StencilOp>(callee)) {
+        auto& body = stencil.getRegion();
+        bool hasReadEffects = false;
+        bool hasWriteEffects = false;
+        body.walk([&](Operation* nestedOp) {
+                if (auto effectInterface = mlir::dyn_cast<MemoryEffectOpInterface>(nestedOp)) {
+                    hasReadEffects = hasReadEffects || effectInterface.hasEffect<MemoryEffects::Read>();
+                    hasWriteEffects = hasWriteEffects || effectInterface.hasEffect<MemoryEffects::Write>();
+                    hasWriteEffects = hasWriteEffects || nestedOp->hasTrait<::mlir::OpTrait::HasRecursiveSideEffects>();
+                }
+                else {
+                    hasWriteEffects = true;
+                }
+                return !hasWriteEffects ? WalkResult::advance() : WalkResult::interrupt();
+            })
+            .wasInterrupted();
+        if (hasReadEffects) {
+            effects.emplace_back(MemoryEffects::Read::get());
+        }
+        if (hasWriteEffects) {
+            effects.emplace_back(MemoryEffects::Write::get());
+        }
+    }
 }
 
 
