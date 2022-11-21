@@ -39,7 +39,7 @@ mlir::ModuleOp Compiler::Run(mlir::ModuleOp module, std::vector<StageResult>& st
             stageNote << "ICE occured in stage \"" << stage.name << "\"";
             auto diagList = diagnostics.TakeDiagnostics();
             diagList.push_back(std::move(stageNote));
-            throw InternalDiagnosticError(std::move(diagList));
+            throw CompilationError(diagList, module);
         }
         if (printStageResults) {
             stageResults.push_back({ std::to_string(index) + "_" + stage.name, to_string(module) });

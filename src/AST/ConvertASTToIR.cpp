@@ -948,7 +948,7 @@ mlir::ModuleOp ConvertASTToIR(mlir::MLIRContext& context, const ast::Module& nod
     mlir::LogicalResult verificationResult = mlir::verify(module);
     if (failed(verificationResult)) {
         module->dump();
-        throw DiagnosticError(diagnostics.TakeDiagnostics());
+        throw CompilationError(diagnostics.TakeDiagnostics(), module);
     }
     return module;
 }

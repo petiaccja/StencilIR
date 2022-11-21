@@ -310,11 +310,26 @@ PYBIND11_MODULE(stencilir, m) {
     //----------------------------------
     // Error handling
     //----------------------------------
-    pybind11::exception<Exception> _exception(m, "Exception");
-    pybind11::register_exception<NotImplementedError>(m, "NotImplementedError", _exception);
-    pybind11::register_exception<UndefinedSymbolError>(m, "UndefinedSymbolError", _exception);
-    pybind11::register_exception<ArgumentTypeError>(m, "ArgumentTypeError", _exception);
-    pybind11::register_exception<ArgumentCountError>(m, "ArgumentCountError", _exception);
-    pybind11::exception<DiagnosticError> _diagnosticError(m, "DiagnosticError", _exception);
-    pybind11::register_exception<InternalDiagnosticError>(m, "InternalDiagnosticError", _diagnosticError);
+    static pybind11::exception<Exception> exception(m, "Exception");
+    static pybind11::exception<SyntaxError> syntaxError(m, "SyntaxError", exception);
+    pybind11::register_exception<NotImplementedError>(m, "NotImplementedError", syntaxError);
+    pybind11::register_exception<UndefinedSymbolError>(m, "UndefinedSymbolError", syntaxError);
+    pybind11::register_exception<ArgumentTypeError>(m, "ArgumentTypeError", syntaxError);
+    pybind11::register_exception<ArgumentCountError>(m, "ArgumentCountError", syntaxError);
+    static pybind11::exception<CompilationError> compilationError(m, "CompilationError", syntaxError);
+    pybind11::register_exception_translator([](std::exception_ptr p) {
+        try {
+            if (p) std::rethrow_exception(p);
+        }
+        catch (const CompilationError& ex) {
+            std::stringstream ss;
+            ss << ex.GetMessage();
+            if (!ex.GetModule().empty()) {
+                ss << std::endl
+                   << "Module:"
+                   << ex.GetModule();
+            }
+            compilationError(ss.str().c_str());
+        }
+    });
 }

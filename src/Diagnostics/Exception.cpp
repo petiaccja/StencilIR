@@ -5,18 +5,33 @@
 #include <sstream>
 
 
+static std::string FormatDiagVector(const std::vector<mlir::Diagnostic>& diagnostics) {
+    std::stringstream ss;
+    for (const auto& diag : diagnostics) {
+        ss << FormatDiagnostic(diag) << std::endl;
+    }
+    return ss.str();
+}
+
+CompilationError::CompilationError(const std::vector<mlir::Diagnostic>& diagnostics, mlir::ModuleOp module)
+    : SyntaxError(FormatDiagVector(diagnostics)),
+      m_module(FormatModule(module)) {}
+
+
+CompilationError::CompilationError(const std::vector<mlir::Diagnostic>& diagnostics)
+    : SyntaxError(FormatDiagVector(diagnostics)), m_module({}) {}
+
+
 UndefinedSymbolError::UndefinedSymbolError(mlir::Location location, std::string symbol)
-    : Exception([&]() {
+    : SyntaxError([&]() {
           return FormatDiagnostic(FormatLocation(location),
                                   FormatSeverity(mlir::DiagnosticSeverity::Error),
                                   "undefined symbol: " + symbol);
-      }()),
-      m_location(std::move(location)),
-      m_symbol(std::move(symbol)) {}
+      }()) {}
 
 
 OperandTypeError::OperandTypeError(mlir::Location location, std::vector<std::string> types)
-    : Exception([&]() {
+    : SyntaxError([&]() {
           std::stringstream message;
           message << "operand types incompatible: ";
           for (const auto& type : types) {
@@ -28,40 +43,24 @@ OperandTypeError::OperandTypeError(mlir::Location location, std::vector<std::str
           return FormatDiagnostic(FormatLocation(location),
                                   FormatSeverity(mlir::DiagnosticSeverity::Error),
                                   message.str());
-      }()),
-      m_types(std::move(types)) {}
+      }()) {}
 
 
 ArgumentTypeError::ArgumentTypeError(mlir::Location location, std::string type, int argumentIndex)
-    : Exception([&]() {
+    : SyntaxError([&]() {
           std::stringstream message;
           message << "argument " << argumentIndex << " has incompatible type: " << type;
           return FormatDiagnostic(FormatLocation(location),
                                   FormatSeverity(mlir::DiagnosticSeverity::Error),
                                   message.str());
-      }()),
-      m_type(std::move(type)),
-      m_argumentIndex(argumentIndex) {}
+      }()) {}
 
 
 ArgumentCountError::ArgumentCountError(mlir::Location location, int expected, int provided)
-    : Exception([&]() {
+    : SyntaxError([&]() {
           std::stringstream message;
           message << "expected " << expected << " arguments but " << provided << " was provided";
           return FormatDiagnostic(FormatLocation(location),
                                   FormatSeverity(mlir::DiagnosticSeverity::Error),
                                   message.str());
-      }()),
-      m_expected(expected),
-      m_provided(provided) {}
-
-
-DiagnosticError::DiagnosticError(std::vector<mlir::Diagnostic> diagnostics)
-    : Exception([](auto& diags) {
-          std::stringstream ss;
-          for (auto& diag : diags) {
-              ss << FormatDiagnostic(diag) << std::endl;
-          }
-          return ss.str();
-      }(diagnostics)),
-      m_diagnostics(std::move(diagnostics)) {}
+      }()) {}

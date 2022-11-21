@@ -62,7 +62,7 @@ std::string FormatDiagnostic(std::optional<std::string> location,
 }
 
 
-std::string FormatDiagnostic(mlir::Diagnostic& diag) {
+std::string FormatDiagnostic(const mlir::Diagnostic& diag) {
     const auto severity = FormatSeverity(diag.getSeverity());
     const auto location = FormatLocation(diag.getLocation());
     const auto message = diag.str();
@@ -74,4 +74,12 @@ std::string FormatDiagnostic(mlir::Diagnostic& diag) {
         ss << std::endl << IndentText(note, 4);
     }
     return ss.str();
+}
+
+
+std::string FormatModule(mlir::ModuleOp& module) {
+    std::string s;
+    llvm::raw_string_ostream ss(s);
+    module.print(ss);
+    return s;
 }
