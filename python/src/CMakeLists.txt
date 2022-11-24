@@ -6,6 +6,8 @@ target_sources(stencilir
     PRIVATE
         Interface.cpp
         CompiledModule.cpp
-        CompiledModule.hpp)
+        CompiledModule.hpp
+        Invoke.cpp
+        Invoke.hpp)
 
 target_link_libraries(stencilir PUBLIC AST Compiler Execution Diagnostics)

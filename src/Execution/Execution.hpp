@@ -29,7 +29,11 @@ public:
     template <class... Args>
     void Invoke(std::string_view name, Args&&... args) const
         requires((... && !std::ranges::range<Args>));
+
     void Invoke(std::string_view name, std::span<void*> args) const;
+
+    llvm::LLVMContext& GetContext() const;
+    const llvm::DataLayout& GetDataLayout() const;
 
     template <class Arg>
     static auto MakeCompatibleArgument(const Arg& arg) {
@@ -41,7 +45,7 @@ public:
         return OpaqueArgs(arg);
     }
 
-    std::string_view LLVMIR() const { return m_llvmIrDump; }
+    std::string_view LLVMIR() const { return m_printedLLVMIR; }
 
 private:
     static auto ConvertArg(const std::floating_point auto& arg) {
@@ -90,7 +94,9 @@ private:
 
 private:
     std::unique_ptr<mlir::ExecutionEngine> m_engine;
-    std::string m_llvmIrDump;
+    std::unique_ptr<llvm::LLVMContext> m_layoutContext;
+    std::unique_ptr<llvm::Module> m_layoutModule;
+    std::string m_printedLLVMIR;
 };
 
 

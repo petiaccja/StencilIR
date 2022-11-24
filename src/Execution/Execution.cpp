@@ -51,18 +51,27 @@ Runner::Runner(mlir::ModuleOp& llvmIr, int optLevel) {
 
     m_engine = std::move(maybeEngine.get());
 
-    // translate to LLVM IR for testing
-    llvm::LLVMContext llvmContext;
-    auto llvmModule = mlir::translateModuleToLLVMIR(llvmIr, llvmContext);
+    // Translate to LLVM module for additional work.
+    auto llvmContext = std::make_unique<llvm::LLVMContext>();
+    if (!llvmContext) {
+        throw std::runtime_error("failed to create LLVM context");
+    }
+    auto llvmModule = mlir::translateModuleToLLVMIR(llvmIr, *llvmContext);
     if (!llvmModule) {
         throw std::runtime_error("failed to generate LLVM IR");
     }
     mlir::ExecutionEngine::setupTargetTriple(llvmModule.get());
+
     if (auto err = optPipeline(llvmModule.get())) {
         throw std::runtime_error("failed to optimize LLVM IR");
     }
-    llvm::raw_string_ostream ss{ m_llvmIrDump };
+    std::string printedLLVMIR;
+    llvm::raw_string_ostream ss{ printedLLVMIR };
     ss << *llvmModule;
+
+    m_layoutContext = std::move(llvmContext);
+    m_layoutModule = std::move(llvmModule);
+    m_printedLLVMIR = std::move(printedLLVMIR);
 }
 
 
@@ -79,4 +88,12 @@ void Runner::Invoke(std::string_view name, std::span<void*> args) const {
         }
         throw std::runtime_error("Invoking JIT-ed function failed: " + message);
     }
+}
+
+llvm::LLVMContext& Runner::GetContext() const {
+    return m_layoutModule->getContext();
+}
+
+const llvm::DataLayout& Runner::GetDataLayout() const {
+    return m_layoutModule->getDataLayout();
 }
