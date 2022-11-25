@@ -1,6 +1,7 @@
 #include "Pipelines.hpp"
 
 #include <Conversion/Passes.hpp>
+#include <Dialect/BufferizationExtensions/Transforms/OneShotBufferizeCombined.hpp>
 #include <Dialect/Stencil/Transforms/BufferizableOpInterfaceImpl.hpp>
 
 #include <mlir/Conversion/Passes.h>
@@ -28,18 +29,9 @@ Stage CreateBufferizationStage(mlir::MLIRContext& context) {
     bufferizationOptions.createDeallocs = false;
     bufferizationOptions.defaultMemorySpace = 0;
     bufferizationOptions.functionBoundaryTypeConversion = mlir::bufferization::BufferizationOptions::LayoutMapOption::FullyDynamicLayoutMap;
+    bufferizationOptions.bufferizeFunctionBoundaries = true;
 
-    mlir::bufferization::OneShotBufferizationOptions funcBufferizationOptions = bufferizationOptions;
-    funcBufferizationOptions.bufferizeFunctionBoundaries = true;
-    funcBufferizationOptions.opFilter.allowOperation([](mlir::Operation* op) -> bool {
-        return mlir::isa<mlir::func::FuncOp>(op) || op->getParentOfType<mlir::func::FuncOp>();
-    });
-
-    mlir::bufferization::OneShotBufferizationOptions indepBufferizationOptions = bufferizationOptions;
-    indepBufferizationOptions.opFilter.denyOperation<mlir::func::FuncOp>();
-
-    stage.passes->addPass(mlir::bufferization::createOneShotBufferizePass(funcBufferizationOptions));
-    stage.passes->addPass(mlir::bufferization::createOneShotBufferizePass(indepBufferizationOptions));
+    stage.passes->addPass(createOneShotBufferizeCombinedPass(bufferizationOptions));
     stage.passes->addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createBufferizationBufferizePass());
     stage.passes->addNestedPass<mlir::func::FuncOp>(mlir::createTensorBufferizePass());
     stage.passes->addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createFinalizingBufferizePass());
