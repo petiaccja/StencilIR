@@ -5,6 +5,7 @@
 #include <mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h>
 #include <mlir/Dialect/Bufferization/IR/Bufferization.h>
 #include <mlir/Dialect/Bufferization/Transforms/OneShotAnalysis.h>
+#include <mlir/Dialect/MemRef/IR/MemRef.h>
 
 #include <algorithm>
 #include <iostream>
@@ -18,15 +19,23 @@ namespace stencil {
 
 FailureOr<std::vector<Value>> BufferizeValueRange(RewriterBase& rewriter,
                                                   ValueRange maybeTensors,
-                                                  const BufferizationOptions& options) {
+                                                  const BufferizationOptions& options,
+                                                  bool fullyDynamic) {
     std::vector<Value> maybeMemrefs;
     for (auto value : maybeTensors) {
-        if (value.getType().isa<TensorType>()) {
+        if (auto tensorType = value.getType().dyn_cast<TensorType>()) {
             FailureOr<Value> memref = getBuffer(rewriter, value, options);
             if (failed(memref)) {
                 return failure();
             }
-            maybeMemrefs.push_back(*memref);
+            if (fullyDynamic) {
+                auto dynamicMemRefType = getMemRefTypeWithFullyDynamicLayout(tensorType);
+                auto dynamicMemRef = rewriter.create<mlir::memref::CastOp>(value.getLoc(), dynamicMemRefType, *memref);
+                maybeMemrefs.push_back(dynamicMemRef);
+            }
+            else {
+                maybeMemrefs.push_back(*memref);
+            }
         }
         else {
             maybeMemrefs.push_back(value);
@@ -67,7 +76,7 @@ struct TrivialOpInterface
     LogicalResult bufferize(Operation* op,
                             RewriterBase& rewriter,
                             const BufferizationOptions& options) const {
-        const auto& memrefOperandsOrFailure = BufferizeValueRange(rewriter, op->getOperands(), options);
+        const auto& memrefOperandsOrFailure = BufferizeValueRange(rewriter, op->getOperands(), options, false);
         if (failed(memrefOperandsOrFailure)) {
             return memrefOperandsOrFailure;
         }
@@ -139,13 +148,13 @@ struct ApplyOpInterface : public BufferizableOpInterface::ExternalModel<ApplyOpI
                             const BufferizationOptions& options) const {
         auto applyOp = mlir::dyn_cast<ApplyOp>(op);
 
-        const auto& inputMemrefsOrFailure = BufferizeValueRange(rewriter, applyOp.getInputs(), options);
+        const auto& inputMemrefsOrFailure = BufferizeValueRange(rewriter, applyOp.getInputs(), options, true);
         if (failed(inputMemrefsOrFailure)) {
             return inputMemrefsOrFailure;
         }
         const auto& inputMemrefs = *inputMemrefsOrFailure;
 
-        const auto& outputMemrefsOrFailure = BufferizeValueRange(rewriter, applyOp.getOutputs(), options);
+        const auto& outputMemrefsOrFailure = BufferizeValueRange(rewriter, applyOp.getOutputs(), options, true);
         if (failed(outputMemrefsOrFailure)) {
             return outputMemrefsOrFailure;
         }

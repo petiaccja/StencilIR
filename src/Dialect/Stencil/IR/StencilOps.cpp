@@ -87,9 +87,9 @@ LogicalResult ApplyOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
     for (unsigned i = 0, e = fnType.getNumInputs(); i != e; ++i) {
         mlir::Type inputType = getInputs()[i].getType();
         mlir::Type calleeInputType = fnType.getInput(i);
-        if (inputType != calleeInputType && !(inputType.isa<ShapedType>() && calleeInputType.isa<ShapedType>())) {
+        if (inputType != calleeInputType) {
             return emitOpError("operand type mismatch: expected operand type ")
-                   << inputType << ", but provided "
+                   << inputType << ", but callee's operand type is "
                    << calleeInputType << " for operand number " << i;
         }
     }
