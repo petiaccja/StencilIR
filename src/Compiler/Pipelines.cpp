@@ -55,9 +55,10 @@ std::vector<Stage> TargetCPUPipeline(mlir::MLIRContext& context) {
 
     Stage loops{ "loops", context };
     loops.passes->addPass(createStencilApplyToLoopsPass());
+    loops.passes->addPass(createStencilToFuncPass());
 
     Stage standard{ "standard", context };
-    standard.passes->addPass(createStencilOpsToStandardPass());
+    standard.passes->addPass(createStencilToStandardPass());
     standard.passes->addPass(createStencilPrintToLLVMPass());
     standard.passes->addPass(mlir::createCSEPass());
     standard.passes->addPass(mlir::createCanonicalizerPass());

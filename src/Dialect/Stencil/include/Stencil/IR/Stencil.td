@@ -130,7 +130,7 @@ def ApplyOp : Stencil_Op<"apply", [
 }
 
 
-def InvokeStencilOp : Stencil_Op<"invoke_stencil", [
+def InvokeOp : Stencil_Op<"invoke", [
   MemRefsNormalizable, AttrSizedOperandSegments,
   DeclareOpInterfaceMethods<SymbolUserOpInterface>
 ]> {

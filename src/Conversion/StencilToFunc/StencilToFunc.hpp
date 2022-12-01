@@ -5,7 +5,7 @@
 #include <mlir/Pass/Pass.h>
 
 
-class StencilOpsToStandardPass : public mlir::PassWrapper<StencilOpsToStandardPass, mlir::OperationPass<mlir::ModuleOp>> {
+class StencilToFuncPass : public mlir::PassWrapper<StencilToFuncPass, mlir::OperationPass<mlir::ModuleOp>> {
 public:
     void getDependentDialects(mlir::DialectRegistry& registry) const override;
     void runOnOperation() override final;

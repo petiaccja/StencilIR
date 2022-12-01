@@ -27,47 +27,6 @@
 
 using namespace mlir;
 
-struct StencilOpLowering : public OpRewritePattern<stencil::StencilOp> {
-    using OpRewritePattern<stencil::StencilOp>::OpRewritePattern;
-
-    LogicalResult matchAndRewrite(stencil::StencilOp op, PatternRewriter& rewriter) const override final {
-        Location loc = op->getLoc();
-
-        const int64_t numDims = op.getNumDimensions().getSExtValue();
-
-        std::vector<mlir::Type> functionParamTypes;
-        const auto indexType = VectorType::get({ numDims }, rewriter.getIndexType());
-        functionParamTypes.push_back(indexType);
-        for (auto& argument : op.getArgumentTypes()) {
-            functionParamTypes.push_back(argument);
-        }
-        auto functionReturnTypes = op.getResultTypes();
-        auto functionType = rewriter.getFunctionType(functionParamTypes, functionReturnTypes);
-
-        auto funcOp = rewriter.create<func::FuncOp>(loc, op.getSymName(), functionType);
-        funcOp.setVisibility(SymbolTable::getSymbolVisibility(op));
-        rewriter.inlineRegionBefore(op.getRegion(), funcOp.getBody(), funcOp.end());
-        Block& block = funcOp.getBody().front();
-
-        // insertArgument seems buggy with empty list.
-        block.getNumArguments() == 0 ? block.addArgument(indexType, loc)
-                                     : block.insertArgument(block.args_begin(), indexType, loc);
-
-        rewriter.eraseOp(op);
-        return success();
-    }
-};
-
-struct ReturnOpLowering : public OpRewritePattern<stencil::ReturnOp> {
-    using OpRewritePattern<stencil::ReturnOp>::OpRewritePattern;
-
-    LogicalResult matchAndRewrite(stencil::ReturnOp op, PatternRewriter& rewriter) const override {
-        Location loc = op->getLoc();
-        rewriter.create<func::ReturnOp>(loc, op->getOperands());
-        rewriter.eraseOp(op);
-        return success();
-    }
-};
 
 struct ApplyOpLoweringBase : public OpRewritePattern<stencil::ApplyOp> {
     using OpRewritePattern<stencil::ApplyOp>::OpRewritePattern;
@@ -103,7 +62,7 @@ struct ApplyOpLoweringBase : public OpRewritePattern<stencil::ApplyOp> {
             }
         }
 
-        auto call = builder.create<stencil::InvokeStencilOp>(loc, resultTypes, op.getCallee(), offsetLoopVars, op.getInputs());
+        auto call = builder.create<stencil::InvokeOp>(loc, resultTypes, op.getCallee(), offsetLoopVars, op.getInputs());
 
         // Store return values to targets
         const auto results = call.getResults();
@@ -135,6 +94,7 @@ struct ApplyOpLoweringBase : public OpRewritePattern<stencil::ApplyOp> {
     }
 };
 
+
 struct ApplyOpLoweringSCF : ApplyOpLoweringBase {
     using ApplyOpLoweringBase::ApplyOpLoweringBase;
 
@@ -156,67 +116,13 @@ struct ApplyOpLoweringSCF : ApplyOpLoweringBase {
 };
 
 
-struct InvokeStencilLowering : public OpRewritePattern<stencil::InvokeStencilOp> {
-    using OpRewritePattern<stencil::InvokeStencilOp>::OpRewritePattern;
-
-    LogicalResult matchAndRewrite(stencil::InvokeStencilOp op, PatternRewriter& rewriter) const override {
-        Location loc = op->getLoc();
-
-        auto ConstantIndex = [&rewriter, &loc](int64_t value) {
-            return rewriter.create<arith::ConstantIndexOp>(loc, value);
-        };
-
-        const auto indices = op.getIndices();
-        const size_t numDims = indices.size();
-
-        mlir::Type indexType = VectorType::get({ int64_t(numDims) }, rewriter.getIndexType());
-        Value index = rewriter.create<vector::SplatOp>(loc, indexType, ConstantIndex(0));
-        for (size_t dimIdx = 0; dimIdx < numDims; ++dimIdx) {
-            index = rewriter.create<vector::InsertElementOp>(loc, indices[dimIdx], index, ConstantIndex(dimIdx));
-        }
-
-        std::vector<Value> operands;
-        operands.push_back(index);
-        for (const auto& argument : op.getArguments()) {
-            operands.push_back(argument);
-        }
-        const auto resultTypes = op->getResultTypes();
-
-        rewriter.replaceOpWithNewOp<func::CallOp>(op, op.getCallee(), resultTypes, operands);
-
-        return success();
-    }
-};
-
-
-struct IndexOpLowering : public OpRewritePattern<stencil::IndexOp> {
-    using OpRewritePattern<stencil::IndexOp>::OpRewritePattern;
-
-    LogicalResult match(stencil::IndexOp op) const override {
-        auto parent = op->getParentOfType<func::FuncOp>();
-        if (parent) {
-            return success();
-        }
-        return failure();
-    }
-
-    void rewrite(stencil::IndexOp op, PatternRewriter& rewriter) const override {
-        auto parent = op->getParentOfType<func::FuncOp>();
-        assert(parent);
-
-        const auto& blockArgs = parent.getBody().front().getArguments();
-        const mlir::Value index = blockArgs.front();
-        rewriter.replaceOp(op, { index });
-    }
-};
-
-
 void StencilApplyToLoopsPass::getDependentDialects(DialectRegistry& registry) const {
     registry.insert<arith::ArithmeticDialect,
                     func::FuncDialect,
                     memref::MemRefDialect,
                     vector::VectorDialect,
-                    scf::SCFDialect>();
+                    scf::SCFDialect,
+                    stencil::StencilDialect>();
 }
 
 
@@ -227,21 +133,12 @@ void StencilApplyToLoopsPass::runOnOperation() {
     target.addLegalDialect<memref::MemRefDialect>();
     target.addLegalDialect<scf::SCFDialect>();
     target.addLegalDialect<vector::VectorDialect>();
+    target.addLegalDialect<stencil::StencilDialect>();
 
-    target.addIllegalOp<stencil::StencilOp>();
-    target.addIllegalOp<stencil::ReturnOp>();
-    target.addIllegalOp<stencil::InvokeStencilOp>();
     target.addIllegalOp<stencil::ApplyOp>();
-    target.addIllegalOp<stencil::IndexOp>();
-
-    target.addLegalOp<stencil::PrintOp>();
 
     RewritePatternSet patterns(&getContext());
-    patterns.add<StencilOpLowering>(&getContext());
-    patterns.add<ReturnOpLowering>(&getContext());
-    patterns.add<InvokeStencilLowering>(&getContext());
     patterns.add<ApplyOpLoweringSCF>(&getContext());
-    patterns.add<IndexOpLowering>(&getContext());
 
     if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {
         signalPassFailure();

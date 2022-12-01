@@ -15,8 +15,10 @@ target_sources(Conversion
         StencilPrintToLLVM/StencilPrintToLLVM.hpp
         StencilApplyToLoops/StencilApplyToLoops.cpp
         StencilApplyToLoops/StencilApplyToLoops.hpp
-        StencilOpsToStandard/StencilOpsToStandard.cpp
-        StencilOpsToStandard/StencilOpsToStandard.hpp
+        StencilToStandard/StencilToStandard.cpp
+        StencilToStandard/StencilToStandard.hpp
+        StencilToFunc/StencilToFunc.cpp
+        StencilToFunc/StencilToFunc.hpp
 )
 
 target_include_directories(Conversion INTERFACE ${CMAKE_CURRENT_LIST_DIR}/..)

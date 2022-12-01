@@ -270,10 +270,10 @@ void ApplyOp::getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffec
 
 
 //------------------------------------------------------------------------------
-// InvokeStencilOp
+// InvokeOp
 //------------------------------------------------------------------------------
 
-LogicalResult InvokeStencilOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
+LogicalResult InvokeOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
     // Check that the callee attribute was specified.
     auto fnAttr = (*this)->getAttrOfType<FlatSymbolRefAttr>("callee");
     if (!fnAttr)
@@ -308,7 +308,7 @@ LogicalResult InvokeStencilOp::verifySymbolUses(SymbolTableCollection& symbolTab
     return success();
 }
 
-FunctionType InvokeStencilOp::getCalleeType() {
+FunctionType InvokeOp::getCalleeType() {
     std::vector<Type> argumentTypes;
     for (const auto& arg : getArguments()) {
         argumentTypes.push_back(arg.getType());

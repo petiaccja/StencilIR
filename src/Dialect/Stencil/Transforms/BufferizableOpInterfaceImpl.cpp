@@ -254,7 +254,7 @@ struct StencilOpInterface : public BufferizableOpInterface::ExternalModel<Stenci
 };
 
 
-using InvokeStencilOpInterface = TrivialOpInterface<InvokeStencilOp>;
+using InvokeOpInterface = TrivialOpInterface<InvokeOp>;
 
 
 void registerBufferizableOpInterfaceExternalModels(mlir::DialectRegistry& registry) {
@@ -262,7 +262,7 @@ void registerBufferizableOpInterfaceExternalModels(mlir::DialectRegistry& regist
         ApplyOp::attachInterface<ApplyOpInterface>(*context);
 
         StencilOp::attachInterface<StencilOpInterface>(*context);
-        InvokeStencilOp::attachInterface<InvokeStencilOpInterface>(*context);
+        InvokeOp::attachInterface<InvokeOpInterface>(*context);
 
         SampleOp::attachInterface<TrivialOpInterface<SampleOp>>(*context);
         SampleIndirectOp::attachInterface<TrivialOpInterface<SampleIndirectOp>>(*context);

@@ -1,4 +1,4 @@
-#include "StencilOpsToStandard.hpp"
+#include "StencilToStandard.hpp"
 
 #include <Dialect/Stencil/IR/StencilOps.hpp>
 
@@ -136,7 +136,7 @@ struct SampleIndirectOpLowering : public OpRewritePattern<stencil::SampleIndirec
 };
 
 
-void StencilOpsToStandardPass::getDependentDialects(DialectRegistry& registry) const {
+void StencilToStandardPass::getDependentDialects(DialectRegistry& registry) const {
     registry.insert<arith::ArithmeticDialect,
                     func::FuncDialect,
                     memref::MemRefDialect,
@@ -144,7 +144,7 @@ void StencilOpsToStandardPass::getDependentDialects(DialectRegistry& registry) c
                     scf::SCFDialect>();
 }
 
-void StencilOpsToStandardPass::runOnOperation() {
+void StencilToStandardPass::runOnOperation() {
     ConversionTarget target(getContext());
     target.addLegalDialect<arith::ArithmeticDialect>();
     target.addLegalDialect<func::FuncDialect>();
