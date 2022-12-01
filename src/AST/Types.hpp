@@ -42,7 +42,7 @@ using Type = std::variant<ScalarType, FieldType>;
 
 template <class T>
 ScalarType InferType() {
-    if constexpr (std::is_integral_v<T>) {
+    if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
         if constexpr (std::is_signed_v<T>) {
             if constexpr (sizeof(T) == 1) {
                 return ScalarType::SINT8;

@@ -1,4 +1,4 @@
-#include "Checker.hpp"
+#include <TestTools/FileCheck.hpp>
 
 #include <AST/Building.hpp>
 
@@ -18,5 +18,5 @@ TEST_CASE("Function: create", "[AST]") {
         // CHECK-NEXT: return %[[ARG]]
     )";
 
-    REQUIRE(Check(*ast, pattern));
+    REQUIRE(CheckAST(*ast, pattern));
 }

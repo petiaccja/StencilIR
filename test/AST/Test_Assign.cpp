@@ -1,11 +1,11 @@
-#include "Checker.hpp"
+#include <TestTools/FileCheck.hpp>
 
 #include <AST/Building.hpp>
 
 #include <catch2/catch.hpp>
 
 
-TEST_CASE("Pack - expression packing", "[AST]") {
+TEST_CASE("Assign - expression unpacking", "[AST]") {
     const auto ast = ast::module_({
         ast::function("mrv",
                       {},
@@ -15,7 +15,12 @@ TEST_CASE("Pack - expression packing", "[AST]") {
                       {},
                       { ast::ScalarType::FLOAT32, ast::ScalarType::FLOAT32, ast::ScalarType::FLOAT32 },
                       {
-                          ast::return_({ ast::pack({ ast::call("mrv", {}), ast::constant(1.0f) }) }),
+                          ast::assign({ "a", "b", "c" }, { ast::call("mrv", {}), ast::constant(1.0f) }),
+                          ast::return_({
+                              ast::symref("a"),
+                              ast::symref("b"),
+                              ast::symref("c"),
+                          }),
                       }),
     });
 
@@ -23,5 +28,5 @@ TEST_CASE("Pack - expression packing", "[AST]") {
         // CHECK: return %[[R1:.*]], %[[R2:.*]], %[[R3:.*]]
     )";
 
-    REQUIRE(Check(*ast, pattern));
+    REQUIRE(CheckAST(*ast, pattern));
 }

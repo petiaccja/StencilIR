@@ -1,4 +1,5 @@
-#include "Checker.hpp"
+#include <TestTools/FileCheck.hpp>
+#include <TestTools/ASTUtils.hpp>
 
 #include <AST/Building.hpp>
 
@@ -24,7 +25,7 @@ TEST_CASE("Call - regular", "[AST]") {
         // CHECK: %[[RESULT:.*]] = call @callee(%[[ARG:.*]])
     )";
 
-    REQUIRE(Check(*ast, pattern));
+    REQUIRE(CheckAST(*ast, pattern));
 }
 
 TEST_CASE("Call - expression unpacking", "[AST]") {
@@ -54,5 +55,5 @@ TEST_CASE("Call - expression unpacking", "[AST]") {
         // CHECK: call @callee(%[[ARG1:.*]], %[[ARG2:.*]], %[[ARG3:.*]])
     )";
 
-    REQUIRE(Check(*ast, pattern));
+    REQUIRE(CheckAST(*ast, pattern));
 }

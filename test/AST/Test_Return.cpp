@@ -1,4 +1,4 @@
-#include "Checker.hpp"
+#include <TestTools/FileCheck.hpp>
 
 #include <AST/Building.hpp>
 
@@ -19,7 +19,7 @@ TEST_CASE("Return - no value", "[AST]") {
         // CHECK: return
     )";
 
-    REQUIRE(Check(*ast, pattern));
+    REQUIRE(CheckAST(*ast, pattern));
 }
 
 TEST_CASE("Return - single value", "[AST]") {
@@ -36,7 +36,7 @@ TEST_CASE("Return - single value", "[AST]") {
         // CHECK: return %[[V1:.*]] : f32
     )";
 
-    REQUIRE(Check(*ast, pattern));
+    REQUIRE(CheckAST(*ast, pattern));
 }
 
 TEST_CASE("Return - expression unpacking", "[AST]") {
@@ -60,5 +60,5 @@ TEST_CASE("Return - expression unpacking", "[AST]") {
         // CHECK: return %[[F1:.*]], %[[F2:.*]], %[[I1:.*]] : f32, f32, i32
     )";
 
-    REQUIRE(Check(*ast, pattern));
+    REQUIRE(CheckAST(*ast, pattern));
 }

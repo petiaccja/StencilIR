@@ -36,32 +36,5 @@ target_link_libraries(Compiler
 )
 
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
-target_link_libraries(Compiler
-    MLIRSCFDialect
-    MLIRControlFlowDialect
-    MLIRFuncDialect
-    MLIRTensorDialect
-    MLIRLinalgDialect
-    MLIRArithmeticDialect
-    MLIRAffineDialect
-    MLIRLLVMDialect
-    MLIRLLVMIRTransforms
-    MLIRLLVMToLLVMIRTranslation
-)
-
-target_link_libraries(Compiler
-    MLIRSCFToControlFlow
-    MLIRControlFlowToLLVM
-    MLIRFuncToLLVM
-    MLIRTensorToLinalg
-    MLIRLinalgToLLVM
-    MLIRArithmeticToLLVM
-    MLIRAffineToStandard
-    MLIRAffineTransforms
-    MLIRLinalgToStandard
-    MLIRMathToLibm
-    MLIRMathToLLVM
-
-    MLIRGPUToVulkanTransforms
-    MLIRGPUTransforms
-)
+get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
+target_link_libraries(Compiler ${dialect_libs})

@@ -31,9 +31,5 @@ target_link_libraries(AST StencilDialect Diagnostics)
 target_link_libraries(AST
     MLIRIR
 )
-target_link_libraries(AST
-    MLIRSCFDialect
-    MLIRFuncDialect
-    MLIRTensorDialect
-    MLIRArithmeticDialect
-)
+get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
+target_link_libraries(AST ${dialect_libs})
