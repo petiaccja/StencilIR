@@ -197,7 +197,7 @@ def ProjectOp : Stencil_Op<"project", [NoSideEffect]> {
     OpBuilder<(ins "::mlir::Value":$source, "::mlir::ArrayRef<int64_t>":$positions)>
   ];
   let hasCustomAssemblyFormat = 1;
-  let assemblyFormat = "$source $positions attr-dict `:` functional-type($source, $result)";
+  let assemblyFormat = "$source `` $positions attr-dict `:` functional-type($source, $result)";
   let summary = "Project and optionally shuffle the elements of an index.";
 }
 
@@ -260,6 +260,7 @@ def SampleOp : Stencil_Op<"sample", [MemoryEffects<[MemRead]>]> {
   let arguments = (ins AnyShaped:$field, AnyVector:$index);
   let results = (outs AnyType:$sampled_value);
   let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
   let assemblyFormat = "$field`[` $index `]` attr-dict `:` functional-type(operands, $sampled_value)";
   let summary = "Get the element from a field at the specified index.";
 }

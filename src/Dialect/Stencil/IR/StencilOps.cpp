@@ -366,4 +366,39 @@ void ExtractOp::build(::mlir::OpBuilder& odsBuilder,
     return build(odsBuilder, odsState, odsBuilder.getIndexType(), source, dimensionAttr);
 }
 
+
+//------------------------------------------------------------------------------
+// SampleOp
+//------------------------------------------------------------------------------
+
+mlir::LogicalResult SampleOp::verify() {
+    mlir::Value field = getField();
+    mlir::Value index = getIndex();
+
+    auto fieldType = field.getType().dyn_cast<mlir::ShapedType>();
+    auto indexType = index.getType().dyn_cast<mlir::VectorType>();
+    assert(fieldType);
+    assert(indexType);
+
+    if (!fieldType.hasRank()) {
+        emitOpError("ranked shaped type expected for field");
+    }
+    if (!indexType.hasStaticShape()) {
+        emitOpError("index with a static shape is expected");
+    }
+    if (indexType.getShape().size() != 1) {
+        emitOpError("index must be a one-dimensional vector");
+    }
+    if (indexType.getElementType() != mlir::IndexType::get(getContext())) {
+        emitOpError("index must be a vector with elements of type 'index'");
+    }
+    if (fieldType.getRank() != indexType.getShape()[0]) {
+        emitOpError() << "field's rank of " << fieldType.getRank()
+                      << " does not match index's size of " << indexType.getShape()[0];
+    }
+
+    return success();
+}
+
+
 } // namespace stencil
