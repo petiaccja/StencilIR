@@ -66,10 +66,10 @@ struct ProjectOpLowering : public OpRewritePattern<stencil::ProjectOp> {
     using OpRewritePattern<stencil::ProjectOp>::OpRewritePattern;
 
     LogicalResult matchAndRewrite(stencil::ProjectOp op, PatternRewriter& rewriter) const override final {
-        mlir::Value input = op.getInputIndex();
-        auto elements = op.getElements();
+        mlir::Value source = op.getSource();
+        auto positions = op.getPositions();
 
-        rewriter.replaceOpWithNewOp<vector::ShuffleOp>(op, input, input, elements);
+        rewriter.replaceOpWithNewOp<vector::ShuffleOp>(op, source, source, positions);
 
         return success();
     }
@@ -80,19 +80,19 @@ struct ExtendOpLowering : public OpRewritePattern<stencil::ExtendOp> {
     using OpRewritePattern<stencil::ExtendOp>::OpRewritePattern;
 
     LogicalResult matchAndRewrite(stencil::ExtendOp op, PatternRewriter& rewriter) const override final {
-        mlir::Value input = op.getInputIndex();
-        mlir::VectorType inputType = input.getType().dyn_cast<mlir::VectorType>();
-        const auto size = inputType.getShape()[0];
-        assert(inputType);
+        mlir::Value source = op.getSource();
+        mlir::VectorType sourceType = source.getType().dyn_cast<mlir::VectorType>();
+        const auto size = sourceType.getShape()[0];
+        assert(sourceType);
         mlir::SmallVector<int64_t, 8> mask(size);
         std::iota(mask.begin(), mask.end(), 0);
-        mask.insert(mask.begin() + op.getDimension().getSExtValue(), size);
+        mask.insert(mask.begin() + op.getPosition().getSExtValue(), size);
 
         std::array<int64_t, 1> shape = { 1 };
-        mlir::Type elementType = mlir::VectorType::get(shape, rewriter.getIndexType());
-        mlir::Value element = rewriter.create<vector::SplatOp>(op->getLoc(), elementType, op.getValue());
+        mlir::Type valueType = mlir::VectorType::get(shape, rewriter.getIndexType());
+        mlir::Value value = rewriter.create<vector::SplatOp>(op->getLoc(), valueType, op.getValue());
 
-        rewriter.replaceOpWithNewOp<vector::ShuffleOp>(op, input, element, mask);
+        rewriter.replaceOpWithNewOp<vector::ShuffleOp>(op, source, value, mask);
 
         return success();
     }
@@ -103,11 +103,11 @@ struct ExchangeOpLowering : public OpRewritePattern<stencil::ExchangeOp> {
     using OpRewritePattern<stencil::ExchangeOp>::OpRewritePattern;
 
     LogicalResult matchAndRewrite(stencil::ExchangeOp op, PatternRewriter& rewriter) const override final {
-        mlir::Value input = op.getInputIndex();
-        mlir::Value position = rewriter.create<mlir::arith::ConstantIndexOp>(op.getLoc(), op.getDimension().getSExtValue());
+        mlir::Value source = op.getSource();
+        mlir::Value position = rewriter.create<mlir::arith::ConstantIndexOp>(op.getLoc(), op.getPosition().getSExtValue());
         mlir::Value value = op.getValue();
 
-        rewriter.replaceOpWithNewOp<vector::InsertElementOp>(op, value, input, position);
+        rewriter.replaceOpWithNewOp<vector::InsertElementOp>(op, value, source, position);
 
         return success();
     }
@@ -118,10 +118,10 @@ struct ExtractOpLowering : public OpRewritePattern<stencil::ExtractOp> {
     using OpRewritePattern<stencil::ExtractOp>::OpRewritePattern;
 
     LogicalResult matchAndRewrite(stencil::ExtractOp op, PatternRewriter& rewriter) const override final {
-        mlir::Value input = op.getInputIndex();
-        mlir::Value position = rewriter.create<mlir::arith::ConstantIndexOp>(op.getLoc(), op.getDimension().getSExtValue());
+        mlir::Value source = op.getSource();
+        mlir::Value position = rewriter.create<mlir::arith::ConstantIndexOp>(op.getLoc(), op.getPosition().getSExtValue());
 
-        rewriter.replaceOpWithNewOp<vector::ExtractElementOp>(op, input, position);
+        rewriter.replaceOpWithNewOp<vector::ExtractElementOp>(op, source, position);
 
         return success();
     }

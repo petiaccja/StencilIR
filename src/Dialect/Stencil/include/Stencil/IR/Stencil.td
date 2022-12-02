@@ -191,50 +191,50 @@ def JumpOp : Stencil_Op<"jump", [NoSideEffect]> {
 
 
 def ProjectOp : Stencil_Op<"project", [NoSideEffect]> {
-  let arguments = (ins AnyVector:$input_index, I64ArrayAttr:$elements);
-  let results = (outs AnyVector:$projected_index);
+  let arguments = (ins AnyVector:$source, I64ArrayAttr:$positions);
+  let results = (outs AnyVector:$result);
   let builders = [
-    OpBuilder<(ins "::mlir::Value":$inputIndex, "::mlir::ArrayRef<int64_t>":$elements)>
+    OpBuilder<(ins "::mlir::Value":$source, "::mlir::ArrayRef<int64_t>":$positions)>
   ];
   let hasCustomAssemblyFormat = 1;
-  let assemblyFormat = "$input_index $elements attr-dict `:` functional-type($input_index, $projected_index)";
+  let assemblyFormat = "$source $positions attr-dict `:` functional-type($source, $result)";
   let summary = "Project and optionally shuffle the elements of an index.";
 }
 
 
 def ExtendOp : Stencil_Op<"extend", [NoSideEffect]> {
-  let arguments = (ins AnyVector:$input_index, IndexAttr:$dimension, Index:$value);
-  let results = (outs AnyVector:$projected_index);
+  let arguments = (ins AnyVector:$source, IndexAttr:$position, Index:$value);
+  let results = (outs AnyVector:$result);
   let builders = [
     OpBuilder<(ins "::mlir::Value":$inputIndex, "int64_t":$dimension, "::mlir::Value":$value)>
   ];
   let hasCustomAssemblyFormat = 1;
-  let assemblyFormat = "$input_index `[` $dimension `]` `,` $value attr-dict `:` functional-type($input_index, $projected_index)";
-  let summary = "Extend the dimensionality of the index by inserting an element for the new dimension.";
+  let assemblyFormat = "$source `[` $position `]` `,` $value attr-dict `:` functional-type($source, $result)";
+  let summary = "Extend the index by inserting an element at position.";
 }
 
 
 def ExchangeOp : Stencil_Op<"exchange", [NoSideEffect]> {
-  let arguments = (ins AnyVector:$input_index, IndexAttr:$dimension, Index:$value);
-  let results = (outs AnyVector:$exchanged_index);
+  let arguments = (ins AnyVector:$source, IndexAttr:$position, Index:$value);
+  let results = (outs AnyVector:$result);
   let builders = [
-    OpBuilder<(ins "::mlir::Value":$inputIndex, "int64_t":$dimension, "::mlir::Value":$value)>
+    OpBuilder<(ins "::mlir::Value":$inputIndex, "int64_t":$position, "::mlir::Value":$value)>
   ];
   let hasCustomAssemblyFormat = 1;
-  let assemblyFormat = "$input_index `[` $dimension `]` `,` $value attr-dict `:` functional-type($input_index, $exchanged_index)";
-  let summary = "Exchange of the index at a dimension.";
+  let assemblyFormat = "$source `[` $position `]` `,` $value attr-dict `:` functional-type($source, $result)";
+  let summary = "Exchange of the index at position.";
 }
 
 
 def ExtractOp : Stencil_Op<"extract", [NoSideEffect]> {
-  let arguments = (ins AnyVector:$input_index, IndexAttr:$dimension);
-  let results = (outs Index:$value);
+  let arguments = (ins AnyVector:$source, IndexAttr:$position);
+  let results = (outs Index:$result);
   let builders = [
-    OpBuilder<(ins "::mlir::Value":$inputIndex, "int64_t":$dimension)>
+    OpBuilder<(ins "::mlir::Value":$inputIndex, "int64_t":$position)>
   ];
   let hasCustomAssemblyFormat = 1;
-  let assemblyFormat = "$input_index `[` $dimension `]` attr-dict `:` functional-type($input_index, $value)";
-  let summary = "Exchange of the index at a dimension.";
+  let assemblyFormat = "$source `[` $position `]` attr-dict `:` type($source)";
+  let summary = "Exchange of the index at position.";
 }
 
 

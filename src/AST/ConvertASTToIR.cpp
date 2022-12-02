@@ -225,13 +225,17 @@ class StencilIRGenerator : public IRGenerator<ast::Node, GenerationResult, Stenc
                                               ast::Pack,
                                               ast::Index,
                                               ast::Jump,
-                                              ast::Sample,
+                                              ast::Project,
+                                              ast::Extend,
+                                              ast::Exchange,
+                                              ast::Extract,
                                               ast::JumpIndirect,
+                                              ast::Sample,
+                                              ast::SampleIndirect,
                                               ast::For,
                                               ast::If,
                                               ast::Yield,
                                               ast::Block,
-                                              ast::SampleIndirect,
                                               ast::AllocTensor,
                                               ast::Dim,
                                               ast::ExtractSlice,
@@ -490,18 +494,33 @@ public:
         return { op };
     }
 
-    auto Generate(const ast::Sample& node) const -> GenerationResult {
+    auto Generate(const ast::Project& node) const -> GenerationResult {
         const auto loc = ConvertLocation(builder, node.location);
-        const mlir::Value field = Generate(*node.field);
         const mlir::Value index = Generate(*node.index);
+        auto op = builder.create<stencil::ProjectOp>(loc, index, node.positions);
+        return { op };
+    }
 
-        auto fieldType = field.getType();
-        if (!fieldType.isa<mlir::ShapedType>()) {
-            throw ArgumentTypeError{ loc, FormatType(fieldType), 0 };
-        }
-        auto elementType = fieldType.dyn_cast<mlir::ShapedType>().getElementType();
+    auto Generate(const ast::Extend& node) const -> GenerationResult {
+        const auto loc = ConvertLocation(builder, node.location);
+        const mlir::Value index = Generate(*node.index);
+        const mlir::Value value = Generate(*node.value);
+        auto op = builder.create<stencil::ExtendOp>(loc, index, node.position, value);
+        return { op };
+    }
 
-        auto op = builder.create<stencil::SampleOp>(loc, elementType, field, index);
+    auto Generate(const ast::Exchange& node) const -> GenerationResult {
+        const auto loc = ConvertLocation(builder, node.location);
+        const mlir::Value index = Generate(*node.index);
+        const mlir::Value value = Generate(*node.value);
+        auto op = builder.create<stencil::ExchangeOp>(loc, index, node.position, value);
+        return { op };
+    }
+
+    auto Generate(const ast::Extract& node) const -> GenerationResult {
+        const auto loc = ConvertLocation(builder, node.location);
+        const mlir::Value index = Generate(*node.index);
+        auto op = builder.create<stencil::ExtractOp>(loc, index, node.position);
         return { op };
     }
 
@@ -514,6 +533,21 @@ public:
         const mlir::Value mapElement = Generate(*node.mapElement);
 
         auto op = builder.create<stencil::JumpIndirectOp>(loc, index.getType(), index, dimension, map, mapElement);
+        return { op };
+    }
+
+    auto Generate(const ast::Sample& node) const -> GenerationResult {
+        const auto loc = ConvertLocation(builder, node.location);
+        const mlir::Value field = Generate(*node.field);
+        const mlir::Value index = Generate(*node.index);
+
+        auto fieldType = field.getType();
+        if (!fieldType.isa<mlir::ShapedType>()) {
+            throw ArgumentTypeError{ loc, FormatType(fieldType), 0 };
+        }
+        auto elementType = fieldType.dyn_cast<mlir::ShapedType>().getElementType();
+
+        auto op = builder.create<stencil::SampleOp>(loc, elementType, field, index);
         return { op };
     }
 

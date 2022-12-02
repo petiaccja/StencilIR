@@ -28,6 +28,6 @@ func.func @lower_exchange(%index: vector<4xindex>, %value: index) {
 func.func @lower_extract(%index: vector<4xindex>) {
     // CHECK-NEXT: %[[POS:.*]] = arith.constant 2 : index
     // CHECK-NEXT: %[[ELEM:.*]] = vector.extractelement %[[INDEX]][%[[POS]] : index]
-    %projected = stencil.extract %index[2] : (vector<4xindex>) -> index
+    %projected = stencil.extract %index[2] : vector<4xindex>
     return
 }

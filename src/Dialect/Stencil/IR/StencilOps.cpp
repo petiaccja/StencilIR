@@ -324,46 +324,46 @@ FunctionType InvokeOp::getCalleeType() {
 
 void ProjectOp::build(::mlir::OpBuilder& odsBuilder,
                       ::mlir::OperationState& odsState,
-                      ::mlir::Value inputIndex,
-                      ::mlir::ArrayRef<int64_t> elements) {
-    std::array<int64_t, 1> shape{ int64_t(elements.size()) };
+                      ::mlir::Value source,
+                      ::mlir::ArrayRef<int64_t> positions) {
+    std::array<int64_t, 1> shape{ int64_t(positions.size()) };
     auto resultType = mlir::VectorType::get(shape, odsBuilder.getIndexType());
-    auto elementsAttr = odsBuilder.getIndexArrayAttr(elements);
-    return build(odsBuilder, odsState, resultType, inputIndex, elementsAttr);
+    auto elementsAttr = odsBuilder.getI64ArrayAttr(positions);
+    return build(odsBuilder, odsState, resultType, source, elementsAttr);
 }
 
 
 void ExtendOp::build(::mlir::OpBuilder& odsBuilder,
                      ::mlir::OperationState& odsState,
-                     ::mlir::Value inputIndex,
-                     int64_t dimension,
+                     ::mlir::Value source,
+                     int64_t position,
                      ::mlir::Value value) {
-    auto inputType = inputIndex.getType().dyn_cast<mlir::VectorType>();
+    auto inputType = source.getType().dyn_cast<mlir::VectorType>();
     assert(inputType);
     std::array<int64_t, 1> shape{ inputType.getShape()[0] + 1 };
     auto resultType = mlir::VectorType::get(shape, odsBuilder.getIndexType());
-    auto dimensionAttr = odsBuilder.getIndexAttr(dimension);
-    return build(odsBuilder, odsState, resultType, inputIndex, dimensionAttr, value);
+    auto dimensionAttr = odsBuilder.getIndexAttr(position);
+    return build(odsBuilder, odsState, resultType, source, dimensionAttr, value);
 }
 
 
 void ExchangeOp::build(::mlir::OpBuilder& odsBuilder,
                        ::mlir::OperationState& odsState,
-                       ::mlir::Value inputIndex,
-                       int64_t dimension,
+                       ::mlir::Value source,
+                       int64_t position,
                        ::mlir::Value value) {
-    auto resultType = inputIndex.getType();
-    auto dimensionAttr = odsBuilder.getIndexAttr(dimension);
-    return build(odsBuilder, odsState, resultType, inputIndex, dimensionAttr, value);
+    auto resultType = source.getType();
+    auto dimensionAttr = odsBuilder.getIndexAttr(position);
+    return build(odsBuilder, odsState, resultType, source, dimensionAttr, value);
 }
 
 
 void ExtractOp::build(::mlir::OpBuilder& odsBuilder,
                       ::mlir::OperationState& odsState,
-                      ::mlir::Value inputIndex,
-                      int64_t dimension) {
-    auto dimensionAttr = odsBuilder.getIndexAttr(dimension);
-    return build(odsBuilder, odsState, odsBuilder.getIndexType(), inputIndex, dimensionAttr);
+                      ::mlir::Value source,
+                      int64_t position) {
+    auto dimensionAttr = odsBuilder.getIndexAttr(position);
+    return build(odsBuilder, odsState, odsBuilder.getIndexType(), source, dimensionAttr);
 }
 
 } // namespace stencil
