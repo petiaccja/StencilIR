@@ -86,12 +86,23 @@ bool CheckText(std::string_view input, std::string_view pattern) {
     if (!success) {
         std::stringstream message;
         for (auto& diag : diags) {
-            const auto note = FormatMatchType(diag.MatchTy).data() + (diag.Note.empty() ? std::string("") : diag.Note);
+            std::optional<std::string> location;
+            if (const char* locPtr = diag.CheckLoc.getPointer()) {
+                assert(locPtr - pattern.data() < std::ssize(pattern));
+                const auto line = std::count(pattern.data(), locPtr, '\n') + 1;
+                const auto lineStart = std::find(std::reverse_iterator{ locPtr }, std::reverse_iterator{ pattern.data() }, '\n');
+                const auto column = locPtr - lineStart.base();
+                location = FormatLocation("-", line, column);
+            }
+            const auto note = FormatMatchType(diag.MatchTy).data() + std::string(diag.Note.empty() ? "" : ": ") + diag.Note;
             message << FormatDiagnostic(
-                FormatLocation("-", diag.InputStartLine, diag.InputStartCol),
+                location,
                 {},
-                note);
+                note)
+                    << std::endl;
         }
+        message << std::endl
+                << input << std::endl;
         throw Exception(message.str());
     }
     return success;

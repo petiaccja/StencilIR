@@ -317,4 +317,53 @@ FunctionType InvokeOp::getCalleeType() {
 }
 
 
+
+//------------------------------------------------------------------------------
+// Index manipulation
+//------------------------------------------------------------------------------
+
+void ProjectOp::build(::mlir::OpBuilder& odsBuilder,
+                      ::mlir::OperationState& odsState,
+                      ::mlir::Value inputIndex,
+                      ::mlir::ArrayRef<int64_t> elements) {
+    std::array<int64_t, 1> shape{ int64_t(elements.size()) };
+    auto resultType = mlir::VectorType::get(shape, odsBuilder.getIndexType());
+    auto elementsAttr = odsBuilder.getIndexArrayAttr(elements);
+    return build(odsBuilder, odsState, resultType, inputIndex, elementsAttr);
+}
+
+
+void ExtendOp::build(::mlir::OpBuilder& odsBuilder,
+                     ::mlir::OperationState& odsState,
+                     ::mlir::Value inputIndex,
+                     int64_t dimension,
+                     ::mlir::Value value) {
+    auto inputType = inputIndex.getType().dyn_cast<mlir::VectorType>();
+    assert(inputType);
+    std::array<int64_t, 1> shape{ inputType.getShape()[0] + 1 };
+    auto resultType = mlir::VectorType::get(shape, odsBuilder.getIndexType());
+    auto dimensionAttr = odsBuilder.getIndexAttr(dimension);
+    return build(odsBuilder, odsState, resultType, inputIndex, dimensionAttr, value);
+}
+
+
+void ExchangeOp::build(::mlir::OpBuilder& odsBuilder,
+                       ::mlir::OperationState& odsState,
+                       ::mlir::Value inputIndex,
+                       int64_t dimension,
+                       ::mlir::Value value) {
+    auto resultType = inputIndex.getType();
+    auto dimensionAttr = odsBuilder.getIndexAttr(dimension);
+    return build(odsBuilder, odsState, resultType, inputIndex, dimensionAttr, value);
+}
+
+
+void ExtractOp::build(::mlir::OpBuilder& odsBuilder,
+                      ::mlir::OperationState& odsState,
+                      ::mlir::Value inputIndex,
+                      int64_t dimension) {
+    auto dimensionAttr = odsBuilder.getIndexAttr(dimension);
+    return build(odsBuilder, odsState, odsBuilder.getIndexType(), inputIndex, dimensionAttr);
+}
+
 } // namespace stencil

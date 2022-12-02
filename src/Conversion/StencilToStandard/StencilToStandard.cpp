@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <numeric>
 #include <vector>
 
 
@@ -60,26 +61,67 @@ struct JumpOpLowering : public OpRewritePattern<stencil::JumpOp> {
     }
 };
 
-struct SampleOpLowering : public OpRewritePattern<stencil::SampleOp> {
-    using OpRewritePattern<stencil::SampleOp>::OpRewritePattern;
 
-    LogicalResult matchAndRewrite(stencil::SampleOp op, PatternRewriter& rewriter) const override final {
-        Location loc = op->getLoc();
+struct ProjectOpLowering : public OpRewritePattern<stencil::ProjectOp> {
+    using OpRewritePattern<stencil::ProjectOp>::OpRewritePattern;
 
-        Value index = op.getIndex();
-        Value field = op.getField();
+    LogicalResult matchAndRewrite(stencil::ProjectOp op, PatternRewriter& rewriter) const override final {
+        mlir::Value input = op.getInputIndex();
+        auto elements = op.getElements();
 
-        const auto indexType = index.getType().dyn_cast<VectorType>();
-        const auto numDims = indexType.getShape()[0];
+        rewriter.replaceOpWithNewOp<vector::ShuffleOp>(op, input, input, elements);
 
-        std::vector<Value> indices;
-        for (ptrdiff_t dimIdx = 0; dimIdx < numDims; ++dimIdx) {
-            Value loadIndex = rewriter.create<arith::ConstantIndexOp>(loc, dimIdx);
-            indices.push_back(rewriter.create<vector::ExtractElementOp>(loc, index, loadIndex));
-        }
+        return success();
+    }
+};
 
-        Value value = rewriter.create<memref::LoadOp>(loc, field, indices);
-        rewriter.replaceOp(op, value);
+
+struct ExtendOpLowering : public OpRewritePattern<stencil::ExtendOp> {
+    using OpRewritePattern<stencil::ExtendOp>::OpRewritePattern;
+
+    LogicalResult matchAndRewrite(stencil::ExtendOp op, PatternRewriter& rewriter) const override final {
+        mlir::Value input = op.getInputIndex();
+        mlir::VectorType inputType = input.getType().dyn_cast<mlir::VectorType>();
+        const auto size = inputType.getShape()[0];
+        assert(inputType);
+        mlir::SmallVector<int64_t, 8> mask(size);
+        std::iota(mask.begin(), mask.end(), 0);
+        mask.insert(mask.begin() + op.getDimension().getSExtValue(), size);
+
+        std::array<int64_t, 1> shape = { 1 };
+        mlir::Type elementType = mlir::VectorType::get(shape, rewriter.getIndexType());
+        mlir::Value element = rewriter.create<vector::SplatOp>(op->getLoc(), elementType, op.getValue());
+
+        rewriter.replaceOpWithNewOp<vector::ShuffleOp>(op, input, element, mask);
+
+        return success();
+    }
+};
+
+
+struct ExchangeOpLowering : public OpRewritePattern<stencil::ExchangeOp> {
+    using OpRewritePattern<stencil::ExchangeOp>::OpRewritePattern;
+
+    LogicalResult matchAndRewrite(stencil::ExchangeOp op, PatternRewriter& rewriter) const override final {
+        mlir::Value input = op.getInputIndex();
+        mlir::Value position = rewriter.create<mlir::arith::ConstantIndexOp>(op.getLoc(), op.getDimension().getSExtValue());
+        mlir::Value value = op.getValue();
+
+        rewriter.replaceOpWithNewOp<vector::InsertElementOp>(op, value, input, position);
+
+        return success();
+    }
+};
+
+
+struct ExtractOpLowering : public OpRewritePattern<stencil::ExtractOp> {
+    using OpRewritePattern<stencil::ExtractOp>::OpRewritePattern;
+
+    LogicalResult matchAndRewrite(stencil::ExtractOp op, PatternRewriter& rewriter) const override final {
+        mlir::Value input = op.getInputIndex();
+        mlir::Value position = rewriter.create<mlir::arith::ConstantIndexOp>(op.getLoc(), op.getDimension().getSExtValue());
+
+        rewriter.replaceOpWithNewOp<vector::ExtractElementOp>(op, input, position);
 
         return success();
     }
@@ -107,6 +149,31 @@ struct JumpIndirectOpLowering : public OpRewritePattern<stencil::JumpIndirectOp>
         Value outputIndex = rewriter.create<vector::InsertElementOp>(loc, newIndexElem, inputIndex, dimIndex);
 
         rewriter.replaceOp(op, outputIndex);
+
+        return success();
+    }
+};
+
+
+struct SampleOpLowering : public OpRewritePattern<stencil::SampleOp> {
+    using OpRewritePattern<stencil::SampleOp>::OpRewritePattern;
+
+    LogicalResult matchAndRewrite(stencil::SampleOp op, PatternRewriter& rewriter) const override final {
+        Location loc = op->getLoc();
+        Value index = op.getIndex();
+        Value field = op.getField();
+
+        const auto indexType = index.getType().dyn_cast<VectorType>();
+        const auto numDims = indexType.getShape()[0];
+
+        std::vector<Value> indices;
+        for (ptrdiff_t dimIdx = 0; dimIdx < numDims; ++dimIdx) {
+            Value loadIndex = rewriter.create<arith::ConstantIndexOp>(loc, dimIdx);
+            indices.push_back(rewriter.create<vector::ExtractElementOp>(loc, index, loadIndex));
+        }
+
+        Value value = rewriter.create<memref::LoadOp>(loc, field, indices);
+        rewriter.replaceOp(op, value);
 
         return success();
     }
@@ -156,8 +223,12 @@ void StencilToStandardPass::runOnOperation() {
 
     RewritePatternSet patterns(&getContext());
     patterns.add<JumpOpLowering>(&getContext());
-    patterns.add<SampleOpLowering>(&getContext());
+    patterns.add<ProjectOpLowering>(&getContext());
+    patterns.add<ExtendOpLowering>(&getContext());
+    patterns.add<ExchangeOpLowering>(&getContext());
+    patterns.add<ExtractOpLowering>(&getContext());
     patterns.add<JumpIndirectOpLowering>(&getContext());
+    patterns.add<SampleOpLowering>(&getContext());
     patterns.add<SampleIndirectOpLowering>(&getContext());
 
     if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {

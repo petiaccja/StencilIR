@@ -190,12 +190,51 @@ def JumpOp : Stencil_Op<"jump", [NoSideEffect]> {
 }
 
 
-def SampleOp : Stencil_Op<"sample", [MemoryEffects<[MemRead]>]> {
-  let arguments = (ins AnyShaped:$field, AnyVector:$index);
-  let results = (outs AnyType:$sampled_value);
+def ProjectOp : Stencil_Op<"project", [NoSideEffect]> {
+  let arguments = (ins AnyVector:$input_index, I64ArrayAttr:$elements);
+  let results = (outs AnyVector:$projected_index);
+  let builders = [
+    OpBuilder<(ins "::mlir::Value":$inputIndex, "::mlir::ArrayRef<int64_t>":$elements)>
+  ];
   let hasCustomAssemblyFormat = 1;
-  let assemblyFormat = "$field`[` $index `]` attr-dict `:` functional-type(operands, $sampled_value)";
-  let summary = "Get the element from a field at the specified index.";
+  let assemblyFormat = "$input_index $elements attr-dict `:` functional-type($input_index, $projected_index)";
+  let summary = "Project and optionally shuffle the elements of an index.";
+}
+
+
+def ExtendOp : Stencil_Op<"extend", [NoSideEffect]> {
+  let arguments = (ins AnyVector:$input_index, IndexAttr:$dimension, Index:$value);
+  let results = (outs AnyVector:$projected_index);
+  let builders = [
+    OpBuilder<(ins "::mlir::Value":$inputIndex, "int64_t":$dimension, "::mlir::Value":$value)>
+  ];
+  let hasCustomAssemblyFormat = 1;
+  let assemblyFormat = "$input_index `[` $dimension `]` `,` $value attr-dict `:` functional-type($input_index, $projected_index)";
+  let summary = "Extend the dimensionality of the index by inserting an element for the new dimension.";
+}
+
+
+def ExchangeOp : Stencil_Op<"exchange", [NoSideEffect]> {
+  let arguments = (ins AnyVector:$input_index, IndexAttr:$dimension, Index:$value);
+  let results = (outs AnyVector:$exchanged_index);
+  let builders = [
+    OpBuilder<(ins "::mlir::Value":$inputIndex, "int64_t":$dimension, "::mlir::Value":$value)>
+  ];
+  let hasCustomAssemblyFormat = 1;
+  let assemblyFormat = "$input_index `[` $dimension `]` `,` $value attr-dict `:` functional-type($input_index, $exchanged_index)";
+  let summary = "Exchange of the index at a dimension.";
+}
+
+
+def ExtractOp : Stencil_Op<"extract", [NoSideEffect]> {
+  let arguments = (ins AnyVector:$input_index, IndexAttr:$dimension);
+  let results = (outs Index:$value);
+  let builders = [
+    OpBuilder<(ins "::mlir::Value":$inputIndex, "int64_t":$dimension)>
+  ];
+  let hasCustomAssemblyFormat = 1;
+  let assemblyFormat = "$input_index `[` $dimension `]` attr-dict `:` functional-type($input_index, $value)";
+  let summary = "Exchange of the index at a dimension.";
 }
 
 
@@ -214,6 +253,15 @@ def JumpIndirectOp : Stencil_Op<"jump_indirect", [MemoryEffects<[MemRead]>]> {
     Essentially, one element of the index is replaced by a value from the map.
     The modified index is returned, while the input index is in fact left unchanged.
   }];
+}
+
+
+def SampleOp : Stencil_Op<"sample", [MemoryEffects<[MemRead]>]> {
+  let arguments = (ins AnyShaped:$field, AnyVector:$index);
+  let results = (outs AnyType:$sampled_value);
+  let hasCustomAssemblyFormat = 1;
+  let assemblyFormat = "$field`[` $index `]` attr-dict `:` functional-type(operands, $sampled_value)";
+  let summary = "Get the element from a field at the specified index.";
 }
 
 
