@@ -128,33 +128,6 @@ struct ExtractOpLowering : public OpRewritePattern<stencil::ExtractOp> {
 };
 
 
-struct JumpIndirectOpLowering : public OpRewritePattern<stencil::JumpIndirectOp> {
-    using OpRewritePattern<stencil::JumpIndirectOp>::OpRewritePattern;
-
-    LogicalResult matchAndRewrite(stencil::JumpIndirectOp op, PatternRewriter& rewriter) const override final {
-        Location loc = op->getLoc();
-
-        auto inputIndex = op.getInputIndex();
-        const auto dimension = op.getDimension().getSExtValue();
-        Value dimIndex = { rewriter.create<arith::ConstantIndexOp>(loc, dimension) };
-        Value inputIndexElem = rewriter.create<vector::ExtractElementOp>(loc, inputIndex, dimIndex);
-
-        auto map = op.getMap();
-        auto mapElement = op.getMapElement();
-        std::array<Value, 2> mapIndices = { inputIndexElem, mapElement };
-        Value newIndexElem = rewriter.create<memref::LoadOp>(loc, map, mapIndices);
-        if (!newIndexElem.getType().isa<IndexType>()) {
-            newIndexElem = rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(), newIndexElem);
-        }
-        Value outputIndex = rewriter.create<vector::InsertElementOp>(loc, newIndexElem, inputIndex, dimIndex);
-
-        rewriter.replaceOp(op, outputIndex);
-
-        return success();
-    }
-};
-
-
 struct SampleOpLowering : public OpRewritePattern<stencil::SampleOp> {
     using OpRewritePattern<stencil::SampleOp>::OpRewritePattern;
 
@@ -174,29 +147,6 @@ struct SampleOpLowering : public OpRewritePattern<stencil::SampleOp> {
 
         Value value = rewriter.create<memref::LoadOp>(loc, field, indices);
         rewriter.replaceOp(op, value);
-
-        return success();
-    }
-};
-
-
-struct SampleIndirectOpLowering : public OpRewritePattern<stencil::SampleIndirectOp> {
-    using OpRewritePattern<stencil::SampleIndirectOp>::OpRewritePattern;
-
-    LogicalResult matchAndRewrite(stencil::SampleIndirectOp op, PatternRewriter& rewriter) const override final {
-        Location loc = op->getLoc();
-
-        auto inputIndex = op.getIndex();
-        const auto dimension = op.getDimension().getSExtValue();
-        Value dimIndex = { rewriter.create<arith::ConstantIndexOp>(loc, dimension) };
-        Value inputIndexElem = rewriter.create<vector::ExtractElementOp>(loc, inputIndex, dimIndex);
-
-        auto field = op.getField();
-        auto fieldElement = op.getFieldElement();
-        std::array<Value, 2> mapIndices = { inputIndexElem, fieldElement };
-        Value sample = rewriter.create<memref::LoadOp>(loc, field, mapIndices);
-
-        rewriter.replaceOp(op, sample);
 
         return success();
     }
@@ -227,9 +177,7 @@ void StencilToStandardPass::runOnOperation() {
     patterns.add<ExtendOpLowering>(&getContext());
     patterns.add<ExchangeOpLowering>(&getContext());
     patterns.add<ExtractOpLowering>(&getContext());
-    patterns.add<JumpIndirectOpLowering>(&getContext());
     patterns.add<SampleOpLowering>(&getContext());
-    patterns.add<SampleIndirectOpLowering>(&getContext());
 
     if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {
         signalPassFailure();

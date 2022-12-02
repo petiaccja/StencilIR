@@ -225,19 +225,6 @@ struct Extract : Expression {
     int64_t position;
 };
 
-struct JumpIndirect : Expression {
-    explicit JumpIndirect(std::shared_ptr<Expression> index,
-                          int64_t dimension,
-                          std::shared_ptr<Expression> map,
-                          std::shared_ptr<Expression> mapElement,
-                          std::optional<Location> loc = {})
-        : Expression(loc), index(index), dimension(dimension), map(map), mapElement(mapElement) {}
-    std::shared_ptr<Expression> index;
-    int64_t dimension;
-    std::shared_ptr<Expression> map;
-    std::shared_ptr<Expression> mapElement;
-};
-
 struct Sample : Expression {
     explicit Sample(std::shared_ptr<Expression> field,
                     std::shared_ptr<Expression> index,
@@ -247,18 +234,6 @@ struct Sample : Expression {
     std::shared_ptr<Expression> index;
 };
 
-struct SampleIndirect : Expression {
-    explicit SampleIndirect(std::shared_ptr<Expression> index,
-                            int64_t dimension,
-                            std::shared_ptr<Expression> field,
-                            std::shared_ptr<Expression> fieldElement,
-                            std::optional<Location> loc = {})
-        : Expression(loc), index(index), dimension(dimension), field(field), fieldElement(fieldElement) {}
-    std::shared_ptr<Expression> index;
-    int64_t dimension;
-    std::shared_ptr<Expression> field;
-    std::shared_ptr<Expression> fieldElement;
-};
 
 //------------------------------------------------------------------------------
 // Control flow

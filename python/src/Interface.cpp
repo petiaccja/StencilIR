@@ -93,20 +93,6 @@ PYBIND11_MODULE(stencilir, m) {
                             std::shared_ptr<Expression>,
                             std::optional<Location>>());
 
-    pybind11::class_<JumpIndirect, std::shared_ptr<JumpIndirect>>(m, "JumpIndirect", expression)
-        .def(pybind11::init<std::shared_ptr<Expression>,
-                            int64_t,
-                            std::shared_ptr<Expression>,
-                            std::shared_ptr<Expression>,
-                            std::optional<Location>>());
-
-    pybind11::class_<SampleIndirect, std::shared_ptr<SampleIndirect>>(m, "SampleIndirect", expression)
-        .def(pybind11::init<std::shared_ptr<Expression>,
-                            int64_t,
-                            std::shared_ptr<Expression>,
-                            std::shared_ptr<Expression>,
-                            std::optional<Location>>());
-
     // Control flow
     pybind11::class_<For, std::shared_ptr<For>>(m, "For", expression)
         .def(pybind11::init<std::shared_ptr<Expression>,

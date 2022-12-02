@@ -265,8 +265,6 @@ void registerBufferizableOpInterfaceExternalModels(mlir::DialectRegistry& regist
         InvokeOp::attachInterface<InvokeOpInterface>(*context);
 
         SampleOp::attachInterface<TrivialOpInterface<SampleOp>>(*context);
-        SampleIndirectOp::attachInterface<TrivialOpInterface<SampleIndirectOp>>(*context);
-        JumpIndirectOp::attachInterface<TrivialOpInterface<JumpIndirectOp>>(*context);
     });
 }
 

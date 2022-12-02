@@ -238,24 +238,6 @@ def ExtractOp : Stencil_Op<"extract", [NoSideEffect]> {
 }
 
 
-def JumpIndirectOp : Stencil_Op<"jump_indirect", [MemoryEffects<[MemRead]>]> {
-  let arguments = (ins AnyVector:$input_index, IndexAttr:$dimension, AnyShaped:$map, Index:$map_element);
-  let results = (outs AnyVector:$offseted_index);
-  let hasCustomAssemblyFormat = 1;
-  let assemblyFormat = "$input_index `[` $dimension `]``,` $map `[` $map_element `]` attr-dict `:` functional-type(operands, $offseted_index)";
-  let summary = "Use a connectivity map to modify the index.";
-  let description = [{
-    The procedure is as follows:
-    1. index_element = input_index[dimension]
-    2. new_element = map[index_element, map_element]
-    3. input_index[dimension] = new_element
-
-    Essentially, one element of the index is replaced by a value from the map.
-    The modified index is returned, while the input index is in fact left unchanged.
-  }];
-}
-
-
 def SampleOp : Stencil_Op<"sample", [MemoryEffects<[MemRead]>]> {
   let arguments = (ins AnyShaped:$field, AnyVector:$index);
   let results = (outs AnyType:$sampled_value);
@@ -263,22 +245,6 @@ def SampleOp : Stencil_Op<"sample", [MemoryEffects<[MemRead]>]> {
   let hasVerifier = 1;
   let assemblyFormat = "$field`[` $index `]` attr-dict `:` functional-type(operands, $sampled_value)";
   let summary = "Get the element from a field at the specified index.";
-}
-
-
-def SampleIndirectOp : Stencil_Op<"sample_indirect", [MemoryEffects<[MemRead]>]> {
-  let arguments = (ins AnyVector:$index, IndexAttr:$dimension, AnyShaped:$field, Index:$field_element);
-  let results = (outs AnyType:$field_value);
-  let hasCustomAssemblyFormat = 1;
-  let assemblyFormat = "$field`[` $index`[`$dimension`]``,` $field_element `]` attr-dict `:` functional-type(operands, $field_value)";
-  let summary = "Sample a field of the same shape as a connectivity map.";
-  let description = [{
-    The procedure is as follows:
-    1. index_element = input_index[dimension]
-    2. sample = field[index_element, map_element]
-
-    The sample is then returned by this operation.
-  }];
 }
 
 

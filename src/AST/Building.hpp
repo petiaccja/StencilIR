@@ -150,28 +150,10 @@ inline auto extract(std::shared_ptr<Expression> index,
 }
 
 
-inline auto jump_indirect(std::shared_ptr<Expression> index,
-                          int64_t dimension,
-                          std::shared_ptr<Expression> map,
-                          std::shared_ptr<Expression> mapElement,
-                          std::optional<Location> loc = {}) {
-    return std::make_shared<JumpIndirect>(index, dimension, map, mapElement, loc);
-}
-
-
 inline auto sample(std::shared_ptr<Expression> field,
                    std::shared_ptr<Expression> index,
                    std::optional<Location> loc = {}) {
     return std::make_shared<Sample>(field, index, loc);
-}
-
-
-inline auto sample_indirect(std::shared_ptr<Expression> index,
-                            int64_t dimension,
-                            std::shared_ptr<Expression> field,
-                            std::shared_ptr<Expression> fieldElement,
-                            std::optional<Location> loc = {}) {
-    return std::make_shared<SampleIndirect>(index, dimension, field, fieldElement, loc);
 }
 
 
