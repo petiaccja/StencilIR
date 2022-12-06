@@ -317,6 +317,24 @@ FunctionType InvokeOp::getCalleeType() {
 }
 
 
+//------------------------------------------------------------------------------
+// IndexOp
+//------------------------------------------------------------------------------
+
+mlir::LogicalResult IndexOp::verify() {
+    auto stencil = (*this)->getParentOfType<StencilOp>();
+    if (!stencil) {
+        return emitOpError() << "index op must be enclosed in a stencil";
+    }
+    auto resultType = getResult().getType().dyn_cast<VectorType>();
+    const auto indexDims = resultType.getShape()[0];
+    const auto stencilDims = stencil.getNumDimensions().getSExtValue();
+    if (stencilDims != indexDims) {
+        return emitOpError() << "index op has dimension " << indexDims
+                             << " but enclosing stencil has dimension " << stencilDims;
+    }
+    return success();
+}
 
 //------------------------------------------------------------------------------
 // Index manipulation
@@ -381,20 +399,20 @@ mlir::LogicalResult SampleOp::verify() {
     assert(indexType);
 
     if (!fieldType.hasRank()) {
-        emitOpError("ranked shaped type expected for field");
+        return emitOpError("ranked shaped type expected for field");
     }
     if (!indexType.hasStaticShape()) {
-        emitOpError("index with a static shape is expected");
+        return emitOpError("index with a static shape is expected");
     }
     if (indexType.getShape().size() != 1) {
-        emitOpError("index must be a one-dimensional vector");
+        return emitOpError("index must be a one-dimensional vector");
     }
     if (indexType.getElementType() != mlir::IndexType::get(getContext())) {
-        emitOpError("index must be a vector with elements of type 'index'");
+        return emitOpError("index must be a vector with elements of type 'index'");
     }
     if (fieldType.getRank() != indexType.getShape()[0]) {
-        emitOpError() << "field's rank of " << fieldType.getRank()
-                      << " does not match index's size of " << indexType.getShape()[0];
+        return emitOpError() << "field's rank of " << fieldType.getRank()
+                             << " does not match index's size of " << indexType.getShape()[0];
     }
 
     return success();

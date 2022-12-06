@@ -465,12 +465,11 @@ public:
     auto Generate(const ast::Index& node) const -> GenerationResult {
         const auto loc = ConvertLocation(builder, node.location);
 
-        stencil::StencilOp currentStencil = nullptr;
-        const auto& scopeInfo = symbolTable.Info();
-        if (scopeInfo.has_value() && scopeInfo.type() == typeid(mlir::Operation*)) {
-            const auto op = std::any_cast<mlir::Operation*>(scopeInfo);
-            currentStencil = mlir::dyn_cast<stencil::StencilOp>(op);
-        }
+        auto currentBlock = builder.getBlock();
+        auto currentOp = currentBlock->getParentOp();
+        stencil::StencilOp currentStencil = mlir::dyn_cast<stencil::StencilOp>(currentOp)
+                                                ? mlir::dyn_cast<stencil::StencilOp>(currentOp)
+                                                : currentOp->getParentOfType<stencil::StencilOp>();
         if (!currentStencil) {
             auto msg = FormatDiagnostic(FormatLocation(loc),
                                         FormatSeverity(mlir::DiagnosticSeverity::Error),

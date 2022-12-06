@@ -23,9 +23,7 @@ static std::shared_ptr<ast::Module> CreateAST() {
     // Stencil logic
     auto field = ast::symref("cellK");
 
-    auto assign_index = ast::assign("index", ast::index());
-
-    auto index = ast::symref("index");
+    auto index = ast::index();
 
     auto connectivityIdx = ast::extend(ast::project(index, { 0 }), 1, ast::symref("elementIdx"));
     auto neighbourIdx = ast::sample(edgeToCell, connectivityIdx);
@@ -56,7 +54,7 @@ static std::shared_ptr<ast::Module> CreateAST() {
                                        { "cellWeights", ast::FieldType{ ast::ScalarType::FLOAT32, 2 } },
                                    },
                                    { ast::ScalarType::FLOAT32 },
-                                   { assign_index, ast::return_({ sum }) },
+                                   { ast::return_({ sum }) },
                                    2);
 
     // Main function logic

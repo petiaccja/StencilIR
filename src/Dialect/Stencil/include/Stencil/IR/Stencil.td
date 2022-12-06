@@ -173,9 +173,10 @@ def ReturnOp : Stencil_Op<"return", [
 }
 
 
-def IndexOp : Stencil_Op<"index", [NoSideEffect, HasParent<"StencilOp">]> {
+def IndexOp : Stencil_Op<"index", [NoSideEffect]> {
   let results = (outs AnyVector:$index);
   let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
   let assemblyFormat = "attr-dict `:` type($index)";
   let summary = "Get the index of this kernel in the grid.";
 }
