@@ -26,7 +26,7 @@ Stage CreateBufferizationStage(mlir::MLIRContext& context) {
     mlir::bufferization::OneShotBufferizationOptions bufferizationOptions;
     bufferizationOptions.allowUnknownOps = false;
     bufferizationOptions.allowReturnAllocs = false;
-    bufferizationOptions.createDeallocs = false;
+    bufferizationOptions.createDeallocs = true;
     bufferizationOptions.defaultMemorySpace = 0;
     bufferizationOptions.functionBoundaryTypeConversion = mlir::bufferization::BufferizationOptions::LayoutMapOption::FullyDynamicLayoutMap;
     bufferizationOptions.bufferizeFunctionBoundaries = true;
@@ -35,8 +35,6 @@ Stage CreateBufferizationStage(mlir::MLIRContext& context) {
     stage.passes->addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createBufferizationBufferizePass());
     stage.passes->addNestedPass<mlir::func::FuncOp>(mlir::createTensorBufferizePass());
     stage.passes->addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createFinalizingBufferizePass());
-    stage.passes->addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createBufferHoistingPass());
-    stage.passes->addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createBufferLoopHoistingPass());
     stage.passes->addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createBufferDeallocationPass());
     stage.passes->addPass(mlir::createCanonicalizerPass());
     stage.passes->addPass(mlir::createCSEPass());
