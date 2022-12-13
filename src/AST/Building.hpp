@@ -120,28 +120,40 @@ inline auto jump(std::shared_ptr<Expression> index,
 }
 
 
+inline auto project(std::shared_ptr<Expression> index,
+                    std::vector<int64_t> positions,
+                    std::optional<Location> loc = {}) {
+    return std::make_shared<Project>(index, positions, loc);
+}
+
+
+inline auto extend(std::shared_ptr<Expression> index,
+                   int64_t position,
+                   std::shared_ptr<Expression> value,
+                   std::optional<Location> loc = {}) {
+    return std::make_shared<Extend>(index, position, value, loc);
+}
+
+
+inline auto exchange(std::shared_ptr<Expression> index,
+                     int64_t position,
+                     std::shared_ptr<Expression> value,
+                     std::optional<Location> loc = {}) {
+    return std::make_shared<Exchange>(index, position, value, loc);
+}
+
+
+inline auto extract(std::shared_ptr<Expression> index,
+                    int64_t position,
+                    std::optional<Location> loc = {}) {
+    return std::make_shared<Extract>(index, position, loc);
+}
+
+
 inline auto sample(std::shared_ptr<Expression> field,
                    std::shared_ptr<Expression> index,
                    std::optional<Location> loc = {}) {
     return std::make_shared<Sample>(field, index, loc);
-}
-
-
-inline auto jump_indirect(std::shared_ptr<Expression> index,
-                          int64_t dimension,
-                          std::shared_ptr<Expression> map,
-                          std::shared_ptr<Expression> mapElement,
-                          std::optional<Location> loc = {}) {
-    return std::make_shared<JumpIndirect>(index, dimension, map, mapElement, loc);
-}
-
-
-inline auto sample_indirect(std::shared_ptr<Expression> index,
-                            int64_t dimension,
-                            std::shared_ptr<Expression> field,
-                            std::shared_ptr<Expression> fieldElement,
-                            std::optional<Location> loc = {}) {
-    return std::make_shared<SampleIndirect>(index, dimension, field, fieldElement, loc);
 }
 
 

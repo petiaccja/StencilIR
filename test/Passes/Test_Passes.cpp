@@ -15,3 +15,8 @@ static std::string TestFile(std::string_view name) {
 TEST_CASE("Convert stencil apply to loops", "[StencilDialect]") {
     REQUIRE(CheckFile(TestFile("ConvertStencilApplyToLoops.mlir"), createStencilApplyToLoopsPass()));
 }
+
+
+TEST_CASE("Convert stencil to standard", "[StencilDialect]") {
+    REQUIRE(CheckFile(TestFile("ConvertStencilToStandard.mlir"), createStencilToStandardPass()));
+}

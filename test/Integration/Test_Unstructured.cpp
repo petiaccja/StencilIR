@@ -20,19 +20,23 @@ static std::shared_ptr<ast::Module> CreateAST() {
     auto edgeToCell = ast::symref("edgeToCell");
     auto cellWeights = ast::symref("cellWeights");
 
-    // Kernel logic
+    // Stencil logic
     auto field = ast::symref("cellK");
 
-    auto assign_index = ast::assign("index", ast::index());
-    auto index = ast::symref("index");
+    auto index = ast::index();
 
-    auto neighbour = ast::sample_indirect(index, 0, edgeToCell, ast::symref("elementIdx"));
-    auto invalid = ast::constant(ast::index_type, -1);
-    auto isNeighbourValid = ast::neq(neighbour, invalid);
+    auto connectivityIdx = ast::extend(ast::project(index, { 0 }), 1, ast::symref("elementIdx"));
+    auto neighbourIdx = ast::sample(edgeToCell, connectivityIdx);
+    auto neighbourWeight = ast::sample(cellWeights, connectivityIdx);
+    auto cellIdx = ast::exchange(index, 0, neighbourIdx);
+    auto neighbourValue = ast::sample(cellK, cellIdx);
+
+    auto invalidIdx = ast::constant(ast::index_type, -1);
+    auto isNeighbourValid = ast::neq(neighbourIdx, invalidIdx);
     auto accUpdated = ast::add(ast::symref("accumulator"),
                                ast::mul(
-                                   ast::sample_indirect(index, 0, cellWeights, ast::symref("elementIdx")),
-                                   ast::sample(cellK, ast::jump_indirect(index, 0, edgeToCell, ast::symref("elementIdx")))));
+                                   neighbourWeight,
+                                   neighbourValue));
     auto accSame = ast::symref("accumulator");
     auto acc = ast::if_(isNeighbourValid, { ast::yield({ accUpdated }) }, { ast::yield({ accSame }) });
     auto sum = ast::for_(ast::constant(ast::index_type, 0),
@@ -50,7 +54,7 @@ static std::shared_ptr<ast::Module> CreateAST() {
                                        { "cellWeights", ast::FieldType{ ast::ScalarType::FLOAT32, 2 } },
                                    },
                                    { ast::ScalarType::FLOAT32 },
-                                   { assign_index, ast::return_({ sum }) },
+                                   { ast::return_({ sum }) },
                                    2);
 
     // Main function logic

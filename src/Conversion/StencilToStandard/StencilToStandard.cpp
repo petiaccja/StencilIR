@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <numeric>
 #include <vector>
 
 
@@ -60,12 +61,78 @@ struct JumpOpLowering : public OpRewritePattern<stencil::JumpOp> {
     }
 };
 
+
+struct ProjectOpLowering : public OpRewritePattern<stencil::ProjectOp> {
+    using OpRewritePattern<stencil::ProjectOp>::OpRewritePattern;
+
+    LogicalResult matchAndRewrite(stencil::ProjectOp op, PatternRewriter& rewriter) const override final {
+        mlir::Value source = op.getSource();
+        auto positions = op.getPositions();
+
+        rewriter.replaceOpWithNewOp<vector::ShuffleOp>(op, source, source, positions);
+
+        return success();
+    }
+};
+
+
+struct ExtendOpLowering : public OpRewritePattern<stencil::ExtendOp> {
+    using OpRewritePattern<stencil::ExtendOp>::OpRewritePattern;
+
+    LogicalResult matchAndRewrite(stencil::ExtendOp op, PatternRewriter& rewriter) const override final {
+        mlir::Value source = op.getSource();
+        mlir::VectorType sourceType = source.getType().dyn_cast<mlir::VectorType>();
+        const auto size = sourceType.getShape()[0];
+        assert(sourceType);
+        mlir::SmallVector<int64_t, 8> mask(size);
+        std::iota(mask.begin(), mask.end(), 0);
+        mask.insert(mask.begin() + op.getPosition().getSExtValue(), size);
+
+        std::array<int64_t, 1> shape = { 1 };
+        mlir::Type valueType = mlir::VectorType::get(shape, rewriter.getIndexType());
+        mlir::Value value = rewriter.create<vector::SplatOp>(op->getLoc(), valueType, op.getValue());
+
+        rewriter.replaceOpWithNewOp<vector::ShuffleOp>(op, source, value, mask);
+
+        return success();
+    }
+};
+
+
+struct ExchangeOpLowering : public OpRewritePattern<stencil::ExchangeOp> {
+    using OpRewritePattern<stencil::ExchangeOp>::OpRewritePattern;
+
+    LogicalResult matchAndRewrite(stencil::ExchangeOp op, PatternRewriter& rewriter) const override final {
+        mlir::Value source = op.getSource();
+        mlir::Value position = rewriter.create<mlir::arith::ConstantIndexOp>(op.getLoc(), op.getPosition().getSExtValue());
+        mlir::Value value = op.getValue();
+
+        rewriter.replaceOpWithNewOp<vector::InsertElementOp>(op, value, source, position);
+
+        return success();
+    }
+};
+
+
+struct ExtractOpLowering : public OpRewritePattern<stencil::ExtractOp> {
+    using OpRewritePattern<stencil::ExtractOp>::OpRewritePattern;
+
+    LogicalResult matchAndRewrite(stencil::ExtractOp op, PatternRewriter& rewriter) const override final {
+        mlir::Value source = op.getSource();
+        mlir::Value position = rewriter.create<mlir::arith::ConstantIndexOp>(op.getLoc(), op.getPosition().getSExtValue());
+
+        rewriter.replaceOpWithNewOp<vector::ExtractElementOp>(op, source, position);
+
+        return success();
+    }
+};
+
+
 struct SampleOpLowering : public OpRewritePattern<stencil::SampleOp> {
     using OpRewritePattern<stencil::SampleOp>::OpRewritePattern;
 
     LogicalResult matchAndRewrite(stencil::SampleOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
-
         Value index = op.getIndex();
         Value field = op.getField();
 
@@ -80,56 +147,6 @@ struct SampleOpLowering : public OpRewritePattern<stencil::SampleOp> {
 
         Value value = rewriter.create<memref::LoadOp>(loc, field, indices);
         rewriter.replaceOp(op, value);
-
-        return success();
-    }
-};
-
-
-struct JumpIndirectOpLowering : public OpRewritePattern<stencil::JumpIndirectOp> {
-    using OpRewritePattern<stencil::JumpIndirectOp>::OpRewritePattern;
-
-    LogicalResult matchAndRewrite(stencil::JumpIndirectOp op, PatternRewriter& rewriter) const override final {
-        Location loc = op->getLoc();
-
-        auto inputIndex = op.getInputIndex();
-        const auto dimension = op.getDimension().getSExtValue();
-        Value dimIndex = { rewriter.create<arith::ConstantIndexOp>(loc, dimension) };
-        Value inputIndexElem = rewriter.create<vector::ExtractElementOp>(loc, inputIndex, dimIndex);
-
-        auto map = op.getMap();
-        auto mapElement = op.getMapElement();
-        std::array<Value, 2> mapIndices = { inputIndexElem, mapElement };
-        Value newIndexElem = rewriter.create<memref::LoadOp>(loc, map, mapIndices);
-        if (!newIndexElem.getType().isa<IndexType>()) {
-            newIndexElem = rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(), newIndexElem);
-        }
-        Value outputIndex = rewriter.create<vector::InsertElementOp>(loc, newIndexElem, inputIndex, dimIndex);
-
-        rewriter.replaceOp(op, outputIndex);
-
-        return success();
-    }
-};
-
-
-struct SampleIndirectOpLowering : public OpRewritePattern<stencil::SampleIndirectOp> {
-    using OpRewritePattern<stencil::SampleIndirectOp>::OpRewritePattern;
-
-    LogicalResult matchAndRewrite(stencil::SampleIndirectOp op, PatternRewriter& rewriter) const override final {
-        Location loc = op->getLoc();
-
-        auto inputIndex = op.getIndex();
-        const auto dimension = op.getDimension().getSExtValue();
-        Value dimIndex = { rewriter.create<arith::ConstantIndexOp>(loc, dimension) };
-        Value inputIndexElem = rewriter.create<vector::ExtractElementOp>(loc, inputIndex, dimIndex);
-
-        auto field = op.getField();
-        auto fieldElement = op.getFieldElement();
-        std::array<Value, 2> mapIndices = { inputIndexElem, fieldElement };
-        Value sample = rewriter.create<memref::LoadOp>(loc, field, mapIndices);
-
-        rewriter.replaceOp(op, sample);
 
         return success();
     }
@@ -156,9 +173,11 @@ void StencilToStandardPass::runOnOperation() {
 
     RewritePatternSet patterns(&getContext());
     patterns.add<JumpOpLowering>(&getContext());
+    patterns.add<ProjectOpLowering>(&getContext());
+    patterns.add<ExtendOpLowering>(&getContext());
+    patterns.add<ExchangeOpLowering>(&getContext());
+    patterns.add<ExtractOpLowering>(&getContext());
     patterns.add<SampleOpLowering>(&getContext());
-    patterns.add<JumpIndirectOpLowering>(&getContext());
-    patterns.add<SampleIndirectOpLowering>(&getContext());
 
     if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {
         signalPassFailure();

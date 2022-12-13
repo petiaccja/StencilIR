@@ -225,13 +225,15 @@ class StencilIRGenerator : public IRGenerator<ast::Node, GenerationResult, Stenc
                                               ast::Pack,
                                               ast::Index,
                                               ast::Jump,
+                                              ast::Project,
+                                              ast::Extend,
+                                              ast::Exchange,
+                                              ast::Extract,
                                               ast::Sample,
-                                              ast::JumpIndirect,
                                               ast::For,
                                               ast::If,
                                               ast::Yield,
                                               ast::Block,
-                                              ast::SampleIndirect,
                                               ast::AllocTensor,
                                               ast::Dim,
                                               ast::ExtractSlice,
@@ -463,12 +465,11 @@ public:
     auto Generate(const ast::Index& node) const -> GenerationResult {
         const auto loc = ConvertLocation(builder, node.location);
 
-        stencil::StencilOp currentStencil = nullptr;
-        const auto& scopeInfo = symbolTable.Info();
-        if (scopeInfo.has_value() && scopeInfo.type() == typeid(mlir::Operation*)) {
-            const auto op = std::any_cast<mlir::Operation*>(scopeInfo);
-            currentStencil = mlir::dyn_cast<stencil::StencilOp>(op);
-        }
+        auto currentBlock = builder.getBlock();
+        auto currentOp = currentBlock->getParentOp();
+        stencil::StencilOp currentStencil = mlir::dyn_cast<stencil::StencilOp>(currentOp)
+                                                ? mlir::dyn_cast<stencil::StencilOp>(currentOp)
+                                                : currentOp->getParentOfType<stencil::StencilOp>();
         if (!currentStencil) {
             auto msg = FormatDiagnostic(FormatLocation(loc),
                                         FormatSeverity(mlir::DiagnosticSeverity::Error),
@@ -490,6 +491,36 @@ public:
         return { op };
     }
 
+    auto Generate(const ast::Project& node) const -> GenerationResult {
+        const auto loc = ConvertLocation(builder, node.location);
+        const mlir::Value index = Generate(*node.index);
+        auto op = builder.create<stencil::ProjectOp>(loc, index, node.positions);
+        return { op };
+    }
+
+    auto Generate(const ast::Extend& node) const -> GenerationResult {
+        const auto loc = ConvertLocation(builder, node.location);
+        const mlir::Value index = Generate(*node.index);
+        const mlir::Value value = Generate(*node.value);
+        auto op = builder.create<stencil::ExtendOp>(loc, index, node.position, value);
+        return { op };
+    }
+
+    auto Generate(const ast::Exchange& node) const -> GenerationResult {
+        const auto loc = ConvertLocation(builder, node.location);
+        const mlir::Value index = Generate(*node.index);
+        const mlir::Value value = Generate(*node.value);
+        auto op = builder.create<stencil::ExchangeOp>(loc, index, node.position, value);
+        return { op };
+    }
+
+    auto Generate(const ast::Extract& node) const -> GenerationResult {
+        const auto loc = ConvertLocation(builder, node.location);
+        const mlir::Value index = Generate(*node.index);
+        auto op = builder.create<stencil::ExtractOp>(loc, index, node.position);
+        return { op };
+    }
+
     auto Generate(const ast::Sample& node) const -> GenerationResult {
         const auto loc = ConvertLocation(builder, node.location);
         const mlir::Value field = Generate(*node.field);
@@ -502,35 +533,6 @@ public:
         auto elementType = fieldType.dyn_cast<mlir::ShapedType>().getElementType();
 
         auto op = builder.create<stencil::SampleOp>(loc, elementType, field, index);
-        return { op };
-    }
-
-    auto Generate(const ast::JumpIndirect& node) const -> GenerationResult {
-        const auto loc = ConvertLocation(builder, node.location);
-
-        const mlir::Value index = Generate(*node.index);
-        const auto dimension = builder.getIndexAttr(node.dimension);
-        const mlir::Value map = Generate(*node.map);
-        const mlir::Value mapElement = Generate(*node.mapElement);
-
-        auto op = builder.create<stencil::JumpIndirectOp>(loc, index.getType(), index, dimension, map, mapElement);
-        return { op };
-    }
-
-    auto Generate(const ast::SampleIndirect& node) const -> GenerationResult {
-        const auto loc = ConvertLocation(builder, node.location);
-        const mlir::Value index = Generate(*node.index);
-        const auto dimension = builder.getIndexAttr(node.dimension);
-        const mlir::Value field = Generate(*node.field);
-        const mlir::Value fieldElement = Generate(*node.fieldElement);
-
-        auto fieldType = field.getType();
-        if (!fieldType.isa<mlir::ShapedType>()) {
-            throw ArgumentTypeError{ loc, FormatType(fieldType), 0 };
-        }
-        auto elementType = fieldType.dyn_cast<mlir::ShapedType>().getElementType();
-
-        auto op = builder.create<stencil::SampleIndirectOp>(loc, elementType, index, dimension, field, fieldElement);
         return { op };
     }
 

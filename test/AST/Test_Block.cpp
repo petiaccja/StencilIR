@@ -7,7 +7,7 @@
 
 
 TEST_CASE("Block - without return value", "[AST]") {
-    const auto ast = EncloseStatements(
+    const auto ast = EncloseInFunction(
         ast::block({
             ast::constant(1.0f),
             ast::yield(),
@@ -21,7 +21,7 @@ TEST_CASE("Block - without return value", "[AST]") {
 }
 
 TEST_CASE("Block - with return value", "[AST]") {
-    const auto ast = EncloseStatements(
+    const auto ast = EncloseInFunction(
         ast::block({
             ast::constant(1.0f),
             ast::yield({ ast::constant(2.0f) }),

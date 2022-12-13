@@ -7,7 +7,7 @@
 
 
 TEST_CASE("If - then block", "[AST]") {
-    const auto ast = EncloseStatements(
+    const auto ast = EncloseInFunction(
         ast::if_(
             ast::constant(true),
             { ast::constant(int32_t(1)), ast::yield() },
@@ -25,7 +25,7 @@ TEST_CASE("If - then block", "[AST]") {
 }
 
 TEST_CASE("If - then + else block", "[AST]") {
-    const auto ast = EncloseStatements(
+    const auto ast = EncloseInFunction(
         ast::if_(
             ast::constant(true),
             { ast::constant(int32_t(1)), ast::yield() },
@@ -45,7 +45,7 @@ TEST_CASE("If - then + else block", "[AST]") {
 }
 
 TEST_CASE("If - yield", "[AST]") {
-    const auto ast = EncloseStatements(
+    const auto ast = EncloseInFunction(
         ast::if_(
             ast::constant(true),
             { ast::yield({ ast::constant(int32_t(1)), ast::constant(int32_t(2)) }) },

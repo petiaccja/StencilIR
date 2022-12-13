@@ -7,7 +7,7 @@
 
 
 TEST_CASE("Yield - no value", "[AST]") {
-    const auto ast = EncloseStatements(
+    const auto ast = EncloseInFunction(
         ast::if_(ast::constant(true),
                  { ast::yield() }));
 
@@ -19,7 +19,7 @@ TEST_CASE("Yield - no value", "[AST]") {
 }
 
 TEST_CASE("Yield - single value", "[AST]") {
-    const auto ast = EncloseStatements(
+    const auto ast = EncloseInFunction(
         ast::if_(ast::constant(true),
                  { ast::yield({ ast::constant(1.0f) }) },
                  { ast::yield({ ast::constant(1.0f) }) }));

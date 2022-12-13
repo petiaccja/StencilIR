@@ -88,22 +88,30 @@ PYBIND11_MODULE(stencilir, m) {
                             std::vector<int64_t>,
                             std::optional<Location>>());
 
+    pybind11::class_<Project, std::shared_ptr<Project>>(m, "Project", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            std::vector<int64_t>,
+                            std::optional<Location>>());
+
+    pybind11::class_<Extend, std::shared_ptr<Extend>>(m, "Extend", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            int64_t,
+                            std::shared_ptr<Expression>,
+                            std::optional<Location>>());
+
+    pybind11::class_<Exchange, std::shared_ptr<Exchange>>(m, "Exchange", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            int64_t,
+                            std::shared_ptr<Expression>,
+                            std::optional<Location>>());
+
+    pybind11::class_<Extract, std::shared_ptr<Extract>>(m, "Extract", expression)
+        .def(pybind11::init<std::shared_ptr<Expression>,
+                            int64_t,
+                            std::optional<Location>>());
+
     pybind11::class_<Sample, std::shared_ptr<Sample>>(m, "Sample", expression)
         .def(pybind11::init<std::shared_ptr<Expression>,
-                            std::shared_ptr<Expression>,
-                            std::optional<Location>>());
-
-    pybind11::class_<JumpIndirect, std::shared_ptr<JumpIndirect>>(m, "JumpIndirect", expression)
-        .def(pybind11::init<std::shared_ptr<Expression>,
-                            int64_t,
-                            std::shared_ptr<Expression>,
-                            std::shared_ptr<Expression>,
-                            std::optional<Location>>());
-
-    pybind11::class_<SampleIndirect, std::shared_ptr<SampleIndirect>>(m, "SampleIndirect", expression)
-        .def(pybind11::init<std::shared_ptr<Expression>,
-                            int64_t,
-                            std::shared_ptr<Expression>,
                             std::shared_ptr<Expression>,
                             std::optional<Location>>());
 

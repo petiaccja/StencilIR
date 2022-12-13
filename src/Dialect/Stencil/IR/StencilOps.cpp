@@ -317,4 +317,106 @@ FunctionType InvokeOp::getCalleeType() {
 }
 
 
+//------------------------------------------------------------------------------
+// IndexOp
+//------------------------------------------------------------------------------
+
+mlir::LogicalResult IndexOp::verify() {
+    auto stencil = (*this)->getParentOfType<StencilOp>();
+    if (!stencil) {
+        return emitOpError() << "index op must be enclosed in a stencil";
+    }
+    auto resultType = getResult().getType().dyn_cast<VectorType>();
+    const auto indexDims = resultType.getShape()[0];
+    const auto stencilDims = stencil.getNumDimensions().getSExtValue();
+    if (stencilDims != indexDims) {
+        return emitOpError() << "index op has dimension " << indexDims
+                             << " but enclosing stencil has dimension " << stencilDims;
+    }
+    return success();
+}
+
+//------------------------------------------------------------------------------
+// Index manipulation
+//------------------------------------------------------------------------------
+
+void ProjectOp::build(::mlir::OpBuilder& odsBuilder,
+                      ::mlir::OperationState& odsState,
+                      ::mlir::Value source,
+                      ::mlir::ArrayRef<int64_t> positions) {
+    std::array<int64_t, 1> shape{ int64_t(positions.size()) };
+    auto resultType = mlir::VectorType::get(shape, odsBuilder.getIndexType());
+    auto elementsAttr = odsBuilder.getI64ArrayAttr(positions);
+    return build(odsBuilder, odsState, resultType, source, elementsAttr);
+}
+
+
+void ExtendOp::build(::mlir::OpBuilder& odsBuilder,
+                     ::mlir::OperationState& odsState,
+                     ::mlir::Value source,
+                     int64_t position,
+                     ::mlir::Value value) {
+    auto inputType = source.getType().dyn_cast<mlir::VectorType>();
+    assert(inputType);
+    std::array<int64_t, 1> shape{ inputType.getShape()[0] + 1 };
+    auto resultType = mlir::VectorType::get(shape, odsBuilder.getIndexType());
+    auto dimensionAttr = odsBuilder.getIndexAttr(position);
+    return build(odsBuilder, odsState, resultType, source, dimensionAttr, value);
+}
+
+
+void ExchangeOp::build(::mlir::OpBuilder& odsBuilder,
+                       ::mlir::OperationState& odsState,
+                       ::mlir::Value source,
+                       int64_t position,
+                       ::mlir::Value value) {
+    auto resultType = source.getType();
+    auto dimensionAttr = odsBuilder.getIndexAttr(position);
+    return build(odsBuilder, odsState, resultType, source, dimensionAttr, value);
+}
+
+
+void ExtractOp::build(::mlir::OpBuilder& odsBuilder,
+                      ::mlir::OperationState& odsState,
+                      ::mlir::Value source,
+                      int64_t position) {
+    auto dimensionAttr = odsBuilder.getIndexAttr(position);
+    return build(odsBuilder, odsState, odsBuilder.getIndexType(), source, dimensionAttr);
+}
+
+
+//------------------------------------------------------------------------------
+// SampleOp
+//------------------------------------------------------------------------------
+
+mlir::LogicalResult SampleOp::verify() {
+    mlir::Value field = getField();
+    mlir::Value index = getIndex();
+
+    auto fieldType = field.getType().dyn_cast<mlir::ShapedType>();
+    auto indexType = index.getType().dyn_cast<mlir::VectorType>();
+    assert(fieldType);
+    assert(indexType);
+
+    if (!fieldType.hasRank()) {
+        return emitOpError("ranked shaped type expected for field");
+    }
+    if (!indexType.hasStaticShape()) {
+        return emitOpError("index with a static shape is expected");
+    }
+    if (indexType.getShape().size() != 1) {
+        return emitOpError("index must be a one-dimensional vector");
+    }
+    if (indexType.getElementType() != mlir::IndexType::get(getContext())) {
+        return emitOpError("index must be a vector with elements of type 'index'");
+    }
+    if (fieldType.getRank() != indexType.getShape()[0]) {
+        return emitOpError() << "field's rank of " << fieldType.getRank()
+                             << " does not match index's size of " << indexType.getShape()[0];
+    }
+
+    return success();
+}
+
+
 } // namespace stencil

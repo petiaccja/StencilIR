@@ -185,6 +185,46 @@ struct Jump : Expression {
     std::vector<int64_t> offset;
 };
 
+struct Project : Expression {
+    explicit Project(std::shared_ptr<Expression> index,
+                     std::vector<int64_t> positions,
+                     std::optional<Location> loc = {})
+        : Expression(loc), index(index), positions(positions) {}
+    std::shared_ptr<Expression> index;
+    std::vector<int64_t> positions;
+};
+
+struct Extend : Expression {
+    explicit Extend(std::shared_ptr<Expression> index,
+                    int64_t position,
+                    std::shared_ptr<Expression> value,
+                    std::optional<Location> loc = {})
+        : Expression(loc), index(index), position(position), value(value) {}
+    std::shared_ptr<Expression> index;
+    int64_t position;
+    std::shared_ptr<Expression> value;
+};
+
+struct Exchange : Expression {
+    explicit Exchange(std::shared_ptr<Expression> index,
+                      int64_t position,
+                      std::shared_ptr<Expression> value,
+                      std::optional<Location> loc = {})
+        : Expression(loc), index(index), position(position), value(value) {}
+    std::shared_ptr<Expression> index;
+    int64_t position;
+    std::shared_ptr<Expression> value;
+};
+
+struct Extract : Expression {
+    explicit Extract(std::shared_ptr<Expression> index,
+                     int64_t position,
+                     std::optional<Location> loc = {})
+        : Expression(loc), index(index), position(position) {}
+    std::shared_ptr<Expression> index;
+    int64_t position;
+};
+
 struct Sample : Expression {
     explicit Sample(std::shared_ptr<Expression> field,
                     std::shared_ptr<Expression> index,
@@ -194,31 +234,6 @@ struct Sample : Expression {
     std::shared_ptr<Expression> index;
 };
 
-struct JumpIndirect : Expression {
-    explicit JumpIndirect(std::shared_ptr<Expression> index,
-                          int64_t dimension,
-                          std::shared_ptr<Expression> map,
-                          std::shared_ptr<Expression> mapElement,
-                          std::optional<Location> loc = {})
-        : Expression(loc), index(index), dimension(dimension), map(map), mapElement(mapElement) {}
-    std::shared_ptr<Expression> index;
-    int64_t dimension;
-    std::shared_ptr<Expression> map;
-    std::shared_ptr<Expression> mapElement;
-};
-
-struct SampleIndirect : Expression {
-    explicit SampleIndirect(std::shared_ptr<Expression> index,
-                            int64_t dimension,
-                            std::shared_ptr<Expression> field,
-                            std::shared_ptr<Expression> fieldElement,
-                            std::optional<Location> loc = {})
-        : Expression(loc), index(index), dimension(dimension), field(field), fieldElement(fieldElement) {}
-    std::shared_ptr<Expression> index;
-    int64_t dimension;
-    std::shared_ptr<Expression> field;
-    std::shared_ptr<Expression> fieldElement;
-};
 
 //------------------------------------------------------------------------------
 // Control flow
