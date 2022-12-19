@@ -9,6 +9,7 @@
 #include <Diagnostics/Formatting.hpp>
 #include <Diagnostics/Handlers.hpp>
 #include <Dialect/Stencil/IR/StencilOps.hpp>
+#include <Dialect/Stencil/Transforms/BufferizableOpInterfaceImpl.hpp>
 
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/ScopedHashTable.h>
@@ -38,6 +39,7 @@
 #include <mlir/IR/Value.h>
 #include <mlir/IR/ValueRange.h>
 #include <mlir/IR/Verifier.h>
+#include <mlir/InitAllDialects.h>
 #include <mlir/Support/LLVM.h>
 
 #include <algorithm>
@@ -933,15 +935,15 @@ private:
 };
 
 mlir::ModuleOp ConvertASTToIR(mlir::MLIRContext& context, const ast::Module& node) {
-    StencilIRGenerator generator{ context };
+    mlir::registerAllDialects(context);
+    mlir::DialectRegistry registry;
+    registry.insert<stencil::StencilDialect>();
+    mlir::bufferization::func_ext::registerBufferizableOpInterfaceExternalModels(registry);
+    stencil::registerBufferizableOpInterfaceExternalModels(registry);
+    context.appendDialectRegistry(registry);
+    context.loadAllAvailableDialects();
 
-    context.getOrLoadDialect<mlir::func::FuncDialect>();
-    context.getOrLoadDialect<mlir::arith::ArithmeticDialect>();
-    context.getOrLoadDialect<mlir::memref::MemRefDialect>();
-    context.getOrLoadDialect<stencil::StencilDialect>();
-    context.getOrLoadDialect<mlir::bufferization::BufferizationDialect>();
-    context.getOrLoadDialect<mlir::tensor::TensorDialect>();
-    context.getOrLoadDialect<mlir::scf::SCFDialect>();
+    StencilIRGenerator generator{ context };
 
     auto ir = generator.Generate(node);
     auto module = mlir::dyn_cast<mlir::ModuleOp>(ir.op);

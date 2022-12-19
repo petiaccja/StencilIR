@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <span>
 
 
 using namespace mlir;
@@ -148,30 +149,16 @@ struct ApplyOpInterface : public BufferizableOpInterface::ExternalModel<ApplyOpI
                             const BufferizationOptions& options) const {
         auto applyOp = mlir::dyn_cast<ApplyOp>(op);
 
-        const auto& inputMemrefsOrFailure = BufferizeValueRange(rewriter, applyOp.getInputs(), options, true);
-        if (failed(inputMemrefsOrFailure)) {
-            return inputMemrefsOrFailure;
+        const auto& memrefsOrFailure = BufferizeValueRange(rewriter, applyOp->getOperands(), options, true);
+        if (failed(memrefsOrFailure)) {
+            return memrefsOrFailure;
         }
-        const auto& inputMemrefs = *inputMemrefsOrFailure;
+        const auto& memrefs = *memrefsOrFailure;
+        const std::span outs{ memrefs.end() - applyOp.getOutputs().size(), memrefs.end()};
+        const auto& attrs = applyOp->getAttrs();
 
-        const auto& outputMemrefsOrFailure = BufferizeValueRange(rewriter, applyOp.getOutputs(), options, true);
-        if (failed(outputMemrefsOrFailure)) {
-            return outputMemrefsOrFailure;
-        }
-        const auto& outputMemrefs = *outputMemrefsOrFailure;
-
-        std::vector<int64_t> staticOffsets;
-        for (auto offset : applyOp.getStaticOffsets().getAsRange<IntegerAttr>()) {
-            staticOffsets.push_back(offset.getInt());
-        }
-
-        rewriter.create<ApplyOp>(applyOp->getLoc(),
-                                 applyOp.getCallee(),
-                                 inputMemrefs,
-                                 outputMemrefs,
-                                 applyOp.getOffsets(),
-                                 staticOffsets);
-        replaceOpWithBufferizedValues(rewriter, applyOp, outputMemrefs);
+        rewriter.create<ApplyOp>(applyOp->getLoc(), TypeRange{}, memrefs, attrs);
+        replaceOpWithBufferizedValues(rewriter, applyOp, mlir::ArrayRef{outs.data(), outs.size()});
 
         return success();
     }

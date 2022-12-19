@@ -3,4 +3,9 @@
 #include "Compiler.hpp"
 
 
-std::vector<Stage> TargetCPUPipeline(mlir::MLIRContext& context);
+struct MacroOptimizationOptions {
+    bool eliminateAllocBuffers = true;
+};
+
+std::vector<Stage> TargetCPUPipeline(mlir::MLIRContext& context,
+                                     const MacroOptimizationOptions& macroOptimizationOptions = {});

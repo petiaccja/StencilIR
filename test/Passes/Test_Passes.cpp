@@ -2,6 +2,8 @@
 
 #include <Conversion/Passes.hpp>
 
+#include <mlir/Dialect/Bufferization/Transforms/Passes.h>
+
 #include <filesystem>
 
 #include <catch2/catch.hpp>
@@ -19,4 +21,9 @@ TEST_CASE("Convert stencil apply to loops", "[StencilDialect]") {
 
 TEST_CASE("Convert stencil to standard", "[StencilDialect]") {
     REQUIRE(CheckFile(TestFile("ConvertStencilToStandard.mlir"), createStencilToStandardPass()));
+}
+
+
+TEST_CASE("Eliminate alloc tensors", "[StencilDialect]") {
+    REQUIRE(CheckFile(TestFile("EliminateAllocTensors.mlir"), mlir::bufferization::createAllocTensorEliminationPass()));
 }

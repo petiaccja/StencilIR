@@ -5,6 +5,7 @@
 #include <Diagnostics/Formatting.hpp>
 #include <Diagnostics/Handlers.hpp>
 #include <Dialect/Stencil/IR/StencilOps.hpp>
+#include <Dialect/Stencil/Transforms/BufferizableOpInterfaceImpl.hpp>
 
 #include <llvm/FileCheck/FileCheck.h>
 #include <llvm/Support/InitLLVM.h>
@@ -128,9 +129,14 @@ bool CheckFile(std::filesystem::path file, std::vector<std::unique_ptr<mlir::Pas
     std::string source(length, ' ');
     is.read(source.data(), length);
 
+    // Load all dialects
     mlir::MLIRContext context;
     mlir::registerAllDialects(context);
     context.getOrLoadDialect<stencil::StencilDialect>();
+    mlir::DialectRegistry registry;
+    mlir::bufferization::func_ext::registerBufferizableOpInterfaceExternalModels(registry);
+    stencil::registerBufferizableOpInterfaceExternalModels(registry);
+    context.appendDialectRegistry(registry);
 
     mlir::ParserConfig config{ &context };
 

@@ -116,7 +116,7 @@ def ApplyOp : Stencil_Op<"apply", [
   let hasVerifier = 1;
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = [{
-    $callee `(` $inputs `)` `into` `(` $outputs `)` `offsets` $offsets $static_offsets attr-dict `:` functional-type(operands, $results)
+    $callee `(` $inputs `)` `outs` `(` $outputs `)` `offsets` $offsets $static_offsets attr-dict `:` functional-type(operands, $results)
   }];
   let summary = "Launch a kernel on a multi-dimensional grid, like CUDA or compute shaders.";
   let description = [{

@@ -18,11 +18,6 @@
 Stage CreateBufferizationStage(mlir::MLIRContext& context) {
     Stage stage{ "bufferization", context };
 
-    mlir::DialectRegistry registry;
-    mlir::bufferization::func_ext::registerBufferizableOpInterfaceExternalModels(registry);
-    stencil::registerBufferizableOpInterfaceExternalModels(registry);
-    context.appendDialectRegistry(registry);
-
     mlir::bufferization::OneShotBufferizationOptions bufferizationOptions;
     bufferizationOptions.allowUnknownOps = false;
     bufferizationOptions.allowReturnAllocs = false;
@@ -43,13 +38,27 @@ Stage CreateBufferizationStage(mlir::MLIRContext& context) {
 }
 
 
-std::vector<Stage> TargetCPUPipeline(mlir::MLIRContext& context) {
+Stage CreateMacroOptimizationStage(mlir::MLIRContext& context,
+                                   const MacroOptimizationOptions& macroOptimizationOptions) {
+    Stage stage{ "macro_opt", context };
+
+    if (macroOptimizationOptions.eliminateAllocBuffers) {
+        stage.passes->addPass(mlir::bufferization::createAllocTensorEliminationPass());
+    }
+
+    return stage;
+}
+
+
+std::vector<Stage> TargetCPUPipeline(mlir::MLIRContext& context,
+                                     const MacroOptimizationOptions& macroOptimizationOptions) {
     Stage canonicalization{ "canonicalization", context };
     canonicalization.passes->addPass(mlir::createCSEPass());
     canonicalization.passes->addPass(mlir::createCanonicalizerPass());
     canonicalization.passes->addPass(mlir::createTopologicalSortPass());
 
     Stage bufferization = CreateBufferizationStage(context);
+    Stage macroOpt = CreateMacroOptimizationStage(context, macroOptimizationOptions);
 
     Stage loops{ "loops", context };
     loops.passes->addPass(createStencilApplyToLoopsPass());
@@ -75,6 +84,7 @@ std::vector<Stage> TargetCPUPipeline(mlir::MLIRContext& context) {
     llvm.passes->addPass(mlir::createCanonicalizerPass());
 
     std::array stages{ std::move(canonicalization),
+                       std::move(macroOpt),
                        std::move(bufferization),
                        std::move(loops),
                        std::move(standard),
