@@ -27,12 +27,8 @@ class CMakeBuild(build_ext):
         extdir.mkdir(parents=True, exist_ok=True)
 
         # Check if required env vars are defined.
-        if not os.environ["CMAKE_BUILD_TYPE"]:
+        if "CMAKE_BUILD_TYPE" not in os.environ:
             raise RuntimeError("Please define the CMAKE_BUILD_TYPE environment variable.")
-        if not os.environ["LLVM_DIR"]:
-            raise RuntimeError("Please point the LLVM_DIR environment variable to your LLVM installation.")
-        if not os.environ["MLIR_DIR"]:
-            raise RuntimeError("Please point the MLIR_DIR environment variable to your LLVM installation.")
 
         cmake_build_type = os.environ["CMAKE_BUILD_TYPE"]
 

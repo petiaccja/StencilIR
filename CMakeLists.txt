@@ -52,6 +52,44 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 link_libraries(Threads::Threads)
 
+# LLVM dependency
+find_package(MLIR QUIET)
+if(NOT MLIR_FOUND)
+	set(EXTERNAL_LLVM_SOURCE_DIR "${CMAKE_SOURCE_DIR}/externals/LLVM")
+	set(EXTERNAL_LLVM_BINARY_DIR "${CMAKE_BINARY_DIR}/externals/LLVM")
+	set(MLIR_DIR "${EXTERNAL_LLVM_BINARY_DIR}/install/lib/cmake/mlir")
+	set(LLVM_DIR "${EXTERNAL_LLVM_BINARY_DIR}/install/lib/cmake/llvm")
+
+	find_package(MLIR QUIET PATHS ${MLIR_DIR})
+	if(NOT MLIR_FOUND)
+		message("Installing LLVM from sources... this might take a while.")
+		message("You can also set the MLIR_DIR and LLVM_DIR environment variables and reconfigure.")
+
+		file(MAKE_DIRECTORY "${EXTERNAL_LLVM_BINARY_DIR}")
+		execute_process(
+			COMMAND "${CMAKE_COMMAND}"
+				-S "${EXTERNAL_LLVM_SOURCE_DIR}"
+				-B "${EXTERNAL_LLVM_BINARY_DIR}"
+				"-DCMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}"
+				"-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
+				"-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}"
+				"-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
+				"-G" ${CMAKE_GENERATOR}
+			WORKING_DIRECTORY "${EXTERNAL_LLVM_BINARY_DIR}"
+			COMMAND_ERROR_IS_FATAL ANY
+		)
+		execute_process(
+			COMMAND ${CMAKE_COMMAND} --build "${EXTERNAL_LLVM_BINARY_DIR}" --parallel
+			WORKING_DIRECTORY "${EXTERNAL_LLVM_BINARY_DIR}"
+			COMMAND_ERROR_IS_FATAL ANY
+		)
+	endif()
+	
+	find_package(MLIR REQUIRED CONFIG PATHS ${MLIR_DIR})
+	find_package(LLVM REQUIRED CONFIG PATHS ${LLVM_DIR})
+endif()
+
+
 # Conan library dependencies
 include(conan.cmake)
 conan_cmake_configure(
