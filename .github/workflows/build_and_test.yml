@@ -3,7 +3,6 @@ name: Build & test
 on:
   push:
     branches:
-      - devel
       - master
   pull_request:
     branches:
@@ -14,9 +13,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        c_compiler: [clang]
-        build_type: [Debug, Release]
+        os: ["ubuntu-latest"]
+        c_compiler: ["clang"]
+        build_type: ["Debug", "Release"]
         cxx_standard: ["20"]
         include:
           - c_compiler: gcc
