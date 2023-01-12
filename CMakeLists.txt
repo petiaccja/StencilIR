@@ -53,14 +53,14 @@ find_package(Threads REQUIRED)
 link_libraries(Threads::Threads)
 
 # LLVM dependency
-find_package(MLIR QUIET)
+find_package(MLIR CONFIG QUIET)
 if(NOT MLIR_FOUND)
 	set(EXTERNAL_LLVM_SOURCE_DIR "${CMAKE_SOURCE_DIR}/externals/LLVM")
 	set(EXTERNAL_LLVM_BINARY_DIR "${CMAKE_BINARY_DIR}/externals/LLVM")
-	set(MLIR_DIR "${EXTERNAL_LLVM_BINARY_DIR}/install/lib/cmake/mlir")
-	set(LLVM_DIR "${EXTERNAL_LLVM_BINARY_DIR}/install/lib/cmake/llvm")
+	set(MLIR_SEARCH_PATH "${EXTERNAL_LLVM_BINARY_DIR}/install/lib/cmake/mlir")
+	set(LLVM_SEARCH_PATH "${EXTERNAL_LLVM_BINARY_DIR}/install/lib/cmake/llvm")
 
-	find_package(MLIR QUIET PATHS ${MLIR_DIR})
+	find_package(MLIR CONFIG QUIET PATHS ${MLIR_SEARCH_PATH} NO_DEFAULT_PATH)
 	if(NOT MLIR_FOUND)
 		message("Installing LLVM from sources... this might take a while.")
 		message("You can also set the MLIR_DIR and LLVM_DIR environment variables and reconfigure.")
@@ -84,10 +84,9 @@ if(NOT MLIR_FOUND)
 			COMMAND_ERROR_IS_FATAL ANY
 		)
 	endif()
-	
-	find_package(MLIR REQUIRED CONFIG PATHS ${MLIR_DIR})
-	find_package(LLVM REQUIRED CONFIG PATHS ${LLVM_DIR})
 endif()
+find_package(MLIR REQUIRED CONFIG PATHS "${MLIR_SEARCH_PATH}")
+find_package(LLVM REQUIRED CONFIG PATHS "${LLVM_SEARCH_PATH}")
 
 
 # Conan library dependencies
