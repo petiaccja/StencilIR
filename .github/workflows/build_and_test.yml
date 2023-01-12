@@ -13,10 +13,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubuntu-latest"]
-        c_compiler: ["clang"]
+        os: ["ubuntu-latest",]
+        c_compiler: ["clang",]
         build_type: ["Debug", "Release"]
-        cxx_standard: ["20"]
+        cxx_standard: ["20",]
         include:
           - c_compiler: gcc
             cxx_compiler: g++
