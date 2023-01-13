@@ -1,6 +1,7 @@
 #include "Compiler.hpp"
-#include <Diagnostics/Handlers.hpp>
+
 #include <Diagnostics/Exception.hpp>
+#include <Diagnostics/Handlers.hpp>
 
 
 mlir::ModuleOp Compiler::Run(mlir::ModuleOp module) const {
@@ -24,7 +25,7 @@ mlir::ModuleOp Compiler::Run(mlir::ModuleOp module, std::vector<StageResult>& st
     module = module.clone();
     auto& context = *module->getContext();
 
-    ScopedDiagnosticCollector diagnostics{context};
+    ScopedDiagnosticCollector diagnostics{ context };
 
     size_t index = 0;
     stageResults.push_back({ std::to_string(index++) + "_input", to_string(module) });
@@ -35,7 +36,7 @@ mlir::ModuleOp Compiler::Run(mlir::ModuleOp module, std::vector<StageResult>& st
             if (printStageResults) {
                 stageResults.push_back({ std::to_string(index) + "_" + stage.name, to_string(module) });
             }
-            mlir::Diagnostic stageNote{mlir::UnknownLoc::get(&context), mlir::DiagnosticSeverity::Remark};
+            mlir::Diagnostic stageNote{ mlir::UnknownLoc::get(&context), mlir::DiagnosticSeverity::Remark };
             stageNote << "ICE occured in stage \"" << stage.name << "\"";
             auto diagList = diagnostics.TakeDiagnostics();
             diagList.push_back(std::move(stageNote));

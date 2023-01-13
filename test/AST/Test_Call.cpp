@@ -1,5 +1,5 @@
-#include <TestTools/FileCheck.hpp>
 #include <TestTools/ASTUtils.hpp>
+#include <TestTools/FileCheck.hpp>
 
 #include <AST/Building.hpp>
 
