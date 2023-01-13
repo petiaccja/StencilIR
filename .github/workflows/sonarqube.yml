@@ -26,7 +26,7 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: |
-          pip install conan
+          pipx install conan
           sudo apt install llvm
 
       - name: Install sonar-scanner and build-wrapper
@@ -55,6 +55,20 @@ jobs:
         run: |
           build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} cmake --build ${{runner.workspace}}/build --clean-first --config Debug
 
+      - name: Install Python package
+        shell: bash
+        working-directory: ${{runner.workspace}}/build
+        env:
+          MLIR_DIR: ${{runner.workspace}}/build/externals/LLVM/install/lib/cmake/mlir
+          LLVM_DIR: ${{runner.workspace}}/build/externals/LLVM/install/lib/cmake/llvm
+          CC: clang
+          CXX: clang++
+          CMAKE_BUILD_TYPE: Debug
+          CMAKE_CXX_STANDARD: 20
+        run: |
+          pip install $GITHUB_WORKSPACE
+          pip install -r $GITHUB_WORKSPACE/python/requirements-dev.txt
+
       - name: Generate Test and Code Coverage
         working-directory: ${{runner.workspace}}/build
         shell: bash
@@ -70,6 +84,8 @@ jobs:
           ./bin/TestIntegration --reporter junit --out ${{runner.workspace}}/build/integration_tests.xml
           llvm-profdata merge -sparse default.profraw -o coverage.profdata
           llvm-cov show ./bin/TestIntegration -instr-profile=coverage.profdata >> ${{runner.workspace}}/build/coverage.txt
+
+          pytest $GITHUB_WORKSPACE/python/test --junit-xml=${{runner.workspace}}/build/python_tests.xml
   
       - name: Run sonar-scanner
         env:
