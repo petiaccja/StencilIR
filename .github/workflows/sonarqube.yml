@@ -86,8 +86,9 @@ jobs:
           llvm-cov show ./bin/TestIntegration -instr-profile=coverage.profdata >> ${{runner.workspace}}/build/coverage.txt
 
           STENCILIR_BIN=$(python -c "import stencilir; print(stencilir.__file__)")
+          STENCILIR_DIR=$(python -c "import os; import stencilir; print(os.path.dirname(stencilir.__file__))")
           pytest $GITHUB_WORKSPACE/python/test --junit-xml=${{runner.workspace}}/build/python_tests.xml
-          llvm-profdata merge -sparse default.profraw -o coverage.profdata
+          llvm-profdata merge -sparse $STENCILIR_DIR/default.profraw -o coverage.profdata
           llvm-cov show $STENCILIR_BIN -instr-profile=coverage.profdata >> ${{runner.workspace}}/build/coverage.txt
   
       - name: Run sonar-scanner
