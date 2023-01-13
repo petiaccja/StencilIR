@@ -57,6 +57,20 @@ jobs:
       shell: bash
       run: cmake --build . --config ${{matrix.build_type}}
 
+    - name: Build Python package
+      shell: bash
+      working-directory: ${{runner.workspace}}/build
+      env:
+        MLIR_DIR: ${{runner.workspace}}/build/externals/LLVM/install/lib/cmake/mlir
+        LLVM_DIR: ${{runner.workspace}}/build/externals/LLVM/install/lib/cmake/llvm
+        CC: ${{matrix.c_compiler}}
+        CXX: ${{matrix.cxx_compiler}}
+        CMAKE_BUILD_TYPE: ${{matrix.build_type}}
+        CMAKE_CXX_STANDARD: ${{ matrix.cxx_standard }}
+      run: |
+        pip install $GITHUB_WORKSPACE
+        pip install -r $GITHUB_WORKSPACE/python/requirements-dev.txt      
+
     - name: Test
       working-directory: ${{runner.workspace}}/build
       shell: bash
@@ -64,3 +78,4 @@ jobs:
         ./bin/TestAST
         ./bin/TestPasses
         ./bin/TestIntegration
+        pytest $GITHUB_WORKSPACE/python/test
