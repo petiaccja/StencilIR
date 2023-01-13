@@ -76,22 +76,16 @@ jobs:
           ./bin/TestAST --reporter junit --out ${{runner.workspace}}/build/ast_tests.xml
           llvm-profdata merge -sparse default.profraw -o coverage.profdata
           llvm-cov show ./bin/TestAST -instr-profile=coverage.profdata >> ${{runner.workspace}}/build/coverage.txt
-          rm default.profraw
 
           ./bin/TestPasses --reporter junit --out ${{runner.workspace}}/build/passes_tests.xml
           llvm-profdata merge -sparse default.profraw -o coverage.profdata
           llvm-cov show ./bin/TestPasses -instr-profile=coverage.profdata >> ${{runner.workspace}}/build/coverage.txt
-          rm default.profraw
 
           ./bin/TestIntegration --reporter junit --out ${{runner.workspace}}/build/integration_tests.xml
           llvm-profdata merge -sparse default.profraw -o coverage.profdata
           llvm-cov show ./bin/TestIntegration -instr-profile=coverage.profdata >> ${{runner.workspace}}/build/coverage.txt
-          rm default.profraw
 
-          STENCILIR_BIN=$(python -c "import stencilir; print(stencilir.__file__)")
           pytest $GITHUB_WORKSPACE/python/test --junit-xml=${{runner.workspace}}/build/python_tests.xml
-          llvm-profdata merge -sparse $STENCILIR_DIR/default.profraw -o coverage.profdata
-          llvm-cov show $STENCILIR_BIN -instr-profile=coverage.profdata >> ${{runner.workspace}}/build/coverage.txt
   
       - name: Run sonar-scanner
         env:
