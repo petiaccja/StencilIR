@@ -23,10 +23,11 @@ jobs:
         with:
           java-version: 11
 
-      - name: Install conan
+      - name: Install dependencies
         shell: bash
         run: |
           pip install conan
+          sudo apt install llvm
 
       - name: Install sonar-scanner and build-wrapper
         uses: SonarSource/sonarcloud-github-c-cpp@v1
