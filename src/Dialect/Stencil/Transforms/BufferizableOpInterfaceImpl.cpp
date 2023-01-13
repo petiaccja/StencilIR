@@ -154,11 +154,11 @@ struct ApplyOpInterface : public BufferizableOpInterface::ExternalModel<ApplyOpI
             return memrefsOrFailure;
         }
         const auto& memrefs = *memrefsOrFailure;
-        const std::span outs{ memrefs.end() - applyOp.getOutputs().size(), memrefs.end()};
+        const std::span outs{ memrefs.end() - applyOp.getOutputs().size(), memrefs.end() };
         const auto& attrs = applyOp->getAttrs();
 
         rewriter.create<ApplyOp>(applyOp->getLoc(), TypeRange{}, memrefs, attrs);
-        replaceOpWithBufferizedValues(rewriter, applyOp, mlir::ArrayRef{outs.data(), outs.size()});
+        replaceOpWithBufferizedValues(rewriter, applyOp, mlir::ArrayRef{ outs.data(), outs.size() });
 
         return success();
     }

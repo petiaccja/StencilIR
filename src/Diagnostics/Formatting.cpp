@@ -71,7 +71,8 @@ std::string FormatDiagnostic(const mlir::Diagnostic& diag) {
     ss << FormatDiagnostic(location, severity, message);
     for (auto& noteDiag : diag.getNotes()) {
         const auto note = FormatDiagnostic(noteDiag);
-        ss << std::endl << IndentText(note, 4);
+        ss << std::endl
+           << IndentText(note, 4);
     }
     return ss.str();
 }

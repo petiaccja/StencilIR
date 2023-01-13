@@ -1,8 +1,8 @@
 #pragma once
 
 
-#include <AST/Nodes.hpp>
 #include <AST/ConvertASTToIR.hpp>
+#include <AST/Nodes.hpp>
 #include <Compiler/Pipelines.hpp>
 #include <Execution/Execution.hpp>
 

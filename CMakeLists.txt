@@ -12,6 +12,7 @@ set(CMAKE_CXX_STANDARD 20)
 option(ENABLE_LLVM_COV "Adds compiler flags to generate LLVM source-based code coverage. Only works with Clang." OFF)
 option(ENABLE_LLVM_ADDRESS_SANITIZER "Adds compiler flags to generate LLVM source-based code coverage. Only works with Clang." OFF)
 option(ENABLE_LLVM_MEMORY_SANITIZER "Adds compiler flags to generate LLVM source-based code coverage. Only works with Clang." OFF)
+option(EXTERNAL_LLVM_BUILD_TYPE "Same as CMAKE_BUILD_TYPE, but applied to LLVM when downloading it." ${CMAKE_BUILD_TYPE})
 
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
 	if (ENABLE_LLVM_COV)
@@ -53,14 +54,14 @@ find_package(Threads REQUIRED)
 link_libraries(Threads::Threads)
 
 # LLVM dependency
-find_package(MLIR QUIET)
+find_package(MLIR CONFIG QUIET)
 if(NOT MLIR_FOUND)
 	set(EXTERNAL_LLVM_SOURCE_DIR "${CMAKE_SOURCE_DIR}/externals/LLVM")
 	set(EXTERNAL_LLVM_BINARY_DIR "${CMAKE_BINARY_DIR}/externals/LLVM")
-	set(MLIR_DIR "${EXTERNAL_LLVM_BINARY_DIR}/install/lib/cmake/mlir")
-	set(LLVM_DIR "${EXTERNAL_LLVM_BINARY_DIR}/install/lib/cmake/llvm")
+	set(MLIR_SEARCH_PATH "${EXTERNAL_LLVM_BINARY_DIR}/install/lib/cmake/mlir")
+	set(LLVM_SEARCH_PATH "${EXTERNAL_LLVM_BINARY_DIR}/install/lib/cmake/llvm")
 
-	find_package(MLIR QUIET PATHS ${MLIR_DIR})
+	find_package(MLIR CONFIG QUIET PATHS ${MLIR_SEARCH_PATH} NO_DEFAULT_PATH)
 	if(NOT MLIR_FOUND)
 		message("Installing LLVM from sources... this might take a while.")
 		message("You can also set the MLIR_DIR and LLVM_DIR environment variables and reconfigure.")
@@ -71,7 +72,7 @@ if(NOT MLIR_FOUND)
 				-S "${EXTERNAL_LLVM_SOURCE_DIR}"
 				-B "${EXTERNAL_LLVM_BINARY_DIR}"
 				"-DCMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}"
-				"-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
+				"-DCMAKE_BUILD_TYPE=${EXTERNAL_LLVM_BUILD_TYPE}"
 				"-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}"
 				"-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
 				"-G" ${CMAKE_GENERATOR}
@@ -84,10 +85,9 @@ if(NOT MLIR_FOUND)
 			COMMAND_ERROR_IS_FATAL ANY
 		)
 	endif()
-	
-	find_package(MLIR REQUIRED CONFIG PATHS ${MLIR_DIR})
-	find_package(LLVM REQUIRED CONFIG PATHS ${LLVM_DIR})
 endif()
+find_package(MLIR REQUIRED CONFIG PATHS "${MLIR_SEARCH_PATH}")
+find_package(LLVM REQUIRED CONFIG PATHS "${LLVM_SEARCH_PATH}")
 
 
 # Conan library dependencies
