@@ -32,7 +32,7 @@ jobs:
     - name: Install conan
       shell: bash
       run: |
-        pip install conan
+        pipx install conan
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
