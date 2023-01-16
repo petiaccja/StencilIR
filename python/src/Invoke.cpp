@@ -67,11 +67,19 @@ ast::TypePtr GetTypeFromFormat(std::string_view format) {
                 && pybindIntType->isSigned == pythonIntType->isSigned) {
                 return pybindType;
             }
+        }
+        if (pybindFloatType && pythonFloatType) {
             if (pybindFloatType->size == pythonFloatType->size) {
                 return pybindType;
             }
         }
-        throw std::logic_error("ambiguous python format descriptor: pybind11 and python interpretation is different");
+        std::stringstream ss;
+        ss << "ambiguous python format descriptor \"" << format << "\": pybind11"
+           << " (" << pybindType << ") "
+           << "and python"
+           << " (" << pythonType << ") "
+           << " interpretations are different";
+        throw std::logic_error(ss.str());
     }
     else if (pybindType) {
         return pybindType;
@@ -275,7 +283,7 @@ void Argument::Write(const ast::FieldType& type, pybind11::object value, void* a
     const auto buffer = value.cast<pybind11::buffer>();
     const auto bufferInfo = buffer.request(true);
     const auto bufferType = ast::FieldType{ GetTypeFromFormat(bufferInfo.format), int(bufferInfo.ndim) };
-    if (bufferType.EqualTo(type)) {
+    if (!bufferType.EqualTo(type)) {
         std::stringstream ss;
         ss << "expected buffer type " << type << ", got " << bufferType;
         throw std::invalid_argument(ss.str());

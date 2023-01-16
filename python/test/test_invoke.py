@@ -23,8 +23,8 @@ def test_returns_single():
     function = sir.Function(
         "main",
         [],
-        [sir.ScalarType.FLOAT64],
-        [sir.Return([sir.Constant.floating(1.0, sir.ScalarType.FLOAT64, None)], None)],
+        [sir.FloatType(64)],
+        [sir.Return([sir.Constant.floating(1.0, sir.FloatType(64), None)], None)],
         None,
     )
     module = sir.Module([function], [], None)
@@ -41,12 +41,12 @@ def test_returns_multiple():
     function = sir.Function(
         "main",
         [],
-        [sir.ScalarType.FLOAT64, sir.ScalarType.FLOAT64],
+        [sir.FloatType(64), sir.FloatType(64)],
         [
             sir.Return(
                 [
-                    sir.Constant.floating(1.0, sir.ScalarType.FLOAT64, None),
-                    sir.Constant.floating(2.0, sir.ScalarType.FLOAT64, None),
+                    sir.Constant.floating(1.0, sir.FloatType(64), None),
+                    sir.Constant.floating(2.0, sir.FloatType(64), None),
                 ],
                 None,
             )
@@ -67,8 +67,8 @@ def test_returns_multiple():
 def test_scalar_passthrough():
     function = sir.Function(
         "main",
-        [sir.Parameter("value", sir.ScalarType.FLOAT64)],
-        [sir.ScalarType.FLOAT64],
+        [sir.Parameter("value", sir.FloatType(64))],
+        [sir.FloatType(64)],
         [sir.Return([sir.SymbolRef("value", None)], None)],
         None,
     )
@@ -85,8 +85,8 @@ def test_scalar_passthrough():
 def test_field_passthrough():
     function = sir.Function(
         "main",
-        [sir.Parameter("value", sir.FieldType(sir.ScalarType.FLOAT64, 2))],
-        [sir.FieldType(sir.ScalarType.FLOAT64, 2)],
+        [sir.Parameter("value", sir.FieldType(sir.FloatType(64), 2))],
+        [sir.FieldType(sir.FloatType(64), 2)],
         [sir.Return([sir.SymbolRef("value", None)], None)],
         None,
     )
@@ -106,12 +106,12 @@ def test_mixed_passthrough():
     function = sir.Function(
         "main",
         [
-            sir.Parameter("v1", sir.FieldType(sir.ScalarType.FLOAT64, 2)),
-            sir.Parameter("v2", sir.ScalarType.FLOAT64),
+            sir.Parameter("v1", sir.FieldType(sir.FloatType(64), 2)),
+            sir.Parameter("v2", sir.FloatType(64)),
         ],
         [
-            sir.FieldType(sir.ScalarType.FLOAT64, 2),
-            sir.ScalarType.FLOAT64,
+            sir.FieldType(sir.FloatType(64), 2),
+            sir.FloatType(64),
         ],
         [sir.Return([sir.SymbolRef("v1", None), sir.SymbolRef("v2", None)], None)],
         None,
