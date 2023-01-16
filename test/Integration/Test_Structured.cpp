@@ -31,8 +31,8 @@ static std::shared_ptr<ast::Module> CreateAST() {
     auto ret = ast::return_({ sum });
 
     auto laplacian = ast::stencil("laplacian",
-                                  { { "field", ast::FieldType{ ast::ScalarType::FLOAT32, 2 } } },
-                                  { ast::ScalarType::FLOAT32 },
+                                  { { "field", ast::FieldType::Get(ast::FloatType::Get(32), 2) } },
+                                  { ast::FloatType::Get(32) },
                                   { ret },
                                   2);
 
@@ -47,8 +47,8 @@ static std::shared_ptr<ast::Module> CreateAST() {
 
     auto main = ast::function("main",
                               {
-                                  { "input", ast::FieldType{ ast::ScalarType::FLOAT32, 2 } },
-                                  { "out", ast::FieldType{ ast::ScalarType::FLOAT32, 2 } },
+                                  { "input", ast::FieldType::Get(ast::FloatType::Get(32), 2) },
+                                  { "out", ast::FieldType::Get(ast::FloatType::Get(32), 2) },
                               },
                               {},
                               { apply, ast::return_() });

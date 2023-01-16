@@ -81,57 +81,35 @@ static std::string FormatType(mlir::Type type) {
     return s;
 }
 
-struct TypeConversionOptions {
-    enum {
-        TENSOR,
-        MEMREF,
-    } bufferType = MEMREF;
-};
 
-static mlir::Type ConvertType(mlir::OpBuilder& builder, ast::Type type, const TypeConversionOptions& options = {}) {
-    struct {
-        mlir::OpBuilder& builder;
-        const TypeConversionOptions& options;
-        mlir::Type operator()(const ast::ScalarType& type) const {
-            switch (type) {
-                case ast::ScalarType::SINT8: return builder.getIntegerType(8);
-                case ast::ScalarType::SINT16: return builder.getIntegerType(16);
-                case ast::ScalarType::SINT32: return builder.getIntegerType(32);
-                case ast::ScalarType::SINT64: return builder.getIntegerType(64);
-                // case ast::ScalarType::UINT8: return builder.getIntegerType(8, false);
-                // case ast::ScalarType::UINT16: return builder.getIntegerType(16, false);
-                // case ast::ScalarType::UINT32: return builder.getIntegerType(32, false);
-                // case ast::ScalarType::UINT64: return builder.getIntegerType(64, false);
-                case ast::ScalarType::UINT8: [[fallthrough]];
-                case ast::ScalarType::UINT16: [[fallthrough]];
-                case ast::ScalarType::UINT32: [[fallthrough]];
-                case ast::ScalarType::UINT64:
-                    assert(false && "Not supported due to stupid arith.constant");
-                    std::terminate();
-                case ast::ScalarType::INDEX: return builder.getIndexType();
-                case ast::ScalarType::FLOAT32: return builder.getF32Type();
-                case ast::ScalarType::FLOAT64: return builder.getF64Type();
-                case ast::ScalarType::BOOL: return builder.getI1Type();
-            }
-            throw std::invalid_argument("Unknown type.");
+static mlir::Type ConvertType(mlir::OpBuilder& builder, const ast::Type& type) {
+    if (auto integerType = dynamic_cast<const ast::IntegerType*>(&type)) {
+        if (!integerType->isSigned) {
+            throw std::invalid_argument("unsigned types are not supported due to arith.constant behavior; TODO: add support");
         }
-        mlir::Type operator()(const ast::FieldType& type) const {
-            const mlir::Type elementType = (*this)(type.elementType);
-
-            constexpr auto offset = mlir::ShapedType::kDynamicStrideOrOffset;
-            std::vector<int64_t> shape(type.numDimensions, mlir::ShapedType::kDynamicSize);
-            std::vector<int64_t> strides(type.numDimensions, mlir::ShapedType::kDynamicStrideOrOffset);
-            auto strideMap = mlir::makeStridedLinearLayoutMap(strides, offset, builder.getContext());
-
-            if (options.bufferType == TypeConversionOptions::MEMREF) {
-                return mlir::MemRefType::get(shape, elementType, strideMap);
-            }
-            else {
-                return mlir::RankedTensorType::get(shape, elementType);
-            }
+        return builder.getIntegerType(integerType->size);
+    }
+    else if (auto floatType = dynamic_cast<const ast::FloatType*>(&type)) {
+        switch (floatType->size) {
+            case 16: return builder.getF16Type();
+            case 32: return builder.getF32Type();
+            case 64: return builder.getF64Type();
         }
-    } visitor{ builder, options };
-    return std::visit(visitor, type);
+        throw std::invalid_argument("only 16, 32, and 64-bit floats are supported");
+    }
+    else if (auto indexType = dynamic_cast<const ast::IndexType*>(&type)) {
+        return builder.getIndexType();
+    }
+    else if (auto fieldType = dynamic_cast<const ast::FieldType*>(&type)) {
+        const mlir::Type elementType = ConvertType(builder, *fieldType->elementType);
+        std::vector<int64_t> shape(fieldType->numDimensions, mlir::ShapedType::kDynamicSize);
+        return mlir::RankedTensorType::get(shape, elementType);
+    }
+    else {
+        std::stringstream ss;
+        ss << "could not convert type \"" << type << "\" to MLIR type";
+        throw std::invalid_argument(ss.str());
+    }
 }
 
 
@@ -263,15 +241,14 @@ public:
     }
 
     auto GetFunctionType(const std::vector<ast::Parameter>& inputs,
-                         const std::vector<ast::Type>& results,
-                         TypeConversionOptions typeOptions) const {
+                         const std::vector<ast::TypePtr>& results) const {
         std::vector<mlir::Type> inputTypes{};
         for (auto& param : inputs) {
-            inputTypes.push_back(ConvertType(builder, param.type, typeOptions));
+            inputTypes.push_back(ConvertType(builder, *param.type));
         }
         std::vector<mlir::Type> resultTypes{};
         for (auto& result : results) {
-            resultTypes.push_back(ConvertType(builder, result, typeOptions));
+            resultTypes.push_back(ConvertType(builder, *result));
         }
         return builder.getFunctionType(mlir::TypeRange{ inputTypes }, mlir::TypeRange{ resultTypes });
     };
@@ -339,11 +316,7 @@ public:
     //--------------------------------------------------------------------------
 
     auto Generate(const ast::Stencil& node) const -> GenerationResult {
-        const TypeConversionOptions typeOptions = {
-            .bufferType = TypeConversionOptions::TENSOR
-        };
-
-        const auto functionType = GetFunctionType(node.parameters, node.results, typeOptions);
+        const auto functionType = GetFunctionType(node.parameters, node.results);
         const auto loc = ConvertLocation(builder, node.location);
         auto op = builder.create<stencil::StencilOp>(loc,
                                                      node.name,
@@ -411,11 +384,7 @@ public:
     //--------------------------------------------------------------------------
 
     auto Generate(const ast::Function& node) const -> GenerationResult {
-        const TypeConversionOptions typeOptions = {
-            .bufferType = TypeConversionOptions::TENSOR
-        };
-
-        const auto functionType = GetFunctionType(node.parameters, node.results, typeOptions);
+        const auto functionType = GetFunctionType(node.parameters, node.results);
         const auto loc = ConvertLocation(builder, node.location);
         auto op = builder.create<mlir::func::FuncOp>(loc,
                                                      node.name,
@@ -673,36 +642,27 @@ public:
 
     auto Generate(const ast::Constant& node) const -> GenerationResult {
         const auto loc = ConvertLocation(builder, node.location);
-        const auto type = ConvertType(builder, node.type);
+        const auto type = ConvertType(builder, *node.type);
 
-        auto op = ast::VisitType(node.type, [&](auto* t) -> mlir::Operation* {
-            using T = std::decay_t<std::remove_pointer_t<decltype(t)>>;
-            const auto value = std::any_cast<T>(node.value);
-
-            if (node.type == ast::ScalarType::INDEX) {
-                return builder.create<mlir::arith::ConstantIndexOp>(loc, value);
-            }
-            if (node.type == ast::ScalarType::BOOL) {
-                return builder.create<mlir::arith::ConstantIntOp>(loc, int64_t(value), type);
-            }
-            if constexpr (std::is_integral_v<T> && std::is_signed_v<T>) {
-                auto signlessType = builder.getIntegerType(type.dyn_cast<mlir::IntegerType>().getWidth());
-                return builder.create<mlir::arith::ConstantIntOp>(loc, value, signlessType);
-            }
-            if constexpr (std::is_integral_v<T> && std::is_unsigned_v<T>) {
-                auto signlessType = builder.getIntegerType(type.dyn_cast<mlir::IntegerType>().getWidth());
-                const int64_t equivalent = std::bit_cast<int64_t>(uint64_t(value));
-                return builder.create<mlir::arith::ConstantIntOp>(loc, equivalent, signlessType);
-            }
-            if constexpr (std::is_floating_point_v<T>) {
-                return builder.create<mlir::arith::ConstantFloatOp>(loc, mlir::APFloat(value), type.dyn_cast<mlir::FloatType>());
-            }
-            throw ArgumentTypeError{ loc, FormatType(type), 0 };
-        });
-        return { op };
+        if (std::dynamic_pointer_cast<ast::IntegerType>(node.type)) {
+            const int64_t value = std::any_cast<int64_t>(node.value);
+            auto signlessType = builder.getIntegerType(type.dyn_cast<mlir::IntegerType>().getWidth());
+            return { builder.create<mlir::arith::ConstantIntOp>(loc, value, signlessType) };
+        }
+        else if (std::dynamic_pointer_cast<ast::IndexType>(node.type)) {
+            const int64_t value = std::any_cast<int64_t>(node.value);
+            return { builder.create<mlir::arith::ConstantIndexOp>(loc, value) };
+        }
+        else if (auto floatType = std::dynamic_pointer_cast<ast::FloatType>(node.type)) {
+            const double value = std::any_cast<double>(node.value);
+            const auto apfloat = floatType->size == 32 ? mlir::APFloat(float(value)) : mlir::APFloat(double(value));
+            return { builder.create<mlir::arith::ConstantFloatOp>(loc, apfloat, type.dyn_cast<mlir::FloatType>()) };
+        }
+        throw ArgumentTypeError{ loc, FormatType(type), 0 };
     }
 
-    auto Generate(const ast::Print& node) const -> GenerationResult {
+    auto
+    Generate(const ast::Print& node) const -> GenerationResult {
         const mlir::Value argument = Generate(*node.argument);
 
         auto op = builder.create<stencil::PrintOp>(ConvertLocation(builder, node.location),
@@ -805,7 +765,7 @@ public:
     auto Generate(const ast::Cast& node) const -> GenerationResult {
         auto loc = ConvertLocation(builder, node.location);
         mlir::Value expr = Generate(*node.expr);
-        mlir::Type type = ConvertType(builder, node.type);
+        mlir::Type type = ConvertType(builder, *node.type);
 
         auto ftype = type.dyn_cast<mlir::FloatType>();
         auto fexpr = expr.getType().dyn_cast<mlir::FloatType>();
@@ -875,7 +835,7 @@ public:
     auto Generate(const ast::AllocTensor& node) const -> GenerationResult {
         auto loc = ConvertLocation(builder, node.location);
 
-        const auto elementType = ConvertType(builder, node.elementType);
+        const auto elementType = ConvertType(builder, *node.elementType);
         std::vector<mlir::Value> sizes;
         std::vector<int64_t> shape;
         for (const auto& size : node.sizes) {

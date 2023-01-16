@@ -19,7 +19,7 @@ TEST_CASE("Project", "[AST]") {
 
 
 TEST_CASE("Extend", "[AST]") {
-    const auto ast = EncloseInStencil<3>(ast::extend(ast::index(), 1, ast::constant(ast::index_type, 0)));
+    const auto ast = EncloseInStencil<3>(ast::extend(ast::index(), 1, ast::constant(0, ast::IndexType::Get())));
 
     const auto pattern = R"(
         // CHECK: %[[R:.*]] = extend %[[IDX:.*]][1], %[[V:.*]]
@@ -30,7 +30,7 @@ TEST_CASE("Extend", "[AST]") {
 
 
 TEST_CASE("Exchange", "[AST]") {
-    const auto ast = EncloseInStencil<3>(ast::exchange(ast::index(), 1, ast::constant(ast::index_type, 0)));
+    const auto ast = EncloseInStencil<3>(ast::exchange(ast::index(), 1, ast::constant(0, ast::IndexType::Get())));
 
     const auto pattern = R"(
         // CHECK: %[[R:.*]] = exchange %[[IDX:.*]][1], %[[V:.*]]

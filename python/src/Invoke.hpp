@@ -15,12 +15,12 @@
 #include <vector>
 
 
-ast::ScalarType GetTypeFromFormat(std::string_view format);
+ast::TypePtr GetTypeFromFormat(std::string_view format);
 
 
 class Argument {
 public:
-    Argument(ast::Type type, const Runner* runner);
+    Argument(ast::TypePtr type, const Runner* runner);
 
     size_t GetSize() const;
     size_t GetAlignment() const;
@@ -32,22 +32,30 @@ public:
     llvm::Type* GetLLVMType() const { return m_llvmType; }
 
 private:
-    static size_t GetSize(ast::ScalarType type);
-    static pybind11::object Read(ast::ScalarType type, const void* address);
-    static void Write(ast::ScalarType type, pybind11::object value, void* address);
+    pybind11::object Read(const ast::IntegerType& type, const void* address) const;
+    void Write(const ast::IntegerType& type, pybind11::object value, void* address) const;
     template <class Iter>
-    static void GetOpaquePointers(ast::ScalarType, void* address, Iter out);
+    void GetOpaquePointers(const ast::IntegerType& type, void* address, Iter out) const;
 
-    size_t GetSize(ast::FieldType type) const;
-    pybind11::object Read(ast::FieldType type, const void* address) const;
-    void Write(ast::FieldType type, pybind11::object value, void* address) const;
+    pybind11::object Read(const ast::FloatType& type, const void* address) const;
+    void Write(const ast::FloatType& type, pybind11::object value, void* address) const;
     template <class Iter>
-    void GetOpaquePointers(ast::FieldType, void* address, Iter out) const;
+    void GetOpaquePointers(const ast::FloatType& type, void* address, Iter out) const;
+
+    pybind11::object Read(const ast::IndexType& type, const void* address) const;
+    void Write(const ast::IndexType& type, pybind11::object value, void* address) const;
+    template <class Iter>
+    void GetOpaquePointers(const ast::IndexType& type, void* address, Iter out) const;
+
+    pybind11::object Read(const ast::FieldType& type, const void* address) const;
+    void Write(const ast::FieldType& type, pybind11::object value, void* address) const;
+    template <class Iter>
+    void GetOpaquePointers(const ast::FieldType& type, void* address, Iter out) const;
 
     const llvm::StructLayout* GetLayout() const;
 
 private:
-    ast::Type m_type;
+    ast::TypePtr m_type;
     const Runner* m_runner = nullptr;
     llvm::Type* m_llvmType = nullptr;
 };
@@ -55,7 +63,7 @@ private:
 
 class ArgumentPack {
 public:
-    ArgumentPack(std::span<const ast::Type> types, const Runner* runner);
+    ArgumentPack(std::span<const ast::TypePtr> types, const Runner* runner);
 
     size_t GetSize() const;
     size_t GetAlignment() const;
@@ -77,16 +85,38 @@ private:
 
 template <class Iter>
 void Argument::GetOpaquePointers(void* address, Iter out) const {
-    std::visit([&, this](auto type) { GetOpaquePointers(type, address, out); }, m_type);
+    if (auto type = dynamic_cast<const ast::IntegerType*>(m_type.get())) {
+        return GetOpaquePointers(*type, address, out);
+    }
+    else if (auto type = dynamic_cast<const ast::FloatType*>(m_type.get())) {
+        return GetOpaquePointers(*type, address, out);
+    }
+    else if (auto type = dynamic_cast<const ast::IndexType*>(m_type.get())) {
+        return GetOpaquePointers(*type, address, out);
+    }
+    else if (auto type = dynamic_cast<const ast::FieldType*>(m_type.get())) {
+        return GetOpaquePointers(*type, address, out);
+    }
+    std::terminate();
 }
 
 template <class Iter>
-void Argument::GetOpaquePointers(ast::ScalarType, void* address, Iter out) {
+void Argument::GetOpaquePointers(const ast::IntegerType&, void* address, Iter out) const {
     *(out++) = address;
 }
 
 template <class Iter>
-void Argument::GetOpaquePointers(ast::FieldType type, void* address, Iter out) const {
+void Argument::GetOpaquePointers(const ast::FloatType&, void* address, Iter out) const {
+    *(out++) = address;
+}
+
+template <class Iter>
+void Argument::GetOpaquePointers(const ast::IndexType&, void* address, Iter out) const {
+    *(out++) = address;
+}
+
+template <class Iter>
+void Argument::GetOpaquePointers(const ast::FieldType& type, void* address, Iter out) const {
     const auto startingAddress = reinterpret_cast<std::byte*>(address);
     const auto layout = GetLayout();
     *(out++) = reinterpret_cast<void*>(startingAddress + layout->getElementOffset(0)); // ptr

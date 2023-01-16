@@ -7,30 +7,30 @@
 // Utilities
 //------------------------------------------------------------------------------
 
-ast::ScalarType GetTypeFromFormat(std::string_view format) {
+ast::TypePtr GetTypeFromFormat(std::string_view format) {
     using namespace std::string_literals;
 
-    const auto pybindType = [&]() -> std::optional<ast::ScalarType> {
+    const auto pybindType = [&]() -> ast::TypePtr {
         switch (format[0]) {
-            case '?': return ast::ScalarType::BOOL;
-            case 'b': return ast::ScalarType::SINT8;
-            case 'B': return ast::ScalarType::UINT8;
-            case 'h': return ast::ScalarType::SINT16;
-            case 'H': return ast::ScalarType::UINT16;
-            case 'i': return ast::ScalarType::SINT32;
-            case 'I': return ast::ScalarType::UINT32;
-            case 'q': return ast::ScalarType::SINT64;
-            case 'Q': return ast::ScalarType::UINT64;
-            case 'f': return ast::ScalarType::FLOAT32;
-            case 'd': return ast::ScalarType::FLOAT64;
+            case '?': return std::make_shared<ast::IntegerType>(1, false);
+            case 'b': return std::make_shared<ast::IntegerType>(8, true);
+            case 'B': return std::make_shared<ast::IntegerType>(8, false);
+            case 'h': return std::make_shared<ast::IntegerType>(16, true);
+            case 'H': return std::make_shared<ast::IntegerType>(16, false);
+            case 'i': return std::make_shared<ast::IntegerType>(32, true);
+            case 'I': return std::make_shared<ast::IntegerType>(32, false);
+            case 'q': return std::make_shared<ast::IntegerType>(64, true);
+            case 'Q': return std::make_shared<ast::IntegerType>(64, false);
+            case 'f': return std::make_shared<ast::FloatType>(32);
+            case 'd': return std::make_shared<ast::FloatType>(64);
             case 'g': return sizeof(double) == sizeof(long double)
-                                 ? ast::ScalarType::FLOAT64
+                                 ? std::make_shared<ast::FloatType>(64)
                                  : throw std::invalid_argument("long double is not supported");
         }
         return {};
     }();
 
-    const auto pythonType = [&]() -> std::optional<ast::ScalarType> {
+    const auto pythonType = [&]() -> ast::TypePtr {
         switch (format[0]) {
             case '?': return ast::InferType<bool>();
             case 'b': return ast::InferType<signed char>();
@@ -56,67 +56,79 @@ ast::ScalarType GetTypeFromFormat(std::string_view format) {
     // can also mean different things... Unless both match, we can't know
     // where the data came from.
     if (pybindType && pythonType) {
-        if (pybindType.value() == pybindType.value()) {
-            return pybindType.value();
+        const auto pybindIntType = std::dynamic_pointer_cast<ast::IntegerType>(pybindType);
+        const auto pythonIntType = std::dynamic_pointer_cast<ast::IntegerType>(pybindType);
+
+        const auto pybindFloatType = std::dynamic_pointer_cast<ast::FloatType>(pybindType);
+        const auto pythonFloatType = std::dynamic_pointer_cast<ast::FloatType>(pybindType);
+
+        if (pybindIntType && pythonIntType) {
+            if (pybindIntType->size == pythonIntType->size
+                && pybindIntType->isSigned == pythonIntType->isSigned) {
+                return pybindType;
+            }
+            if (pybindFloatType->size == pythonFloatType->size) {
+                return pybindType;
+            }
         }
         throw std::logic_error("ambiguous python format descriptor: pybind11 and python interpretation is different");
     }
     else if (pybindType) {
-        return pybindType.value();
+        return pybindType;
     }
     else if (pythonType) {
-        return pythonType.value();
+        return pythonType;
     }
     throw std::invalid_argument("unsupported python format string: "s + format[0]);
 }
 
 
-static llvm::Type* ConvertType(ast::Type type, llvm::LLVMContext& context) {
-    struct Visitor {
-        llvm::Type* operator()(ast::ScalarType type) const {
-            switch (type) {
-                case ast::ScalarType::SINT8: return llvm::IntegerType::get(context, 8);
-                case ast::ScalarType::SINT16: return llvm::IntegerType::get(context, 16);
-                case ast::ScalarType::SINT32: return llvm::IntegerType::get(context, 32);
-                case ast::ScalarType::SINT64: return llvm::IntegerType::get(context, 64);
-                case ast::ScalarType::UINT8: return llvm::IntegerType::get(context, 8);
-                case ast::ScalarType::UINT16: return llvm::IntegerType::get(context, 16);
-                case ast::ScalarType::UINT32: return llvm::IntegerType::get(context, 32);
-                case ast::ScalarType::UINT64: return llvm::IntegerType::get(context, 64);
-                case ast::ScalarType::INDEX: return llvm::IntegerType::get(context, 8 * sizeof(size_t));
-                case ast::ScalarType::FLOAT32: return llvm::Type::getFloatTy(context);
-                case ast::ScalarType::FLOAT64: return llvm::Type::getDoubleTy(context);
-                case ast::ScalarType::BOOL: return llvm::Type::getInt1Ty(context);
-            }
-            throw std::invalid_argument("cannot convert type to LLVM type");
+static llvm::Type* ConvertType(const ast::Type& type, llvm::LLVMContext& context) {
+    if (auto integerType = dynamic_cast<const ast::IntegerType*>(&type)) {
+        if (!integerType->isSigned) {
+            throw std::invalid_argument("unsigned types are not supported due to arith.constant behavior; TODO: add support");
         }
-        llvm::Type* operator()(ast::FieldType type) const {
-            auto elementType = operator()(type.elementType);
-            auto ptrType = llvm::PointerType::get(elementType, 0);
-            auto indexType = llvm::IntegerType::get(context, 8 * sizeof(size_t));
-            auto indexArrayType = llvm::ArrayType::get(indexType, type.numDimensions);
-            std::array<llvm::Type*, 5> structElements = {
-                ptrType,
-                ptrType,
-                indexType,
-                indexArrayType,
-                indexArrayType,
-            };
-            auto structType = llvm::StructType::get(context, structElements, false);
-            return structType;
+        return llvm::IntegerType::get(context, integerType->size);
+    }
+    else if (auto floatType = dynamic_cast<const ast::FloatType*>(&type)) {
+        switch (floatType->size) {
+            case 32: return llvm::Type::getFloatTy(context);
+            case 64: return llvm::Type::getDoubleTy(context);
         }
-        llvm::LLVMContext& context;
-    };
-    return std::visit(Visitor{ context }, type);
+        throw std::invalid_argument("only 32 and 64-bit floats are supported");
+    }
+    else if (auto indexType = dynamic_cast<const ast::IndexType*>(&type)) {
+        return llvm::IntegerType::get(context, 8 * sizeof(size_t));
+    }
+    else if (auto fieldType = dynamic_cast<const ast::FieldType*>(&type)) {
+        auto elementType = ConvertType(*fieldType->elementType, context);
+        auto ptrType = llvm::PointerType::get(elementType, 0);
+        auto indexType = llvm::IntegerType::get(context, 8 * sizeof(size_t));
+        auto indexArrayType = llvm::ArrayType::get(indexType, fieldType->numDimensions);
+        std::array<llvm::Type*, 5> structElements = {
+            ptrType,
+            ptrType,
+            indexType,
+            indexArrayType,
+            indexArrayType,
+        };
+        auto structType = llvm::StructType::get(context, structElements, false);
+        return structType;
+    }
+    else {
+        std::stringstream ss;
+        ss << "could not convert type \"" << type << "\" to LLVM type";
+        throw std::invalid_argument(ss.str());
+    }
 }
 
 //------------------------------------------------------------------------------
 // Argument
 //------------------------------------------------------------------------------
-Argument::Argument(ast::Type type, const Runner* runner)
+Argument::Argument(ast::TypePtr type, const Runner* runner)
     : m_type(type),
       m_runner(runner),
-      m_llvmType(ConvertType(type, runner->GetContext())) {
+      m_llvmType(ConvertType(*type, runner->GetContext())) {
 }
 
 //--------------------------------------
@@ -124,7 +136,7 @@ Argument::Argument(ast::Type type, const Runner* runner)
 //--------------------------------------
 
 size_t Argument::GetSize() const {
-    return std::visit([this](const auto& type) { return GetSize(type); }, m_type);
+    return m_runner->GetDataLayout().getTypeSizeInBits(m_llvmType) / 8;
 }
 
 size_t Argument::GetAlignment() const {
@@ -135,37 +147,92 @@ size_t Argument::GetAlignment() const {
 }
 
 pybind11::object Argument::Read(const void* address) {
-    return std::visit([&, this](const auto& type) { return Read(type, address); }, m_type);
+    if (auto type = dynamic_cast<const ast::IntegerType*>(m_type.get())) {
+        return Read(*type, address);
+    }
+    else if (auto type = dynamic_cast<const ast::FloatType*>(m_type.get())) {
+        return Read(*type, address);
+    }
+    else if (auto type = dynamic_cast<const ast::IndexType*>(m_type.get())) {
+        return Read(*type, address);
+    }
+    else if (auto type = dynamic_cast<const ast::FieldType*>(m_type.get())) {
+        return Read(*type, address);
+    }
+    std::terminate();
 }
 
 void Argument::Write(pybind11::object value, void* address) {
-    return std::visit([&, this](const auto& type) { return Write(type, value, address); }, m_type);
+    if (auto type = dynamic_cast<const ast::IntegerType*>(m_type.get())) {
+        return Write(*type, value, address);
+    }
+    else if (auto type = dynamic_cast<const ast::FloatType*>(m_type.get())) {
+        return Write(*type, value, address);
+    }
+    else if (auto type = dynamic_cast<const ast::IndexType*>(m_type.get())) {
+        return Write(*type, value, address);
+    }
+    else if (auto type = dynamic_cast<const ast::FieldType*>(m_type.get())) {
+        return Write(*type, value, address);
+    }
+    std::terminate();
 }
 
 //--------------------------------------
 // ScalarType methods
 //--------------------------------------
-size_t Argument::GetSize(ast::ScalarType type) {
-    return ast::VisitType(type, [](auto* typed) { return sizeof *typed; });
-}
 
-pybind11::object Argument::Read(ast::ScalarType type, const void* address) {
+pybind11::object Argument::Read(const ast::IntegerType& type, const void* address) const {
     return ast::VisitType(type, [&](auto* typed) -> pybind11::object {
         using T = std::decay_t<decltype(*typed)>;
         const T value = *static_cast<const T*>(address);
         if constexpr (std::is_integral_v<T>) {
             return pybind11::int_(value);
         }
-        else if constexpr (std::is_floating_point_v<T>) {
-            return pybind11::float_(value);
-        }
-        else {
-            static_assert(!sizeof(T*), "scalar type not supported, this is an implementation error");
-        }
+        assert(false && "should only ever receive integers");
+        std::terminate();
     });
 }
 
-void Argument::Write(ast::ScalarType type, pybind11::object value, void* address) {
+void Argument::Write(const ast::IntegerType& type, pybind11::object value, void* address) const {
+    ast::VisitType(type, [&](auto* typed) {
+        using T = std::decay_t<decltype(*typed)>;
+        *static_cast<T*>(address) = value.cast<T>();
+    });
+}
+
+pybind11::object Argument::Read(const ast::FloatType& type, const void* address) const {
+    return ast::VisitType(type, [&](auto* typed) -> pybind11::object {
+        using T = std::decay_t<decltype(*typed)>;
+        const T value = *static_cast<const T*>(address);
+        if constexpr (std::is_floating_point_v<T>) {
+            return pybind11::float_(value);
+        }
+        assert(false && "should only ever receive floats");
+        std::terminate();
+    });
+}
+
+void Argument::Write(const ast::FloatType& type, pybind11::object value, void* address) const {
+    ast::VisitType(type, [&](auto* typed) {
+        using T = std::decay_t<decltype(*typed)>;
+        *static_cast<T*>(address) = value.cast<T>();
+    });
+}
+
+pybind11::object Argument::Read(const ast::IndexType& type, const void* address) const {
+    return ast::VisitType(type, [&](auto* typed) -> pybind11::object {
+        using T = std::decay_t<decltype(*typed)>;
+        const T value = *static_cast<const T*>(address);
+        if constexpr (std::is_integral_v<T>) {
+            return pybind11::int_(value);
+        }
+        assert(false && "should only ever receive integers");
+        std::terminate();
+    });
+}
+
+void Argument::Write(const ast::IndexType& type, pybind11::object value, void* address) const {
     ast::VisitType(type, [&](auto* typed) {
         using T = std::decay_t<decltype(*typed)>;
         *static_cast<T*>(address) = value.cast<T>();
@@ -175,17 +242,13 @@ void Argument::Write(ast::ScalarType type, pybind11::object value, void* address
 //--------------------------------------
 // Field type methods
 //--------------------------------------
-size_t Argument::GetSize(ast::FieldType type) const {
+pybind11::object Argument::Read(const ast::FieldType& type, const void* address) const {
     auto layout = GetLayout();
     assert(layout);
-    return layout->getSizeInBytes();
-}
 
-pybind11::object Argument::Read(ast::FieldType type, const void* address) const {
-    auto layout = GetLayout();
-    assert(layout);
-    return ast::VisitType(type.elementType, [&](auto* typed) -> pybind11::memoryview {
+    return ast::VisitType(*type.elementType, [&](auto* typed) {
         using T = std::decay_t<decltype(*typed)>;
+
         const auto startingAddress = reinterpret_cast<const std::byte*>(address);
         const auto alignedPtrAddress = reinterpret_cast<T* const*>(startingAddress + layout->getElementOffset(1));
         const auto offsetAddress = reinterpret_cast<const ptrdiff_t*>(startingAddress + layout->getElementOffset(2));
@@ -195,42 +258,41 @@ pybind11::object Argument::Read(ast::FieldType type, const void* address) const 
         byteStrides.reserve(type.numDimensions);
         std::transform(stridesAddress, stridesAddress + type.numDimensions,
                        std::back_inserter(byteStrides),
-                       [](auto s) { return s * sizeof(T); });
+                       [&](auto s) { return s * sizeof(T); });
         return pybind11::memoryview::from_buffer(*alignedPtrAddress + *offsetAddress,
-                                                 std::span{ shapeAddress, type.numDimensions },
+                                                 std::span{ shapeAddress, size_t(type.numDimensions) },
                                                  std::span{ byteStrides },
                                                  false);
     });
 }
 
-void Argument::Write(ast::FieldType type, pybind11::object value, void* address) const {
+void Argument::Write(const ast::FieldType& type, pybind11::object value, void* address) const {
     auto layout = GetLayout();
     assert(layout);
-    ast::VisitType(type.elementType, [&](auto* typed) {
-        using T = std::decay_t<decltype(*typed)>;
 
-        const auto buffer = value.cast<pybind11::buffer>();
-        const auto bufferInfo = buffer.request(true);
-        const auto bufferType = ast::FieldType{ GetTypeFromFormat(bufferInfo.format), size_t(bufferInfo.ndim) };
-        if (bufferType != type) {
-            std::stringstream ss;
-            ss << "expected buffer type " << type << ", got " << bufferType;
-            throw std::invalid_argument(ss.str());
-        }
+    const auto elementSize = m_runner->GetDataLayout().getTypeSizeInBits(ConvertType(*type.elementType, m_runner->GetContext())) / 8;
 
-        const auto startingAddress = reinterpret_cast<std::byte*>(address);
-        const auto allocPtrAddress = reinterpret_cast<T**>(startingAddress + layout->getElementOffset(0));
-        const auto alignedPtrAddress = reinterpret_cast<T**>(startingAddress + layout->getElementOffset(1));
-        const auto offsetAddress = reinterpret_cast<ptrdiff_t*>(startingAddress + layout->getElementOffset(2));
-        const auto shapeAddress = reinterpret_cast<ptrdiff_t*>(startingAddress + layout->getElementOffset(3));
-        const auto stridesAddress = reinterpret_cast<ptrdiff_t*>(startingAddress + layout->getElementOffset(4));
+    const auto buffer = value.cast<pybind11::buffer>();
+    const auto bufferInfo = buffer.request(true);
+    const auto bufferType = ast::FieldType{ GetTypeFromFormat(bufferInfo.format), int(bufferInfo.ndim) };
+    if (bufferType.EqualTo(type)) {
+        std::stringstream ss;
+        ss << "expected buffer type " << type << ", got " << bufferType;
+        throw std::invalid_argument(ss.str());
+    }
 
-        *allocPtrAddress = reinterpret_cast<T*>(bufferInfo.ptr);
-        *alignedPtrAddress = *allocPtrAddress;
-        *offsetAddress = 0;
-        std::copy(bufferInfo.shape.begin(), bufferInfo.shape.end(), shapeAddress);
-        std::transform(bufferInfo.strides.begin(), bufferInfo.strides.end(), stridesAddress, [](auto s) { return s / sizeof(T); });
-    });
+    const auto startingAddress = reinterpret_cast<std::byte*>(address);
+    const auto allocPtrAddress = reinterpret_cast<std::byte**>(startingAddress + layout->getElementOffset(0));
+    const auto alignedPtrAddress = reinterpret_cast<std::byte**>(startingAddress + layout->getElementOffset(1));
+    const auto offsetAddress = reinterpret_cast<ptrdiff_t*>(startingAddress + layout->getElementOffset(2));
+    const auto shapeAddress = reinterpret_cast<ptrdiff_t*>(startingAddress + layout->getElementOffset(3));
+    const auto stridesAddress = reinterpret_cast<ptrdiff_t*>(startingAddress + layout->getElementOffset(4));
+
+    *allocPtrAddress = reinterpret_cast<std::byte*>(bufferInfo.ptr);
+    *alignedPtrAddress = *allocPtrAddress;
+    *offsetAddress = 0;
+    std::copy(bufferInfo.shape.begin(), bufferInfo.shape.end(), shapeAddress);
+    std::transform(bufferInfo.strides.begin(), bufferInfo.strides.end(), stridesAddress, [&](auto s) { return s / elementSize; });
 }
 
 const llvm::StructLayout* Argument::GetLayout() const {
@@ -244,7 +306,7 @@ const llvm::StructLayout* Argument::GetLayout() const {
 //------------------------------------------------------------------------------
 // ArgumentPack
 //------------------------------------------------------------------------------
-ArgumentPack::ArgumentPack(std::span<const ast::Type> types, const Runner* runner)
+ArgumentPack::ArgumentPack(std::span<const ast::TypePtr> types, const Runner* runner)
     : m_runner(runner) {
     m_items.reserve(types.size());
     for (auto& type : types) {
