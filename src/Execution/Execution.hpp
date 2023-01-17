@@ -37,7 +37,7 @@ private:
 
 namespace impl {
 auto FlattenArg(const auto& v) {
-    return std::tuple{ std::forward<decltype(v)>(v) };
+    return std::tuple{ v };
 }
 
 template <class T, int... Dims>

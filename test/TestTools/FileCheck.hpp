@@ -17,6 +17,6 @@ template <class... Passes>
 auto CheckFile(std::filesystem::path file, Passes&&... passes) {
     std::vector<std::unique_ptr<mlir::Pass>> passVec;
     passVec.reserve(sizeof...(passes));
-    (..., passVec.push_back(std::move(passes)));
+    (..., passVec.push_back(std::forward<Passes>(passes)));
     return CheckFile(file, std::move(passVec));
 }
