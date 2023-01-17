@@ -324,7 +324,7 @@ public:
                                                      mlir::APInt(64, node.numDimensions));
 
         GenerateFunctionBody(op, node.parameters, node.body);
-        op.setVisibility(mlir::SymbolTable::Visibility::Private);
+        op.setVisibility(node.isPublic ? mlir::SymbolTable::Visibility::Public : mlir::SymbolTable::Visibility::Private);
 
         return { op };
     }
@@ -389,7 +389,7 @@ public:
         auto op = builder.create<mlir::func::FuncOp>(loc,
                                                      node.name,
                                                      functionType);
-
+        op.setVisibility(node.isPublic ? mlir::SymbolTable::Visibility::Public : mlir::SymbolTable::Visibility::Private);
         GenerateFunctionBody(op, node.parameters, node.body);
 
         return { op };

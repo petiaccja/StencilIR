@@ -47,6 +47,7 @@ PYBIND11_MODULE(stencilir, m) {
                             std::vector<TypePtr>,
                             std::vector<std::shared_ptr<Statement>>,
                             size_t,
+                            bool,
                             std::optional<Location>>());
 
     pybind11::class_<Apply, std::shared_ptr<Apply>>(m, "Apply", expression)
@@ -72,6 +73,7 @@ PYBIND11_MODULE(stencilir, m) {
                             std::vector<Parameter>,
                             std::vector<TypePtr>,
                             std::vector<std::shared_ptr<Statement>>,
+                            bool,
                             std::optional<Location>>());
 
     pybind11::class_<Call, std::shared_ptr<Call>>(m, "Call", expression)

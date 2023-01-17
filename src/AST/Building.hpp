@@ -48,8 +48,9 @@ inline auto stencil(std::string name,
                     std::vector<TypePtr> results,
                     std::vector<std::shared_ptr<Statement>> body,
                     size_t numDimensions,
+                    bool isPublic = false,
                     std::optional<Location> loc = {}) {
-    return std::make_shared<Stencil>(name, parameters, results, body, numDimensions, loc);
+    return std::make_shared<Stencil>(name, parameters, results, body, numDimensions, isPublic, loc);
 }
 
 
@@ -85,8 +86,9 @@ inline auto function(std::string name,
                      std::vector<Parameter> parameters,
                      std::vector<TypePtr> results,
                      std::vector<std::shared_ptr<Statement>> body,
+                     bool isPublic = true,
                      std::optional<Location> loc = {}) {
-    return std::make_shared<Function>(name, parameters, results, body, loc);
+    return std::make_shared<Function>(name, parameters, results, body, isPublic, loc);
 }
 
 

@@ -8,6 +8,7 @@ def test_returns_void():
         [],
         [],
         [sir.Return([], None)],
+        True,
         None,
     )
     module = sir.Module([function], [], None)
@@ -25,6 +26,7 @@ def test_returns_single():
         [],
         [sir.FloatType(64)],
         [sir.Return([sir.Constant.floating(1.0, sir.FloatType(64), None)], None)],
+        True,
         None,
     )
     module = sir.Module([function], [], None)
@@ -51,6 +53,7 @@ def test_returns_multiple():
                 None,
             )
         ],
+        True,
         None,
     )
     module = sir.Module([function], [], None)
@@ -70,6 +73,7 @@ def test_scalar_passthrough():
         [sir.Parameter("value", sir.FloatType(64))],
         [sir.FloatType(64)],
         [sir.Return([sir.SymbolRef("value", None)], None)],
+        True,
         None,
     )
     module = sir.Module([function], [], None)
@@ -88,6 +92,7 @@ def test_field_passthrough():
         [sir.Parameter("value", sir.FieldType(sir.FloatType(64), 2))],
         [sir.FieldType(sir.FloatType(64), 2)],
         [sir.Return([sir.SymbolRef("value", None)], None)],
+        True,
         None,
     )
     module = sir.Module([function], [], None)
@@ -114,6 +119,7 @@ def test_mixed_passthrough():
             sir.FloatType(64),
         ],
         [sir.Return([sir.SymbolRef("v1", None), sir.SymbolRef("v2", None)], None)],
+        True,
         None,
     )
     module = sir.Module([function], [], None)

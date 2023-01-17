@@ -84,13 +84,15 @@ struct Stencil : Node {
                      std::vector<TypePtr> results,
                      std::vector<std::shared_ptr<Statement>> body,
                      size_t numDimensions,
+                     bool isPublic = false,
                      std::optional<Location> loc = {})
-        : Node(loc), name(name), parameters(parameters), results(results), body(body), numDimensions(numDimensions) {}
+        : Node(loc), name(name), parameters(parameters), results(results), body(body), numDimensions(numDimensions), isPublic(isPublic) {}
     std::string name;
     std::vector<Parameter> parameters;
     std::vector<TypePtr> results;
     std::vector<std::shared_ptr<Statement>> body;
     size_t numDimensions;
+    bool isPublic;
 };
 
 
@@ -139,12 +141,14 @@ struct Function : Node {
                       std::vector<Parameter> parameters,
                       std::vector<TypePtr> results,
                       std::vector<std::shared_ptr<Statement>> body,
+                      bool isPublic = true,
                       std::optional<Location> loc = {})
-        : Node(loc), name(name), parameters(parameters), results(results), body(body) {}
+        : Node(loc), name(name), parameters(parameters), results(results), body(body), isPublic(isPublic) {}
     std::string name;
     std::vector<Parameter> parameters;
     std::vector<TypePtr> results;
     std::vector<std::shared_ptr<Statement>> body;
+    bool isPublic;
 };
 
 
