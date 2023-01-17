@@ -30,15 +30,15 @@ public:
                                   llvm::ArrayRef<Value> operands,
                                   ConversionPatternRewriter& rewriter) const override {
         const auto loc = op->getLoc();
-        auto module = op->getParentOfType<ModuleOp>();
-        auto printfRef = getOrInsertPrintf(rewriter, module);
+        auto moduleOp = op->getParentOfType<ModuleOp>();
+        auto printfRef = getOrInsertPrintf(rewriter, moduleOp);
 
         constexpr char fmt[] = "%f \0";
         Value formatSpecifierCst = getOrCreateGlobalString(loc,
                                                            rewriter,
                                                            "frmt_spec",
                                                            StringRef(fmt, strlen(fmt) + 1),
-                                                           module);
+                                                           moduleOp);
 
 
         auto printOp = cast<stencil::PrintOp>(op);
@@ -53,9 +53,9 @@ public:
     }
 
 private:
-    static FlatSymbolRefAttr getOrInsertPrintf(ConversionPatternRewriter& rewriter, ModuleOp module) {
-        MLIRContext* context = module->getContext();
-        if (module.lookupSymbol<LLVM::LLVMFuncOp>("printf")) {
+    static FlatSymbolRefAttr getOrInsertPrintf(ConversionPatternRewriter& rewriter, ModuleOp moduleOp) {
+        MLIRContext* context = moduleOp->getContext();
+        if (moduleOp.lookupSymbol<LLVM::LLVMFuncOp>("printf")) {
             return SymbolRefAttr::get(context, "printf");
         }
 
@@ -64,19 +64,19 @@ private:
         auto llvmFnType = mlir::LLVM::LLVMFunctionType::get(llvmI32Ty, llvmI8PtrTy, true);
 
         PatternRewriter::InsertionGuard insertGuard(rewriter);
-        rewriter.setInsertionPointToStart(module.getBody());
-        rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), "printf", llvmFnType);
+        rewriter.setInsertionPointToStart(moduleOp.getBody());
+        rewriter.create<LLVM::LLVMFuncOp>(moduleOp.getLoc(), "printf", llvmFnType);
         return SymbolRefAttr::get(context, "printf");
     }
 
     static Value getOrCreateGlobalString(Location loc, OpBuilder& builder,
                                          StringRef name, StringRef value,
-                                         ModuleOp module) {
+                                         ModuleOp moduleOp) {
         // Create the global at the entry of the module.
         LLVM::GlobalOp global;
-        if (!(global = module.lookupSymbol<LLVM::GlobalOp>(name))) {
+        if (!(global = moduleOp.lookupSymbol<LLVM::GlobalOp>(name))) {
             OpBuilder::InsertionGuard insertGuard(builder);
-            builder.setInsertionPointToStart(module.getBody());
+            builder.setInsertionPointToStart(moduleOp.getBody());
             auto type = LLVM::LLVMArrayType::get(
                 IntegerType::get(builder.getContext(), 8), value.size());
             global = builder.create<LLVM::GlobalOp>(loc, type, /*isConstant=*/true,

@@ -906,13 +906,13 @@ mlir::ModuleOp ConvertASTToIR(mlir::MLIRContext& context, const ast::Module& nod
     StencilIRGenerator generator{ context };
 
     auto ir = generator.Generate(node);
-    auto module = mlir::dyn_cast<mlir::ModuleOp>(ir.op);
+    auto moduleOp = mlir::dyn_cast<mlir::ModuleOp>(ir.op);
 
     ScopedDiagnosticCollector diagnostics{ context };
-    mlir::LogicalResult verificationResult = mlir::verify(module);
+    mlir::LogicalResult verificationResult = mlir::verify(moduleOp);
     if (failed(verificationResult)) {
-        module->dump();
-        throw CompilationError(diagnostics.TakeDiagnostics(), module);
+        moduleOp->dump();
+        throw CompilationError(diagnostics.TakeDiagnostics(), moduleOp);
     }
-    return module;
+    return moduleOp;
 }

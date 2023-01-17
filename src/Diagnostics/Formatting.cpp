@@ -78,9 +78,9 @@ std::string FormatDiagnostic(const mlir::Diagnostic& diag) {
 }
 
 
-std::string FormatModule(mlir::ModuleOp& module) {
+std::string FormatModule(mlir::ModuleOp& moduleOp) {
     std::string s;
     llvm::raw_string_ostream ss(s);
-    module.print(ss);
+    moduleOp.print(ss);
     return s;
 }

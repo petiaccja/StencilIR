@@ -43,12 +43,12 @@ public:
 class CompilationError : public SyntaxError {
 public:
     CompilationError(const std::vector<mlir::Diagnostic>& diagnostics);
-    CompilationError(const std::vector<mlir::Diagnostic>& diagnostics, mlir::ModuleOp module);
+    CompilationError(const std::vector<mlir::Diagnostic>& diagnostics, mlir::ModuleOp moduleOp);
 
-    std::string_view GetModule() const noexcept { return m_module; }
+    std::string_view GetModule() const noexcept { return m_moduleOp; }
 
 private:
-    std::string m_module;
+    std::string m_moduleOp;
 };
 
 

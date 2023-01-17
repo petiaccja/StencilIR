@@ -13,13 +13,13 @@ static std::string FormatDiagVector(const std::vector<mlir::Diagnostic>& diagnos
     return ss.str();
 }
 
-CompilationError::CompilationError(const std::vector<mlir::Diagnostic>& diagnostics, mlir::ModuleOp module)
+CompilationError::CompilationError(const std::vector<mlir::Diagnostic>& diagnostics, mlir::ModuleOp moduleOp)
     : SyntaxError(FormatDiagVector(diagnostics)),
-      m_module(FormatModule(module)) {}
+      m_moduleOp(FormatModule(moduleOp)) {}
 
 
 CompilationError::CompilationError(const std::vector<mlir::Diagnostic>& diagnostics)
-    : SyntaxError(FormatDiagVector(diagnostics)), m_module({}) {}
+    : SyntaxError(FormatDiagVector(diagnostics)), m_moduleOp({}) {}
 
 
 UndefinedSymbolError::UndefinedSymbolError(mlir::Location location, std::string symbol)
