@@ -46,7 +46,7 @@ class CMakeBuild(build_ext):
             '--build', str(build_temp),
             '--config', cmake_build_type,
             '--target', "install",
-            '--', '-j4'
+            '--parallel'
         ]
 
         # Run cmake
