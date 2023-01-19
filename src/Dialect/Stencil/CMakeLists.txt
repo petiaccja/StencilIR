@@ -19,10 +19,12 @@ target_sources(StencilDialect
         IR/StencilOps.hpp
         Transforms/BufferizableOpInterfaceImpl.cpp
         Transforms/BufferizableOpInterfaceImpl.hpp
+        Transforms/FuseApplyOps.cpp
+        Transforms/FuseApplyOps.hpp
 )
 
 target_include_directories(StencilDialect PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/include)
-target_include_directories(StencilDialect INTERFACE ${CMAKE_CURRENT_LIST_DIR}/../..)
+target_include_directories(StencilDialect PUBLIC ${CMAKE_CURRENT_LIST_DIR}/../..)
 
 target_include_directories(StencilDialect SYSTEM PUBLIC ${LLVM_INCLUDE_DIRS})
 target_include_directories(StencilDialect SYSTEM PUBLIC ${MLIR_INCLUDE_DIRS})

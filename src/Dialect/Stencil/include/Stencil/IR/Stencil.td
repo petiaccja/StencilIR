@@ -131,10 +131,10 @@ def ApplyOp : Stencil_Op<"apply", [
 
 
 def InvokeOp : Stencil_Op<"invoke", [
-  MemRefsNormalizable, AttrSizedOperandSegments,
+  MemRefsNormalizable,
   DeclareOpInterfaceMethods<SymbolUserOpInterface>
 ]> {
-  let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<Index>:$indices, Variadic<AnyType>:$arguments);
+  let arguments = (ins FlatSymbolRefAttr:$callee, AnyVector:$index, Variadic<AnyType>:$arguments);
   let results = (outs Variadic<AnyType>);
   let extraClassDeclaration = [{
     mlir::FunctionType getCalleeType();
@@ -155,7 +155,7 @@ def InvokeOp : Stencil_Op<"invoke", [
 
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = [{
-    $callee `<` $indices `>` `(` $arguments `)` attr-dict `:` functional-type($arguments, results)
+    $callee `<` $index `>` `` `(` $arguments `)` attr-dict `:` functional-type(operands, results)
   }];
 }
 

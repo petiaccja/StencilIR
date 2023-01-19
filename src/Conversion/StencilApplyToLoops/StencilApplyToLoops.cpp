@@ -32,6 +32,10 @@ struct ApplyOpLoweringBase : public OpRewritePattern<stencil::ApplyOp> {
     using OpRewritePattern<stencil::ApplyOp>::OpRewritePattern;
 
     static auto CreateLoopBody(stencil::ApplyOp op, OpBuilder& builder, Location loc, ValueRange loopVars) {
+        auto ConstantIndex = [&builder, &loc](int64_t value) {
+            return builder.create<arith::ConstantIndexOp>(loc, value);
+        };
+
         // Get invocation result types from ApplyOp result tensors.
         std::vector<Type> resultTypes;
         for (const auto& type : op.getOutputs().getTypes()) {
@@ -62,7 +66,14 @@ struct ApplyOpLoweringBase : public OpRewritePattern<stencil::ApplyOp> {
             }
         }
 
-        auto call = builder.create<stencil::InvokeOp>(loc, resultTypes, op.getCallee(), offsetLoopVars, op.getInputs());
+        const size_t numDims = offsetLoopVars.size();
+        mlir::Type indexType = VectorType::get({ int64_t(numDims) }, builder.getIndexType());
+        Value index = builder.create<vector::SplatOp>(loc, indexType, ConstantIndex(0));
+        for (size_t dimIdx = 0; dimIdx < numDims; ++dimIdx) {
+            index = builder.create<vector::InsertElementOp>(loc, offsetLoopVars[dimIdx], index, ConstantIndex(dimIdx));
+        }
+
+        auto call = builder.create<stencil::InvokeOp>(loc, resultTypes, op.getCallee(), index, op.getInputs());
 
         // Store return values to targets
         const auto results = call.getResults();

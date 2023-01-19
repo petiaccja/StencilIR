@@ -72,24 +72,11 @@ struct ReturnOpLowering : public OpRewritePattern<stencil::ReturnOp> {
 };
 
 
-struct InvokeStencilLowering : public OpRewritePattern<stencil::InvokeOp> {
+struct InvokeOpLowering : public OpRewritePattern<stencil::InvokeOp> {
     using OpRewritePattern<stencil::InvokeOp>::OpRewritePattern;
 
     LogicalResult matchAndRewrite(stencil::InvokeOp op, PatternRewriter& rewriter) const override {
-        Location loc = op->getLoc();
-
-        auto ConstantIndex = [&rewriter, &loc](int64_t value) {
-            return rewriter.create<arith::ConstantIndexOp>(loc, value);
-        };
-
-        const auto indices = op.getIndices();
-        const size_t numDims = indices.size();
-
-        mlir::Type indexType = VectorType::get({ int64_t(numDims) }, rewriter.getIndexType());
-        Value index = rewriter.create<vector::SplatOp>(loc, indexType, ConstantIndex(0));
-        for (size_t dimIdx = 0; dimIdx < numDims; ++dimIdx) {
-            index = rewriter.create<vector::InsertElementOp>(loc, indices[dimIdx], index, ConstantIndex(dimIdx));
-        }
+        const auto index = op.getIndex();
 
         std::vector<Value> operands;
         operands.push_back(index);
@@ -152,7 +139,7 @@ void StencilToFuncPass::runOnOperation() {
     RewritePatternSet patterns(&getContext());
     patterns.add<StencilOpLowering>(&getContext());
     patterns.add<ReturnOpLowering>(&getContext());
-    patterns.add<InvokeStencilLowering>(&getContext());
+    patterns.add<InvokeOpLowering>(&getContext());
     patterns.add<IndexOpLowering>(&getContext());
 
     if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {
