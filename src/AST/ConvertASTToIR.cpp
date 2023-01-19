@@ -43,21 +43,14 @@
 #include <mlir/Support/LLVM.h>
 
 #include <algorithm>
-#include <bit>
 #include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <functional>
-#include <list>
 #include <memory>
 #include <optional>
-#include <ranges>
-#include <stack>
 #include <stdexcept>
 #include <string>
-#include <type_traits>
-#include <typeindex>
-#include <unordered_map>
 
 using namespace std::string_literals;
 
