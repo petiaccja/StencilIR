@@ -171,16 +171,16 @@ PYBIND11_MODULE(stencilir, m) {
     // Arithmetic-logic
     pybind11::class_<Constant, std::shared_ptr<Constant>>(m, "Constant", expression)
         .def_static("integral", [](int value, TypePtr type, std::optional<Location> loc) {
-            return Constant(value, type, loc);
+            return Constant(value, type, std::move(loc));
         })
         .def_static("floating", [](double value, TypePtr type, std::optional<Location> loc) {
-            return Constant(value, type, loc);
+            return Constant(value, type, std::move(loc));
         })
         .def_static("index", [](int64_t value, std::optional<Location> loc) {
-            return Constant(value, std::make_shared<IndexType>(), loc);
+            return Constant(value, std::make_shared<IndexType>(), std::move(loc));
         })
         .def_static("boolean", [](bool value, std::optional<Location> loc) {
-            return Constant(value, std::make_shared<IntegerType>(1, true), loc);
+            return Constant(value, std::make_shared<IntegerType>(1, true), std::move(loc));
         });
 
     pybind11::enum_<eArithmeticFunction>(m, "ArithmeticFunction")

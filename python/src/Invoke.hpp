@@ -24,8 +24,8 @@ public:
 
     size_t GetSize() const;
     size_t GetAlignment() const;
-    pybind11::object Read(const std::byte* address);
-    void Write(pybind11::object value, std::byte* address);
+    pybind11::object Read(const std::byte* address) const;
+    void Write(pybind11::object value, std::byte* address) const;
     template <class Iter>
     void GetOpaquePointers(std::byte* address, Iter out) const;
 
@@ -67,8 +67,8 @@ public:
 
     size_t GetSize() const;
     size_t GetAlignment() const;
-    pybind11::object Read(const std::byte* address);
-    void Write(pybind11::object value, std::byte* address);
+    pybind11::object Read(const std::byte* address) const;
+    void Write(pybind11::object value, std::byte* address) const;
 
     template <class Iter>
     void GetOpaquePointers(std::byte* address, Iter out) const;

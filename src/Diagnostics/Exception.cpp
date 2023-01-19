@@ -19,7 +19,7 @@ CompilationError::CompilationError(const std::vector<mlir::Diagnostic>& diagnost
 
 
 CompilationError::CompilationError(const std::vector<mlir::Diagnostic>& diagnostics)
-    : SyntaxError(FormatDiagVector(diagnostics)), m_moduleOp({}) {}
+    : SyntaxError(FormatDiagVector(diagnostics)) {}
 
 
 UndefinedSymbolError::UndefinedSymbolError(mlir::Location location, std::string symbol)

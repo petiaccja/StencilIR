@@ -62,16 +62,14 @@ ast::TypePtr GetTypeFromFormat(std::string_view format) {
         const auto pybindFloatType = std::dynamic_pointer_cast<ast::FloatType>(pybindType);
         const auto pythonFloatType = std::dynamic_pointer_cast<ast::FloatType>(pybindType);
 
-        if (pybindIntType && pythonIntType) {
-            if (pybindIntType->size == pythonIntType->size
-                && pybindIntType->isSigned == pythonIntType->isSigned) {
-                return pybindType;
-            }
+        if (pybindIntType && pythonIntType
+            && pybindIntType->size == pythonIntType->size
+            && pybindIntType->isSigned == pythonIntType->isSigned) {
+            return pybindType;
         }
-        if (pybindFloatType && pythonFloatType) {
-            if (pybindFloatType->size == pythonFloatType->size) {
-                return pybindType;
-            }
+        if (pybindFloatType && pythonFloatType
+            && pybindFloatType->size == pythonFloatType->size) {
+            return pybindType;
         }
         std::stringstream ss;
         ss << "ambiguous python format descriptor \"" << format << "\": pybind11"
@@ -79,7 +77,7 @@ ast::TypePtr GetTypeFromFormat(std::string_view format) {
            << "and python"
            << " (" << pythonType << ") "
            << " interpretations are different";
-        throw std::logic_error(ss.str());
+        throw std::runtime_error(ss.str());
     }
     else if (pybindType) {
         return pybindType;
@@ -111,14 +109,14 @@ static llvm::Type* ConvertType(const ast::Type& type, llvm::LLVMContext& context
     else if (auto fieldType = dynamic_cast<const ast::FieldType*>(&type)) {
         auto elementType = ConvertType(*fieldType->elementType, context);
         auto ptrType = llvm::PointerType::get(elementType, 0);
-        auto indexType = llvm::IntegerType::get(context, 8 * sizeof(size_t));
-        auto indexArrayType = llvm::ArrayType::get(indexType, fieldType->numDimensions);
+        auto llvmIndexType = llvm::IntegerType::get(context, 8 * sizeof(size_t));
+        auto llvmIndexArrayType = llvm::ArrayType::get(llvmIndexType, fieldType->numDimensions);
         std::array<llvm::Type*, 5> structElements = {
             ptrType,
             ptrType,
-            indexType,
-            indexArrayType,
-            indexArrayType,
+            llvmIndexType,
+            llvmIndexArrayType,
+            llvmIndexArrayType,
         };
         auto structType = llvm::StructType::get(context, structElements, false);
         return structType;
@@ -154,7 +152,7 @@ size_t Argument::GetAlignment() const {
     return GetSize();
 }
 
-pybind11::object Argument::Read(const std::byte* address) {
+pybind11::object Argument::Read(const std::byte* address) const {
     if (auto type = dynamic_cast<const ast::IntegerType*>(m_type.get())) {
         return Read(*type, address);
     }
@@ -170,7 +168,7 @@ pybind11::object Argument::Read(const std::byte* address) {
     std::terminate();
 }
 
-void Argument::Write(pybind11::object value, std::byte* address) {
+void Argument::Write(pybind11::object value, std::byte* address) const {
     if (auto type = dynamic_cast<const ast::IntegerType*>(m_type.get())) {
         return Write(*type, value, address);
     }
@@ -337,7 +335,7 @@ size_t ArgumentPack::GetAlignment() const {
     return GetLayout()->getAlignment().value();
 }
 
-pybind11::object ArgumentPack::Read(const std::byte* address) {
+pybind11::object ArgumentPack::Read(const std::byte* address) const {
     const auto numItems = m_items.size();
     const auto startingAddress = address;
     auto values = pybind11::tuple{ numItems };
@@ -348,7 +346,7 @@ pybind11::object ArgumentPack::Read(const std::byte* address) {
     return values;
 }
 
-void ArgumentPack::Write(pybind11::object value, std::byte* address) {
+void ArgumentPack::Write(pybind11::object value, std::byte* address) const {
     const auto numItems = m_items.size();
     const auto valuesAsTuple = value.cast<pybind11::tuple>();
     const auto numSupplied = valuesAsTuple.size();
