@@ -8,8 +8,8 @@
 TEST_CASE("Function: create", "[AST]") {
     const auto ast = ast::module_({
         ast::function("funcname",
-                      { ast::Parameter{ "a", ast::ScalarType::FLOAT32 } },
-                      { ast::ScalarType::FLOAT32 },
+                      { ast::Parameter{ "a", ast::FloatType::Get(32) } },
+                      { ast::FloatType::Get(32) },
                       { ast::return_({ ast::symref("a") }) }),
     });
 

@@ -18,10 +18,10 @@
 #include <fstream>
 
 
-static std::string PrintOp(mlir::ModuleOp module) {
+static std::string PrintOp(mlir::ModuleOp moduleOp) {
     std::string s;
     llvm::raw_string_ostream ss(s);
-    module.print(ss);
+    moduleOp.print(ss);
     return s;
 }
 
@@ -110,9 +110,9 @@ bool CheckText(std::string_view input, std::string_view pattern) {
 }
 
 
-bool CheckAST(ast::Module& module, std::string_view pattern) {
+bool CheckAST(ast::Module& moduleNode, std::string_view pattern) {
     static mlir::MLIRContext context;
-    auto ir = ConvertASTToIR(context, module);
+    auto ir = ConvertASTToIR(context, moduleNode);
     const auto str = PrintOp(ir);
     return CheckText(str, pattern);
 }

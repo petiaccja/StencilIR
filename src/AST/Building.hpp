@@ -45,11 +45,12 @@ inline auto pack(std::vector<std::shared_ptr<Expression>> exprs,
 
 inline auto stencil(std::string name,
                     std::vector<Parameter> parameters,
-                    std::vector<Type> results,
+                    std::vector<TypePtr> results,
                     std::vector<std::shared_ptr<Statement>> body,
                     size_t numDimensions,
+                    bool isPublic = false,
                     std::optional<Location> loc = {}) {
-    return std::make_shared<Stencil>(name, parameters, results, body, numDimensions, loc);
+    return std::make_shared<Stencil>(name, parameters, results, body, numDimensions, isPublic, loc);
 }
 
 
@@ -83,10 +84,11 @@ inline auto apply(std::string callee,
 
 inline auto function(std::string name,
                      std::vector<Parameter> parameters,
-                     std::vector<Type> results,
+                     std::vector<TypePtr> results,
                      std::vector<std::shared_ptr<Statement>> body,
+                     bool isPublic = true,
                      std::optional<Location> loc = {}) {
-    return std::make_shared<Function>(name, parameters, results, body, loc);
+    return std::make_shared<Function>(name, parameters, results, body, isPublic, loc);
 }
 
 
@@ -203,8 +205,8 @@ inline auto constant(T value, std::optional<Location> loc = {}) {
 }
 
 template <class T>
-inline auto constant(impl::IndexType, T value, std::optional<Location> loc = {}) {
-    return std::make_shared<Constant>(index_type, value, loc);
+inline auto constant(T value, TypePtr type, std::optional<Location> loc = {}) {
+    return std::make_shared<Constant>(value, type, loc);
 }
 
 
@@ -265,7 +267,7 @@ inline auto max(std::shared_ptr<Expression> lhs, std::shared_ptr<Expression> rhs
     return std::make_shared<Max>(lhs, rhs, loc);
 }
 
-inline auto cast(std::shared_ptr<Expression> expr, Type type, std::optional<Location> loc = {}) {
+inline auto cast(std::shared_ptr<Expression> expr, TypePtr type, std::optional<Location> loc = {}) {
     return std::make_shared<Cast>(expr, type, loc);
 }
 
@@ -274,7 +276,7 @@ inline auto cast(std::shared_ptr<Expression> expr, Type type, std::optional<Loca
 // Tensor
 //------------------------------------------------------------------------------
 
-inline auto alloc_tensor(ScalarType elementType,
+inline auto alloc_tensor(TypePtr elementType,
                          std::vector<std::shared_ptr<Expression>> sizes,
                          Location loc = {}) {
     return std::make_shared<AllocTensor>(elementType, sizes, loc);

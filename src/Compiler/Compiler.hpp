@@ -25,11 +25,11 @@ class Compiler {
 public:
     Compiler(std::vector<Stage> stages) : m_stages(std::move(stages)) {}
 
-    mlir::ModuleOp Run(mlir::ModuleOp module) const;
-    mlir::ModuleOp Run(mlir::ModuleOp module, std::vector<StageResult>& stageResults) const;
+    mlir::ModuleOp Run(mlir::ModuleOp moduleOp) const;
+    mlir::ModuleOp Run(mlir::ModuleOp moduleOp, std::vector<StageResult>& stageResults) const;
 
 private:
-    mlir::ModuleOp Run(mlir::ModuleOp module, std::vector<StageResult>& stageResults, bool printStageResults) const;
+    mlir::ModuleOp Run(mlir::ModuleOp moduleOp, std::vector<StageResult>& stageResults, bool printStageResults) const;
 
 private:
     std::vector<Stage> m_stages;

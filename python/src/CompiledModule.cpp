@@ -83,7 +83,7 @@ auto CompiledModule::ExtractFunctions(std::shared_ptr<ast::Module> ast)
     -> std::unordered_map<std::string, FunctionType> {
     std::unordered_map<std::string, FunctionType> functions;
     for (const auto& function : ast->functions) {
-        std::vector<ast::Type> parameters;
+        std::vector<ast::TypePtr> parameters;
         for (auto& parameter : function->parameters) {
             parameters.push_back(parameter.type);
         }

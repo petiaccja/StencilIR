@@ -9,8 +9,8 @@
 TEST_CASE("Call - regular", "[AST]") {
     const auto ast = ast::module_({
         ast::function("callee",
-                      { ast::Parameter{ "a", ast::ScalarType::FLOAT32 } },
-                      { ast::ScalarType::FLOAT32 },
+                      { ast::Parameter{ "a", ast::FloatType::Get(32) } },
+                      { ast::FloatType::Get(32) },
                       { ast::return_({ ast::symref("a") }) }),
         ast::function("caller",
                       {},
@@ -32,13 +32,13 @@ TEST_CASE("Call - expression unpacking", "[AST]") {
     const auto ast = ast::module_({
         ast::function("mrv",
                       {},
-                      { ast::ScalarType::FLOAT32, ast::ScalarType::FLOAT32 },
+                      { ast::FloatType::Get(32), ast::FloatType::Get(32) },
                       { ast::return_({ ast::constant(1.0f), ast::constant(1.0f) }) }),
         ast::function("callee",
                       {
-                          ast::Parameter{ "a", ast::ScalarType::FLOAT32 },
-                          ast::Parameter{ "b", ast::ScalarType::FLOAT32 },
-                          ast::Parameter{ "c", ast::ScalarType::FLOAT32 },
+                          ast::Parameter{ "a", ast::FloatType::Get(32) },
+                          ast::Parameter{ "b", ast::FloatType::Get(32) },
+                          ast::Parameter{ "c", ast::FloatType::Get(32) },
                       },
                       {},
                       { ast::return_() }),

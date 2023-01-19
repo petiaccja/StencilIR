@@ -26,7 +26,7 @@ TEST_CASE("Return - single value", "[AST]") {
     const auto ast = ast::module_({
         ast::function("fun",
                       {},
-                      { ast::ScalarType::FLOAT32 },
+                      { ast::FloatType::Get(32) },
                       {
                           ast::return_({ ast::constant(1.0f) }),
                       }),
@@ -43,11 +43,11 @@ TEST_CASE("Return - expression unpacking", "[AST]") {
     const auto ast = ast::module_({
         ast::function("mrv",
                       {},
-                      { ast::ScalarType::FLOAT32, ast::ScalarType::FLOAT32 },
+                      { ast::FloatType::Get(32), ast::FloatType::Get(32) },
                       { ast::return_({ ast::constant(1.0f), ast::constant(1.0f) }) }),
         ast::function("fun",
                       {},
-                      { ast::ScalarType::FLOAT32, ast::ScalarType::FLOAT32, ast::ScalarType::SINT32 },
+                      { ast::FloatType::Get(32), ast::FloatType::Get(32), ast::IntegerType::Get(32, true) },
                       {
                           ast::return_({
                               ast::call("mrv", {}),

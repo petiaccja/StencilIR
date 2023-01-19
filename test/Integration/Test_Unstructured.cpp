@@ -31,7 +31,7 @@ static std::shared_ptr<ast::Module> CreateAST() {
     auto cellIdx = ast::exchange(index, 0, neighbourIdx);
     auto neighbourValue = ast::sample(cellK, cellIdx);
 
-    auto invalidIdx = ast::constant(ast::index_type, -1);
+    auto invalidIdx = ast::constant(-1, ast::IndexType::Get());
     auto isNeighbourValid = ast::neq(neighbourIdx, invalidIdx);
     auto accUpdated = ast::add(ast::symref("accumulator"),
                                ast::mul(
@@ -39,9 +39,9 @@ static std::shared_ptr<ast::Module> CreateAST() {
                                    neighbourValue));
     auto accSame = ast::symref("accumulator");
     auto acc = ast::if_(isNeighbourValid, { ast::yield({ accUpdated }) }, { ast::yield({ accSame }) });
-    auto sum = ast::for_(ast::constant(ast::index_type, 0),
-                         ast::dim(edgeToCell, ast::constant(ast::index_type, 1)),
-                         ast::constant(ast::index_type, 1),
+    auto sum = ast::for_(ast::constant(0, ast::IndexType::Get()),
+                         ast::dim(edgeToCell, ast::constant(1, ast::IndexType::Get())),
+                         ast::constant(1, ast::IndexType::Get()),
                          "elementIdx",
                          { ast::yield({ acc }) },
                          { ast::constant(0.0f) },
@@ -49,11 +49,11 @@ static std::shared_ptr<ast::Module> CreateAST() {
 
     auto edge_diffs = ast::stencil("edge_diffs",
                                    {
-                                       { "cellK", ast::FieldType{ ast::ScalarType::FLOAT32, 2 } },
-                                       { "edgeToCell", ast::FieldType{ ast::ScalarType::INDEX, 2 } },
-                                       { "cellWeights", ast::FieldType{ ast::ScalarType::FLOAT32, 2 } },
+                                       { "cellK", ast::FieldType::Get(ast::FloatType::Get(32), 2) },
+                                       { "edgeToCell", ast::FieldType::Get(ast::IndexType::Get(), 2) },
+                                       { "cellWeights", ast::FieldType::Get(ast::FloatType::Get(32), 2) },
                                    },
-                                   { ast::ScalarType::FLOAT32 },
+                                   { ast::FloatType::Get(32) },
                                    { ast::return_({ sum }) },
                                    2);
 
@@ -66,10 +66,10 @@ static std::shared_ptr<ast::Module> CreateAST() {
 
     auto main = ast::function("main",
                               {
-                                  { "cellK", ast::FieldType{ ast::ScalarType::FLOAT32, 2 } },
-                                  { "edgeToCell", ast::FieldType{ ast::ScalarType::INDEX, 2 } },
-                                  { "cellWeights", ast::FieldType{ ast::ScalarType::FLOAT32, 2 } },
-                                  { "outEdgeK", ast::FieldType{ ast::ScalarType::FLOAT32, 2 } },
+                                  { "cellK", ast::FieldType::Get(ast::FloatType::Get(32), 2) },
+                                  { "edgeToCell", ast::FieldType::Get(ast::IndexType::Get(), 2) },
+                                  { "cellWeights", ast::FieldType::Get(ast::FloatType::Get(32), 2) },
+                                  { "outEdgeK", ast::FieldType::Get(ast::FloatType::Get(32), 2) },
                               },
                               {},
                               { apply, ast::return_() });
@@ -97,10 +97,10 @@ TEST_CASE("Unstructured", "[Program]") {
     std::fill(cellWeights.begin() + numEdges, cellWeights.end(), 1.0f);
 
 
-    MemRef<float, 2> cellKMem{ cellK.data(), cellK.data(), 0, { numCells, numLevels }, { 1, numCells } };
-    MemRef<float, 2> edgeKMem{ edgeK.data(), edgeK.data(), 0, { numEdges, numLevels }, { 1, numEdges } };
-    MemRef<ptrdiff_t, 2> edgeToCellMem{ edgeToCell.data(), edgeToCell.data(), 0, { numEdges, 2 }, { 1, numEdges } };
-    MemRef<float, 2> cellWeightsMem{ cellWeights.data(), cellWeights.data(), 0, { numEdges, 2 }, { 1, numEdges } };
+    StridedMemRefType<float, 2> cellKMem{ cellK.data(), cellK.data(), 0, { numCells, numLevels }, { 1, numCells } };
+    StridedMemRefType<float, 2> edgeKMem{ edgeK.data(), edgeK.data(), 0, { numEdges, numLevels }, { 1, numEdges } };
+    StridedMemRefType<ptrdiff_t, 2> edgeToCellMem{ edgeToCell.data(), edgeToCell.data(), 0, { numEdges, 2 }, { 1, numEdges } };
+    StridedMemRefType<float, 2> cellWeightsMem{ cellWeights.data(), cellWeights.data(), 0, { numEdges, 2 }, { 1, numEdges } };
 
     const auto program = CreateAST();
     const auto stages = RunAST(*program, "main", cellKMem, edgeToCellMem, cellWeightsMem, edgeKMem);

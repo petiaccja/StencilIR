@@ -9,11 +9,11 @@ TEST_CASE("Assign - expression unpacking", "[AST]") {
     const auto ast = ast::module_({
         ast::function("mrv",
                       {},
-                      { ast::ScalarType::FLOAT32, ast::ScalarType::FLOAT32 },
+                      { ast::FloatType::Get(32), ast::FloatType::Get(32) },
                       { ast::return_({ ast::constant(1.0f), ast::constant(1.0f) }) }),
         ast::function("fun",
                       {},
-                      { ast::ScalarType::FLOAT32, ast::ScalarType::FLOAT32, ast::ScalarType::FLOAT32 },
+                      { ast::FloatType::Get(32), ast::FloatType::Get(32), ast::FloatType::Get(32) },
                       {
                           ast::assign({ "a", "b", "c" }, { ast::call("mrv", {}), ast::constant(1.0f) }),
                           ast::return_({

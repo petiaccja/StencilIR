@@ -24,7 +24,7 @@ struct Location {
 
 struct Parameter {
     std::string name;
-    Type type;
+    TypePtr type;
 };
 
 
@@ -81,16 +81,18 @@ struct Pack : Expression {
 struct Stencil : Node {
     explicit Stencil(std::string name,
                      std::vector<Parameter> parameters,
-                     std::vector<Type> results,
+                     std::vector<TypePtr> results,
                      std::vector<std::shared_ptr<Statement>> body,
                      size_t numDimensions,
+                     bool isPublic = false,
                      std::optional<Location> loc = {})
-        : Node(loc), name(name), parameters(parameters), results(results), body(body), numDimensions(numDimensions) {}
+        : Node(loc), name(name), parameters(parameters), results(results), body(body), numDimensions(numDimensions), isPublic(isPublic) {}
     std::string name;
     std::vector<Parameter> parameters;
-    std::vector<Type> results;
+    std::vector<TypePtr> results;
     std::vector<std::shared_ptr<Statement>> body;
     size_t numDimensions;
+    bool isPublic;
 };
 
 
@@ -137,14 +139,16 @@ struct Return : Statement {
 struct Function : Node {
     explicit Function(std::string name,
                       std::vector<Parameter> parameters,
-                      std::vector<Type> results,
+                      std::vector<TypePtr> results,
                       std::vector<std::shared_ptr<Statement>> body,
+                      bool isPublic = true,
                       std::optional<Location> loc = {})
-        : Node(loc), name(name), parameters(parameters), results(results), body(body) {}
+        : Node(loc), name(name), parameters(parameters), results(results), body(body), isPublic(isPublic) {}
     std::string name;
     std::vector<Parameter> parameters;
-    std::vector<Type> results;
+    std::vector<TypePtr> results;
     std::vector<std::shared_ptr<Statement>> body;
+    bool isPublic;
 };
 
 
@@ -288,12 +292,12 @@ struct Block : Expression {
 //------------------------------------------------------------------------------
 
 struct AllocTensor : Expression {
-    AllocTensor(ScalarType elementType,
+    AllocTensor(TypePtr elementType,
                 std::vector<std::shared_ptr<Expression>> sizes,
                 std::optional<Location> loc = {})
         : Expression(loc), elementType(elementType), sizes(sizes) {}
 
-    ScalarType elementType;
+    TypePtr elementType;
     std::vector<std::shared_ptr<Expression>> sizes;
 };
 
@@ -339,16 +343,26 @@ struct InsertSlice : Expression {
 //------------------------------------------------------------------------------
 
 struct Constant : Expression {
-    explicit Constant(std::integral auto value, std::optional<Location> loc = {})
-        : Expression(loc), value(value), type(InferType<decltype(value)>()) {}
-    explicit Constant(std::floating_point auto value, std::optional<Location> loc = {})
-        : Expression(loc), value(value), type(InferType<decltype(value)>()) {}
-    explicit Constant(bool value, std::optional<Location> loc = {})
-        : Expression(loc), value(value), type(InferType<bool>()) {}
-    explicit Constant(impl::IndexType, ptrdiff_t value, std::optional<Location> loc = {})
-        : Expression(loc), value(value), type(ScalarType::INDEX) {}
+    template <class T>
+    explicit Constant(T value, std::optional<Location> loc = {})
+        : Constant(std::move(value), InferType<std::decay_t<T>>(), std::move(loc)) {}
+    explicit Constant(auto value, TypePtr type, std::optional<Location> loc = {})
+        : Expression(loc), type(type) {
+        if (std::dynamic_pointer_cast<IntegerType>(type)) {
+            this->value = static_cast<int64_t>(value);
+        }
+        else if (std::dynamic_pointer_cast<IndexType>(type)) {
+            this->value = static_cast<int64_t>(value);
+        }
+        else if (std::dynamic_pointer_cast<FloatType>(type)) {
+            this->value = static_cast<double>(value);
+        }
+        else {
+            this->value = value;
+        }
+    }
     std::any value;
-    ScalarType type;
+    TypePtr type;
 };
 
 struct BinaryOperator : Expression {
@@ -419,11 +433,11 @@ struct Max : Expression {
 
 struct Cast : Expression {
     Cast(std::shared_ptr<Expression> expr,
-         Type type,
+         TypePtr type,
          std::optional<Location> loc = {})
         : Expression(loc), expr(expr), type(type) {}
     std::shared_ptr<Expression> expr;
-    Type type;
+    TypePtr type;
 };
 
 

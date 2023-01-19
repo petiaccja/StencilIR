@@ -31,8 +31,8 @@ static std::shared_ptr<ast::Module> CreateAST() {
     auto ret = ast::return_({ sum });
 
     auto laplacian = ast::stencil("laplacian",
-                                  { { "field", ast::FieldType{ ast::ScalarType::FLOAT32, 2 } } },
-                                  { ast::ScalarType::FLOAT32 },
+                                  { { "field", ast::FieldType::Get(ast::FloatType::Get(32), 2) } },
+                                  { ast::FloatType::Get(32) },
                                   { ret },
                                   2);
 
@@ -47,8 +47,8 @@ static std::shared_ptr<ast::Module> CreateAST() {
 
     auto main = ast::function("main",
                               {
-                                  { "input", ast::FieldType{ ast::ScalarType::FLOAT32, 2 } },
-                                  { "out", ast::FieldType{ ast::ScalarType::FLOAT32, 2 } },
+                                  { "input", ast::FieldType::Get(ast::FloatType::Get(32), 2) },
+                                  { "out", ast::FieldType::Get(ast::FloatType::Get(32), 2) },
                               },
                               {},
                               { apply, ast::return_() });
@@ -65,8 +65,8 @@ TEST_CASE("Structured", "[Program]") {
     constexpr ptrdiff_t outputSizeY = inputSizeY - 2;
     std::array<float, inputSizeX * inputSizeY> inputBuffer;
     std::array<float, outputSizeX * outputSizeY> outputBuffer;
-    MemRef<float, 2> input{ inputBuffer.data(), inputBuffer.data(), 0, { inputSizeX, inputSizeY }, { 1, inputSizeX } };
-    MemRef<float, 2> output{ outputBuffer.data(), outputBuffer.data(), 0, { outputSizeX, outputSizeY }, { 1, outputSizeX } };
+    StridedMemRefType<float, 2> input{ inputBuffer.data(), inputBuffer.data(), 0, { inputSizeX, inputSizeY }, { 1, inputSizeX } };
+    StridedMemRefType<float, 2> output{ outputBuffer.data(), outputBuffer.data(), 0, { outputSizeX, outputSizeY }, { 1, outputSizeX } };
     std::ranges::fill(outputBuffer, 0);
 
     for (size_t y = 0; y < inputSizeY; ++y) {

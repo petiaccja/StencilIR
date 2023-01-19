@@ -44,9 +44,10 @@ PYBIND11_MODULE(stencilir, m) {
     pybind11::class_<Stencil, std::shared_ptr<Stencil>>(m, "Stencil")
         .def(pybind11::init<std::string,
                             std::vector<Parameter>,
-                            std::vector<Type>,
+                            std::vector<TypePtr>,
                             std::vector<std::shared_ptr<Statement>>,
                             size_t,
+                            bool,
                             std::optional<Location>>());
 
     pybind11::class_<Apply, std::shared_ptr<Apply>>(m, "Apply", expression)
@@ -70,8 +71,9 @@ PYBIND11_MODULE(stencilir, m) {
     pybind11::class_<Function, std::shared_ptr<Function>>(m, "Function")
         .def(pybind11::init<std::string,
                             std::vector<Parameter>,
-                            std::vector<Type>,
+                            std::vector<TypePtr>,
                             std::vector<std::shared_ptr<Statement>>,
+                            bool,
                             std::optional<Location>>());
 
     pybind11::class_<Call, std::shared_ptr<Call>>(m, "Call", expression)
@@ -142,7 +144,7 @@ PYBIND11_MODULE(stencilir, m) {
 
     // Tensors
     pybind11::class_<AllocTensor, std::shared_ptr<AllocTensor>>(m, "AllocTensor", expression)
-        .def(pybind11::init<ScalarType,
+        .def(pybind11::init<TypePtr,
                             std::vector<std::shared_ptr<Expression>>,
                             std::optional<Location>>());
 
@@ -168,31 +170,17 @@ PYBIND11_MODULE(stencilir, m) {
 
     // Arithmetic-logic
     pybind11::class_<Constant, std::shared_ptr<Constant>>(m, "Constant", expression)
-        .def_static("integral", [](int value, ScalarType type, std::optional<Location> loc) {
-            switch (type) {
-                case ScalarType::SINT8: return Constant(int8_t(value));
-                case ScalarType::SINT16: return Constant(int16_t(value));
-                case ScalarType::SINT32: return Constant(int32_t(value));
-                case ScalarType::SINT64: return Constant(int64_t(value));
-                case ScalarType::UINT8: return Constant(uint8_t(value));
-                case ScalarType::UINT16: return Constant(uint16_t(value));
-                case ScalarType::UINT32: return Constant(uint32_t(value));
-                case ScalarType::UINT64: return Constant(uint64_t(value));
-                default: throw std::invalid_argument("Provide an integer type.");
-            }
+        .def_static("integral", [](int value, TypePtr type, std::optional<Location> loc) {
+            return Constant(value, type, std::move(loc));
         })
-        .def_static("floating", [](double value, ScalarType type, std::optional<Location> loc) {
-            switch (type) {
-                case ScalarType::FLOAT32: return Constant(float(value));
-                case ScalarType::FLOAT64: return Constant(double(value));
-                default: throw std::invalid_argument("Provide an floating point type.");
-            }
+        .def_static("floating", [](double value, TypePtr type, std::optional<Location> loc) {
+            return Constant(value, type, std::move(loc));
         })
-        .def_static("index", [](ptrdiff_t value, std::optional<Location> loc) {
-            return Constant(index_type, value);
+        .def_static("index", [](int64_t value, std::optional<Location> loc) {
+            return Constant(value, std::make_shared<IndexType>(), std::move(loc));
         })
         .def_static("boolean", [](bool value, std::optional<Location> loc) {
-            return Constant(value);
+            return Constant(value, std::make_shared<IntegerType>(1, true), std::move(loc));
         });
 
     pybind11::enum_<eArithmeticFunction>(m, "ArithmeticFunction")
@@ -241,7 +229,7 @@ PYBIND11_MODULE(stencilir, m) {
 
     pybind11::class_<Cast, std::shared_ptr<Cast>>(m, "Cast", expression)
         .def(pybind11::init<std::shared_ptr<Expression>,
-                            Type,
+                            TypePtr,
                             std::optional<Location>>());
 
     //----------------------------------
@@ -249,7 +237,7 @@ PYBIND11_MODULE(stencilir, m) {
     //----------------------------------
     pybind11::class_<Parameter>(m, "Parameter")
         .def(pybind11::init<std::string,
-                            Type>())
+                            TypePtr>())
         .def_readwrite("name", &Parameter::name)
         .def_readwrite("type", &Parameter::type);
 
@@ -261,27 +249,25 @@ PYBIND11_MODULE(stencilir, m) {
         .def_readwrite("line", &Location::line)
         .def_readwrite("column", &Location::col);
 
-    pybind11::enum_<ScalarType>(m, "ScalarType")
-        .value("SINT8", ScalarType::SINT8)
-        .value("SINT16", ScalarType::SINT16)
-        .value("SINT32", ScalarType::SINT32)
-        .value("SINT64", ScalarType::SINT64)
-        .value("UINT8", ScalarType::UINT8)
-        .value("UINT16", ScalarType::UINT16)
-        .value("UINT32", ScalarType::UINT32)
-        .value("UINT64", ScalarType::UINT64)
-        .value("INDEX", ScalarType::INDEX)
-        .value("FLOAT32", ScalarType::FLOAT32)
-        .value("FLOAT64", ScalarType::FLOAT64)
-        .value("BOOL", ScalarType::BOOL)
-        .export_values();
+    pybind11::class_<Type, std::shared_ptr<Type>> type(m, "Type");
 
-    pybind11::class_<FieldType>(m, "FieldType")
-        .def(pybind11::init<ScalarType, size_t>())
-        .def_readwrite("element_type", &FieldType::elementType)
-        .def_readwrite("num_dimensions", &FieldType::numDimensions);
+    pybind11::class_<IntegerType, std::shared_ptr<IntegerType>>(m, "IntegerType", type)
+        .def(pybind11::init<int, bool>())
+        .def_readonly("size", &IntegerType::size)
+        .def_readonly("is_signed", &IntegerType::isSigned);
 
-    pybind11::class_<Type> type(m, "Type");
+    pybind11::class_<FloatType, std::shared_ptr<FloatType>>(m, "FloatType", type)
+        .def(pybind11::init<int>())
+        .def_readonly("size", &FloatType::size);
+
+    pybind11::class_<IndexType, std::shared_ptr<IndexType>>(m, "IndexType", type)
+        .def(pybind11::init<>());
+
+    pybind11::class_<FieldType, std::shared_ptr<FieldType>>(m, "FieldType", type)
+        .def(pybind11::init<TypePtr, int>())
+        .def_readonly("element_type", &FieldType::elementType)
+        .def_readonly("num_dimensions", &FieldType::numDimensions);
+
 
     //----------------------------------
     // Execution

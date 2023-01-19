@@ -17,4 +17,4 @@ std::string FormatDiagnostic(std::optional<std::string> location,
                              std::optional<std::string> severity,
                              std::string message);
 std::string FormatDiagnostic(const mlir::Diagnostic& diag);
-std::string FormatModule(mlir::ModuleOp& module);
+std::string FormatModule(mlir::ModuleOp& moduleOp);
