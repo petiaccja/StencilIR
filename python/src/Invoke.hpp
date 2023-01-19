@@ -24,33 +24,33 @@ public:
 
     size_t GetSize() const;
     size_t GetAlignment() const;
-    pybind11::object Read(const void* address);
-    void Write(pybind11::object value, void* address);
+    pybind11::object Read(const std::byte* address);
+    void Write(pybind11::object value, std::byte* address);
     template <class Iter>
-    void GetOpaquePointers(void* address, Iter out) const;
+    void GetOpaquePointers(std::byte* address, Iter out) const;
 
     llvm::Type* GetLLVMType() const { return m_llvmType; }
 
 private:
-    pybind11::object Read(const ast::IntegerType& type, const void* address) const;
-    void Write(const ast::IntegerType& type, pybind11::object value, void* address) const;
+    pybind11::object Read(const ast::IntegerType& type, const std::byte* address) const;
+    void Write(const ast::IntegerType& type, pybind11::object value, std::byte* address) const;
     template <class Iter>
-    void GetOpaquePointers(const ast::IntegerType& type, void* address, Iter out) const;
+    void GetOpaquePointers(const ast::IntegerType& type, std::byte* address, Iter out) const;
 
-    pybind11::object Read(const ast::FloatType& type, const void* address) const;
-    void Write(const ast::FloatType& type, pybind11::object value, void* address) const;
+    pybind11::object Read(const ast::FloatType& type, const std::byte* address) const;
+    void Write(const ast::FloatType& type, pybind11::object value, std::byte* address) const;
     template <class Iter>
-    void GetOpaquePointers(const ast::FloatType& type, void* address, Iter out) const;
+    void GetOpaquePointers(const ast::FloatType& type, std::byte* address, Iter out) const;
 
-    pybind11::object Read(const ast::IndexType& type, const void* address) const;
-    void Write(const ast::IndexType& type, pybind11::object value, void* address) const;
+    pybind11::object Read(const ast::IndexType& type, const std::byte* address) const;
+    void Write(const ast::IndexType& type, pybind11::object value, std::byte* address) const;
     template <class Iter>
-    void GetOpaquePointers(const ast::IndexType& type, void* address, Iter out) const;
+    void GetOpaquePointers(const ast::IndexType& type, std::byte* address, Iter out) const;
 
-    pybind11::object Read(const ast::FieldType& type, const void* address) const;
-    void Write(const ast::FieldType& type, pybind11::object value, void* address) const;
+    pybind11::object Read(const ast::FieldType& type, const std::byte* address) const;
+    void Write(const ast::FieldType& type, pybind11::object value, std::byte* address) const;
     template <class Iter>
-    void GetOpaquePointers(const ast::FieldType& type, void* address, Iter out) const;
+    void GetOpaquePointers(const ast::FieldType& type, std::byte* address, Iter out) const;
 
     const llvm::StructLayout* GetLayout() const;
 
@@ -67,11 +67,11 @@ public:
 
     size_t GetSize() const;
     size_t GetAlignment() const;
-    pybind11::object Read(const void* address);
-    void Write(pybind11::object value, void* address);
+    pybind11::object Read(const std::byte* address);
+    void Write(pybind11::object value, std::byte* address);
 
     template <class Iter>
-    void GetOpaquePointers(void* address, Iter out) const;
+    void GetOpaquePointers(std::byte* address, Iter out) const;
 
 private:
     const llvm::StructLayout* GetLayout() const;
@@ -84,7 +84,7 @@ private:
 
 
 template <class Iter>
-void Argument::GetOpaquePointers(void* address, Iter out) const {
+void Argument::GetOpaquePointers(std::byte* address, Iter out) const {
     if (auto type = dynamic_cast<const ast::IntegerType*>(m_type.get())) {
         return GetOpaquePointers(*type, address, out);
     }
@@ -101,40 +101,40 @@ void Argument::GetOpaquePointers(void* address, Iter out) const {
 }
 
 template <class Iter>
-void Argument::GetOpaquePointers(const ast::IntegerType&, void* address, Iter out) const {
+void Argument::GetOpaquePointers(const ast::IntegerType&, std::byte* address, Iter out) const {
     *(out++) = address;
 }
 
 template <class Iter>
-void Argument::GetOpaquePointers(const ast::FloatType&, void* address, Iter out) const {
+void Argument::GetOpaquePointers(const ast::FloatType&, std::byte* address, Iter out) const {
     *(out++) = address;
 }
 
 template <class Iter>
-void Argument::GetOpaquePointers(const ast::IndexType&, void* address, Iter out) const {
+void Argument::GetOpaquePointers(const ast::IndexType&, std::byte* address, Iter out) const {
     *(out++) = address;
 }
 
 template <class Iter>
-void Argument::GetOpaquePointers(const ast::FieldType& type, void* address, Iter out) const {
-    const auto startingAddress = reinterpret_cast<std::byte*>(address);
+void Argument::GetOpaquePointers(const ast::FieldType& type, std::byte* address, Iter out) const {
+    const auto startingAddress = address;
     const auto layout = GetLayout();
-    *(out++) = reinterpret_cast<void*>(startingAddress + layout->getElementOffset(0)); // ptr
-    *(out++) = reinterpret_cast<void*>(startingAddress + layout->getElementOffset(1)); // aligned ptr
-    *(out++) = reinterpret_cast<void*>(startingAddress + layout->getElementOffset(2)); // offset
+    *(out++) = startingAddress + layout->getElementOffset(0); // ptr
+    *(out++) = startingAddress + layout->getElementOffset(1); // aligned ptr
+    *(out++) = startingAddress + layout->getElementOffset(2); // offset
     for (size_t i = 0; i < type.numDimensions; ++i) {
-        *(out++) = reinterpret_cast<void*>(startingAddress + layout->getElementOffset(3) + i * sizeof(ptrdiff_t)); // shape
+        *(out++) = startingAddress + layout->getElementOffset(3) + i * sizeof(ptrdiff_t); // shape
     }
     for (size_t i = 0; i < type.numDimensions; ++i) {
-        *(out++) = reinterpret_cast<void*>(startingAddress + layout->getElementOffset(4) + i * sizeof(ptrdiff_t)); // strides
+        *(out++) = startingAddress + layout->getElementOffset(4) + i * sizeof(ptrdiff_t); // strides
     }
 }
 
 template <class Iter>
-void ArgumentPack::GetOpaquePointers(void* address, Iter out) const {
-    const auto startingAddress = reinterpret_cast<std::byte*>(address);
+void ArgumentPack::GetOpaquePointers(std::byte* address, Iter out) const {
+    const auto startingAddress = address;
     for (size_t i = 0; i < m_items.size(); ++i) {
         const auto& offset = GetLayout()->getElementOffset(i);
-        m_items[i].GetOpaquePointers(reinterpret_cast<void*>(startingAddress + offset), out);
+        m_items[i].GetOpaquePointers(startingAddress + offset, out);
     }
 }

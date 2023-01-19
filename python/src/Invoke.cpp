@@ -154,7 +154,7 @@ size_t Argument::GetAlignment() const {
     return GetSize();
 }
 
-pybind11::object Argument::Read(const void* address) {
+pybind11::object Argument::Read(const std::byte* address) {
     if (auto type = dynamic_cast<const ast::IntegerType*>(m_type.get())) {
         return Read(*type, address);
     }
@@ -170,7 +170,7 @@ pybind11::object Argument::Read(const void* address) {
     std::terminate();
 }
 
-void Argument::Write(pybind11::object value, void* address) {
+void Argument::Write(pybind11::object value, std::byte* address) {
     if (auto type = dynamic_cast<const ast::IntegerType*>(m_type.get())) {
         return Write(*type, value, address);
     }
@@ -190,10 +190,10 @@ void Argument::Write(pybind11::object value, void* address) {
 // ScalarType methods
 //--------------------------------------
 
-pybind11::object Argument::Read(const ast::IntegerType& type, const void* address) const {
+pybind11::object Argument::Read(const ast::IntegerType& type, const std::byte* address) const {
     return ast::VisitType(type, [&](auto* typed) -> pybind11::object {
         using T = std::decay_t<decltype(*typed)>;
-        const T value = *static_cast<const T*>(address);
+        const T value = *reinterpret_cast<const T*>(address);
         if constexpr (std::is_integral_v<T>) {
             return pybind11::int_(value);
         }
@@ -202,17 +202,17 @@ pybind11::object Argument::Read(const ast::IntegerType& type, const void* addres
     });
 }
 
-void Argument::Write(const ast::IntegerType& type, pybind11::object value, void* address) const {
+void Argument::Write(const ast::IntegerType& type, pybind11::object value, std::byte* address) const {
     ast::VisitType(type, [&](auto* typed) {
         using T = std::decay_t<decltype(*typed)>;
-        *static_cast<T*>(address) = value.cast<T>();
+        *reinterpret_cast<T*>(address) = value.cast<T>();
     });
 }
 
-pybind11::object Argument::Read(const ast::FloatType& type, const void* address) const {
+pybind11::object Argument::Read(const ast::FloatType& type, const std::byte* address) const {
     return ast::VisitType(type, [&](auto* typed) -> pybind11::object {
         using T = std::decay_t<decltype(*typed)>;
-        const T value = *static_cast<const T*>(address);
+        const T value = *reinterpret_cast<const T*>(address);
         if constexpr (std::is_floating_point_v<T>) {
             return pybind11::float_(value);
         }
@@ -221,17 +221,17 @@ pybind11::object Argument::Read(const ast::FloatType& type, const void* address)
     });
 }
 
-void Argument::Write(const ast::FloatType& type, pybind11::object value, void* address) const {
+void Argument::Write(const ast::FloatType& type, pybind11::object value, std::byte* address) const {
     ast::VisitType(type, [&](auto* typed) {
         using T = std::decay_t<decltype(*typed)>;
-        *static_cast<T*>(address) = value.cast<T>();
+        *reinterpret_cast<T*>(address) = value.cast<T>();
     });
 }
 
-pybind11::object Argument::Read(const ast::IndexType& type, const void* address) const {
+pybind11::object Argument::Read(const ast::IndexType& type, const std::byte* address) const {
     return ast::VisitType(type, [&](auto* typed) -> pybind11::object {
         using T = std::decay_t<decltype(*typed)>;
-        const T value = *static_cast<const T*>(address);
+        const T value = *reinterpret_cast<const T*>(address);
         if constexpr (std::is_integral_v<T>) {
             return pybind11::int_(value);
         }
@@ -240,24 +240,24 @@ pybind11::object Argument::Read(const ast::IndexType& type, const void* address)
     });
 }
 
-void Argument::Write(const ast::IndexType& type, pybind11::object value, void* address) const {
+void Argument::Write(const ast::IndexType& type, pybind11::object value, std::byte* address) const {
     ast::VisitType(type, [&](auto* typed) {
         using T = std::decay_t<decltype(*typed)>;
-        *static_cast<T*>(address) = value.cast<T>();
+        *reinterpret_cast<T*>(address) = value.cast<T>();
     });
 }
 
 //--------------------------------------
 // Field type methods
 //--------------------------------------
-pybind11::object Argument::Read(const ast::FieldType& type, const void* address) const {
+pybind11::object Argument::Read(const ast::FieldType& type, const std::byte* address) const {
     auto layout = GetLayout();
     assert(layout);
 
     return ast::VisitType(*type.elementType, [&](auto* typed) {
         using T = std::decay_t<decltype(*typed)>;
 
-        const auto startingAddress = reinterpret_cast<const std::byte*>(address);
+        const auto startingAddress = address;
         const auto alignedPtrAddress = reinterpret_cast<T* const*>(startingAddress + layout->getElementOffset(1));
         const auto offsetAddress = reinterpret_cast<const ptrdiff_t*>(startingAddress + layout->getElementOffset(2));
         const auto shapeAddress = reinterpret_cast<const ptrdiff_t*>(startingAddress + layout->getElementOffset(3));
@@ -274,7 +274,7 @@ pybind11::object Argument::Read(const ast::FieldType& type, const void* address)
     });
 }
 
-void Argument::Write(const ast::FieldType& type, pybind11::object value, void* address) const {
+void Argument::Write(const ast::FieldType& type, pybind11::object value, std::byte* address) const {
     auto layout = GetLayout();
     assert(layout);
 
@@ -289,7 +289,7 @@ void Argument::Write(const ast::FieldType& type, pybind11::object value, void* a
         throw std::invalid_argument(ss.str());
     }
 
-    const auto startingAddress = reinterpret_cast<std::byte*>(address);
+    const auto startingAddress = address;
     const auto allocPtrAddress = reinterpret_cast<std::byte**>(startingAddress + layout->getElementOffset(0));
     const auto alignedPtrAddress = reinterpret_cast<std::byte**>(startingAddress + layout->getElementOffset(1));
     const auto offsetAddress = reinterpret_cast<ptrdiff_t*>(startingAddress + layout->getElementOffset(2));
@@ -337,9 +337,9 @@ size_t ArgumentPack::GetAlignment() const {
     return GetLayout()->getAlignment().value();
 }
 
-pybind11::object ArgumentPack::Read(const void* address) {
+pybind11::object ArgumentPack::Read(const std::byte* address) {
     const auto numItems = m_items.size();
-    const auto startingAddress = reinterpret_cast<const std::byte*>(address);
+    const auto startingAddress = address;
     auto values = pybind11::tuple{ numItems };
     for (size_t i = 0; i < numItems; ++i) {
         const auto offset = GetLayout()->getElementOffset(i);
@@ -348,7 +348,7 @@ pybind11::object ArgumentPack::Read(const void* address) {
     return values;
 }
 
-void ArgumentPack::Write(pybind11::object value, void* address) {
+void ArgumentPack::Write(pybind11::object value, std::byte* address) {
     const auto numItems = m_items.size();
     const auto valuesAsTuple = value.cast<pybind11::tuple>();
     const auto numSupplied = valuesAsTuple.size();
@@ -358,7 +358,7 @@ void ArgumentPack::Write(pybind11::object value, void* address) {
         throw std::invalid_argument(ss.str());
     }
 
-    const auto startingAddress = reinterpret_cast<std::byte*>(address);
+    const auto startingAddress = address;
     auto values = pybind11::tuple{ numItems };
     for (size_t i = 0; i < numItems; ++i) {
         const auto offset = GetLayout()->getElementOffset(i);
