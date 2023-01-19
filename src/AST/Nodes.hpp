@@ -344,8 +344,8 @@ struct InsertSlice : Expression {
 
 struct Constant : Expression {
     template <class T>
-    explicit Constant(T&& value, std::optional<Location> loc = {})
-        : Constant(std::forward<T>(value), InferType<std::decay_t<T>>(), std::move(loc)) {}
+    explicit Constant(T value, std::optional<Location> loc = {})
+        : Constant(std::move(value), InferType<std::decay_t<T>>(), std::move(loc)) {}
     explicit Constant(auto value, TypePtr type, std::optional<Location> loc = {})
         : Expression(loc), type(type) {
         if (std::dynamic_pointer_cast<IntegerType>(type)) {
