@@ -5,6 +5,7 @@
 #include <Dialect/Stencil/Transforms/Passes.hpp>
 
 #include <mlir/Dialect/Bufferization/Transforms/Passes.h>
+#include <mlir/Transforms/Passes.h>
 
 #include <filesystem>
 #include <iostream>
@@ -29,6 +30,11 @@ TEST_CASE("Convert stencil to standard", "[StencilDialect]") {
 
 TEST_CASE("Eliminate alloc tensors", "[StencilDialect]") {
     REQUIRE(CheckFile(TestFile("EliminateAllocTensors.mlir"), Pass(mlir::bufferization::createAllocTensorEliminationPass())));
+}
+
+
+TEST_CASE("Inline stencil invocations", "[StencilDialect]") {
+    REQUIRE(CheckFile(TestFile("InlineStencilInvocations.mlir"), Pass(mlir::createInlinerPass())));
 }
 
 

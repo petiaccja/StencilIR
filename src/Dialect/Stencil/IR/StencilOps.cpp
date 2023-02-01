@@ -8,6 +8,7 @@
 #include <mlir/IR/ValueRange.h>
 #include <mlir/Interfaces/ViewLikeInterface.h>
 #include <mlir/Support/LLVM.h>
+#include <mlir/Transforms/InliningUtils.h>
 
 // clang-format: off
 #include <Stencil/IR/StencilDialect.cpp.inc>
@@ -16,15 +17,77 @@
 // clang-format: on
 
 
-void stencil::StencilDialect::initialize() {
+namespace stencil {
+using namespace mlir;
+
+
+class StencilInlinerInterface;
+
+
+void StencilDialect::initialize() {
     addOperations<
 #define GET_OP_LIST
 #include <Stencil/IR/Stencil.cpp.inc>
         >();
+    addInterfaces<StencilInlinerInterface>();
 }
 
-namespace stencil {
-using namespace mlir;
+
+//------------------------------------------------------------------------------
+// Inliner interface
+//------------------------------------------------------------------------------
+
+class StencilInlinerInterface : public DialectInlinerInterface {
+    using DialectInlinerInterface::DialectInlinerInterface;
+
+    bool isLegalToInline(Operation* call, Operation* callable, bool wouldBeCloned) const override {
+        return true;
+    }
+
+    bool isLegalToInline(Region* dest, Region* src, bool wouldBeCloned, BlockAndValueMapping& valueMapping) const override {
+        return true;
+    }
+
+    bool isLegalToInline(Operation* op, Region* dest, bool wouldBeCloned, BlockAndValueMapping& valueMapping) const override {
+        return true;
+    }
+
+    void handleTerminator(Operation* op, Block* newDest) const override {
+        llvm_unreachable("must implement handleTerminator in the case of multiple inlined blocks");
+    }
+
+    void handleTerminator(Operation* op, ArrayRef<Value> valuesToReplace) const override {
+        auto returnOp = cast<ReturnOp>(op);
+
+        assert(returnOp.getNumOperands() == valuesToReplace.size());
+        for (const auto& it : llvm::enumerate(returnOp.getOperands())) {
+            valuesToReplace[it.index()].replaceAllUsesWith(it.value());
+        }
+    }
+
+    Operation* materializeCallConversion(OpBuilder& builder,
+                                         Value input,
+                                         Type resultType,
+                                         Location conversionLoc) const override {
+        return nullptr;
+    }
+
+    void processInlinedCallBlocks(Operation* call, iterator_range<Region::iterator> inlinedBlocks) const override {
+        auto invokeOp = cast<InvokeOp>(call);
+        auto indexValue = invokeOp.getIndex();
+
+        for (auto& block : inlinedBlocks) {
+            block.walk([&](Operation* operation) {
+                if (auto indexOp = dyn_cast<IndexOp>(operation)) {
+                    indexOp.getResult().replaceAllUsesWith(indexValue);
+                    indexOp->erase();
+                }
+                return WalkResult::advance();
+            });
+        }
+    }
+};
+
 
 //------------------------------------------------------------------------------
 // StencilOp
