@@ -13,13 +13,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        c_compiler: [clang]
+        os: [ubuntu-latest, windows-latest]
+        c_compiler: [clang, cl]
         build_type: [Debug, Release]
         cxx_standard: ["20"]
         include:
           - c_compiler: clang
             cxx_compiler: clang++
+          - c_compiler: cl
+            cxx_compiler: cl
+        exclude:
+          - os: windows-latest
+            c_compiler: clang
+          - os: ubuntu-latest
+            c_compiler: cl
 
     name: ${{ matrix.c_compiler }} - ${{ matrix.build_type }} - ${{ matrix.os }} - c++${{ matrix.cxx_standard }}
         
