@@ -33,8 +33,15 @@ pybind11::object CompiledModule::Invoke(std::string function, pybind11::args arg
     ArgumentPack inputs{ functionType.parameters, &m_runner };
     ArgumentPack outputs{ functionType.returns, &m_runner };
 
-    auto inputBuffer = std::unique_ptr<std::byte[]>(new (std::align_val_t(inputs.GetAlignment())) std::byte[inputs.GetSize()]);
-    auto outputBuffer = std::unique_ptr<std::byte[]>(new (std::align_val_t(outputs.GetAlignment())) std::byte[outputs.GetSize()]);
+
+    const auto inputAlignment = std::align_val_t{ inputs.GetAlignment() };
+    const auto outputAlignment = std::align_val_t{ outputs.GetAlignment() };
+    struct AlignedDeleter {
+        std::align_val_t alignment;
+        void operator()(void* ptr) const noexcept { operator delete(ptr, alignment); }
+    };
+    auto inputBuffer = std::unique_ptr<std::byte[], AlignedDeleter>(static_cast<std::byte*>(operator new(sizeof(std::byte) * inputs.GetSize(), inputAlignment)), { inputAlignment });
+    auto outputBuffer = std::unique_ptr<std::byte[], AlignedDeleter>(static_cast<std::byte*>(operator new(sizeof(std::byte) * inputs.GetSize(), outputAlignment)), { outputAlignment });
 
     inputs.Write(arguments, inputBuffer.get());
     std::vector<void*> opaquePointers;
