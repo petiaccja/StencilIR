@@ -3,11 +3,11 @@
 #include "DynamicLinking.hpp"
 
 #include <llvm/Support/TargetSelect.h>
+#include <mlir/ExecutionEngine/CRunnerUtils.h>
 #include <mlir/ExecutionEngine/ExecutionEngine.h>
 #include <mlir/ExecutionEngine/OptUtils.h>
 #include <mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h>
 #include <mlir/Target/LLVMIR/Export.h>
-#include <mlir/ExecutionEngine/CRunnerUtils.h>
 
 
 Runner::Runner(mlir::ModuleOp& llvmIr, int optLevel) {

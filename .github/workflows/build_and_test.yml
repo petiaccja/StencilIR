@@ -35,6 +35,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: seanmiddleditch/gha-setup-ninja@v3
+    - uses: seanmiddleditch/gha-setup-vsdevenv@master
 
     - name: Install conan
       shell: bash
