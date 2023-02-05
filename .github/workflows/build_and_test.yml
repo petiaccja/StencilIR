@@ -38,7 +38,6 @@ jobs:
     - uses: seanmiddleditch/gha-setup-vsdevenv@master
 
     - name: Install conan
-      shell: bash
       run: |
         pipx install conan
 
@@ -53,7 +52,6 @@ jobs:
         key: llvm-cache-${{ matrix.c_compiler }}-${{ matrix.build_type }}-${{ matrix.os }}-c++${{ matrix.cxx_standard }}
 
     - name: Configure CMake
-      shell: bash
       working-directory: ${{runner.workspace}}/build
       env:
         CC: ${{matrix.c_compiler}}
@@ -62,11 +60,9 @@ jobs:
 
     - name: Build
       working-directory: ${{runner.workspace}}/build
-      shell: bash
       run: cmake --build . --config ${{matrix.build_type}}
 
     - name: Build Python package
-      shell: bash
       working-directory: ${{runner.workspace}}/build
       env:
         MLIR_DIR: ${{runner.workspace}}/build/externals/LLVM/install/lib/cmake/mlir
@@ -81,7 +77,6 @@ jobs:
 
     - name: Test
       working-directory: ${{runner.workspace}}/build
-      shell: bash
       run: |
         ./bin/TestAST
         ./bin/TestPasses
