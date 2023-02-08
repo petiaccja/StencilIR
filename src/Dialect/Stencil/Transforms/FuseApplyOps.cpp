@@ -19,7 +19,22 @@
 using namespace mlir;
 
 
-bool IsApplyOpInputFusable(stencil::ApplyOp applyOp, size_t operandIdx) {
+bool IsApplyOpFusable(stencil::ApplyOp applyOp) {
+    const auto offsets = applyOp.getOffsets();
+    if (!offsets.empty()) {
+        return false;
+    }
+    const auto staticOffsets = applyOp.getStaticOffsets();
+    if (!std::all_of(staticOffsets.begin(), staticOffsets.end(), [](mlir::Attribute attr) {
+            return attr.cast<mlir::IntegerAttr>().getInt() == 0;
+        })) {
+        return false;
+    }
+    return true;
+}
+
+
+bool IsOperandFusable(stencil::ApplyOp applyOp, size_t operandIdx) {
     const mlir::Value input = applyOp.getInputs()[operandIdx];
     const auto definingOp = input.getDefiningOp();
     const bool isDefinedByApply = definingOp && mlir::isa<stencil::ApplyOp>(definingOp);
@@ -92,7 +107,7 @@ mlir::StringAttr UniqueFusedStencilName(stencil::StencilOp originalStencil, mlir
     std::smatch match;
     std::regex_match(symName, match, format);
     if (!match.empty()) {
-        symName = match[0];
+        symName = match[1];
     }
 
     size_t serial = 1;
@@ -131,13 +146,17 @@ auto FusePrecedingStencilOp(stencil::StencilOp precedingStencil,
     };
     mlir::InlinerInterface inlinerInterface{ rewriter.getContext() };
     for (const auto& [resultIdx, paramIdx] : resultsToParams) {
-        auto blockArg = fusedEntryBlock.getArgument(paramIdx);
+        const auto blockArg = fusedEntryBlock.getArgument(paramIdx);
+        mlir::SmallVector<stencil::SampleOp, 16> sampleOps;
         for (auto user : blockArg.getUsers()) {
             auto sampleOp = mlir::dyn_cast<stencil::SampleOp>(user);
             if (!sampleOp) {
                 rewriter.eraseOp(fusedStencil);
                 return mlir::failure();
             }
+            sampleOps.push_back(sampleOp);
+        }
+        for (auto sampleOp : sampleOps) {
             rewriter.setInsertionPointAfter(sampleOp);
             auto invokeOp = rewriter.create<stencil::InvokeOp>(sampleOp->getLoc(),
                                                                precedingStencil.getFunctionType().getResults(),
@@ -167,7 +186,7 @@ auto FusePrecedingStencilOp(stencil::StencilOp precedingStencil,
 
     // Update function type
     fusedStencil.setFunctionTypeAttr(mlir::TypeAttr::get(rewriter.getFunctionType(fusedParamTypes, fusedResultTypes)));
-    fusedStencil.setSymNameAttr(UniqueFusedStencilName(precedingStencil, rewriter));
+    fusedStencil.setSymNameAttr(UniqueFusedStencilName(targetStencil, rewriter));
 
     return fusedStencil;
 }
@@ -254,9 +273,13 @@ auto FusePrecedingApplies(stencil::ApplyOp targetOp, mlir::PatternRewriter& rewr
     mlir::SmallVector<stencil::ApplyOp, 12> involvedPrecedingOps;
 
     for (auto precedingOp : precedingOps) {
+        if (!IsApplyOpFusable(precedingOp)) {
+            continue;
+        }
+
         auto mappedResults = MapPrecedingOpResults(precedingOp, targetOp);
         const auto last = std::remove_if(mappedResults.begin(), mappedResults.end(), [&targetOp](const auto& mapping) {
-            return !IsApplyOpInputFusable(targetOp, mapping.second);
+            return !IsOperandFusable(targetOp, mapping.second);
         });
         mappedResults.erase(last, mappedResults.end());
 
@@ -282,9 +305,9 @@ auto FusePrecedingApplies(stencil::ApplyOp targetOp, mlir::PatternRewriter& rewr
 }
 
 
-class FuseElementwiseOps : public OpRewritePattern<stencil::ApplyOp> {
+class FusePrecedingAppliesPattern : public OpRewritePattern<stencil::ApplyOp> {
 public:
-    FuseElementwiseOps(MLIRContext* context,
+    FusePrecedingAppliesPattern(MLIRContext* context,
                        PatternBenefit benefit = 1)
         : OpRewritePattern<stencil::ApplyOp>(context, benefit) {}
 
@@ -293,11 +316,13 @@ public:
         auto maybeFusedOp = FusePrecedingApplies(applyOp, rewriter);
         if (succeeded(maybeFusedOp)) {
             auto [fusedOp, precedingOps] = maybeFusedOp.value();
-            rewriter.replaceOp(applyOp, fusedOp->getResults());
-            for (auto precedingOp : precedingOps) {
-                auto results = precedingOp->getResults();
-                if (std::all_of(results.begin(), results.end(), [](mlir::Value result) { return result.getUses().empty(); })) {
-                    rewriter.eraseOp(precedingOp);
+            if (fusedOp != applyOp) {
+                rewriter.replaceOp(applyOp, fusedOp->getResults());
+                for (auto precedingOp : precedingOps) {
+                    auto results = precedingOp->getResults();
+                    if (std::all_of(results.begin(), results.end(), [](mlir::Value result) { return result.getUses().empty(); })) {
+                        rewriter.eraseOp(precedingOp);
+                    }
                 }
             }
             return success();
@@ -312,7 +337,7 @@ void FuseApplyOpsPass::runOnOperation() {
     MLIRContext* context = op->getContext();
 
     RewritePatternSet patterns(context);
-    patterns.add<FuseElementwiseOps>(context);
+    patterns.add<FusePrecedingAppliesPattern>(context);
 
     // Use TopDownTraversal for compile time reasons
     GreedyRewriteConfig grc;
