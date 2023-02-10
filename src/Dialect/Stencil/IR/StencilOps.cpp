@@ -3,6 +3,7 @@
 #include <llvm/ADT/ArrayRef.h>
 #include <mlir/IR/Builders.h>
 #include <mlir/IR/BuiltinTypes.h>
+#include <mlir/IR/PatternMatch.h>
 #include <mlir/IR/TypeRange.h>
 #include <mlir/IR/Types.h>
 #include <mlir/IR/ValueRange.h>
@@ -479,6 +480,63 @@ mlir::LogicalResult SampleOp::verify() {
     }
 
     return success();
+}
+
+
+//------------------------------------------------------------------------------
+// Folding
+//------------------------------------------------------------------------------
+
+OpFoldResult JumpOp::fold(::llvm::ArrayRef<::mlir::Attribute> operands) {
+    auto input = getInputIndex();
+    auto offset = getOffset();
+    auto range = offset.getAsRange<mlir::IntegerAttr>();
+    if (std::all_of(range.begin(), range.end(), [](mlir::IntegerAttr attr) { return attr.getInt() == 0; })) {
+        return input;
+    }
+    return getResult();
+}
+
+
+struct SimplifyJumpChain : public mlir::OpRewritePattern<JumpOp> {
+    SimplifyJumpChain(mlir::MLIRContext* context)
+        : OpRewritePattern<JumpOp>(context, 1) {}
+
+    mlir::LogicalResult matchAndRewrite(JumpOp op, mlir::PatternRewriter& rewriter) const override {
+        auto input = op.getInputIndex();
+        auto definingOp = input.getDefiningOp();
+        if (definingOp) {
+            if (auto definingJumpOp = mlir::dyn_cast<JumpOp>(definingOp)) {
+                mlir::SmallVector<mlir::Attribute, 4> offsetSum;
+                auto myOffset = op.getOffset();
+                auto definingOffset = definingJumpOp.getOffset();
+
+                auto myRange = myOffset.getAsRange<mlir::IntegerAttr>();
+                auto definingRange = definingOffset.getAsRange<mlir::IntegerAttr>();
+                assert(myOffset.size() == definingOffset.size());
+                auto [myIt, defIt] = std::tuple{ myRange.begin(), definingRange.begin() };
+                for (; myIt != myRange.end() && defIt != definingRange.end(); ++myIt, ++defIt) {
+                    auto type = (*myIt).getType();
+                    auto value = (*myIt).getInt() + (*myIt).getInt();
+                    auto sum = mlir::IntegerAttr::get(type, value);
+                    offsetSum.push_back(mlir::cast<mlir::Attribute>(sum));
+                }
+
+                assert(offsetSum.size() == myOffset.size());
+
+                rewriter.replaceOpWithNewOp<JumpOp>(op,
+                                                    op->getResultTypes()[0],
+                                                    definingJumpOp.getInputIndex(),
+                                                    mlir::ArrayAttr::get(getContext(), offsetSum));
+                return success();
+            }
+        }
+        return mlir::failure();
+    }
+};
+
+void JumpOp::getCanonicalizationPatterns(RewritePatternSet& results, MLIRContext* context) {
+    results.add<SimplifyJumpChain>(context);
 }
 
 

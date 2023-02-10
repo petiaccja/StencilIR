@@ -201,6 +201,8 @@ def JumpOp : Stencil_Op<"jump", [NoSideEffect]> {
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = "$input_index `,` $offset attr-dict `:` functional-type($input_index, $offseted_index)";
   let summary = "Move an index by a constant offset.";
+  let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 

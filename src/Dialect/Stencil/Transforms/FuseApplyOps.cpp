@@ -1,5 +1,6 @@
 #include "FuseApplyOps.hpp"
 
+#include "DeduplicateApplyInputs.hpp"
 #include "Utility.hpp"
 
 #include <Dialect/Stencil/IR/StencilOps.hpp>
@@ -88,6 +89,7 @@ float FusePrecedingStencilCost(stencil::StencilOp precedingStencil,
                                std::span<const std::pair<size_t, size_t>> resultsToParams) {
     constexpr float writeCost = 1.5f;
     constexpr float readCost = 1.0f;
+    constexpr float launchCost = 2.0f;
 
     const auto memoryAccessPattern = AnalyzeMemoryAccesses(precedingStencil.getRegion());
     size_t numUsesTotal = 0;
@@ -97,8 +99,8 @@ float FusePrecedingStencilCost(stencil::StencilOp precedingStencil,
         numUsesTotal += numUses;
     }
 
-    const float originalCost = writeCost + memoryAccessPattern.numMemoryAccesses * readCost;
-    const float fusedCost = memoryAccessPattern.numMemoryAccesses * numUsesTotal * readCost;
+    const float originalCost = writeCost + memoryAccessPattern.numMemoryAccesses * readCost + 2 * launchCost;
+    const float fusedCost = memoryAccessPattern.numMemoryAccesses * numUsesTotal * readCost + launchCost;
     return fusedCost - originalCost;
 }
 
@@ -211,6 +213,12 @@ auto FusePrecedingApplyOp(stencil::ApplyOp precedingOp,
                                                           targetOp.getOffsets(),
                                                           targetOp.getStaticOffsetsAttr());
 
+    auto dedupApplyOp = DeduplicateApplyInputs(fusedApplyOp, rewriter);
+    if (succeeded(dedupApplyOp)) {
+        rewriter.eraseOp(fusedApplyOp);
+        rewriter.eraseOp(fusedStencil);
+        return dedupApplyOp;
+    }
     return fusedApplyOp;
 }
 

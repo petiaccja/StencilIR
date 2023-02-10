@@ -1,5 +1,6 @@
 #include "FuseExtractSliceOps.hpp"
 
+#include "DeduplicateApplyInputs.hpp"
 #include "Utility.hpp"
 
 #include <Dialect/Stencil/IR/StencilOps.hpp>
@@ -131,6 +132,12 @@ mlir::FailureOr<stencil::ApplyOp> FusePrecedingExtractSlices(stencil::ApplyOp ap
     offsetedApplyOp.setCalleeAttr(mlir::FlatSymbolRefAttr::get(offsetedStencilOp.getSymNameAttr()));
     offsetedApplyOp.getInputsMutable().assign(offsetedInputs);
 
+    auto dedupApplyOp = DeduplicateApplyInputs(offsetedApplyOp, rewriter);
+    if (succeeded(dedupApplyOp)) {
+        rewriter.eraseOp(offsetedApplyOp);
+        rewriter.eraseOp(offsetedStencilOp);
+        return dedupApplyOp;
+    }
     return offsetedApplyOp;
 }
 

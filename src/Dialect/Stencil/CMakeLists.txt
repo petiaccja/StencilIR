@@ -23,6 +23,8 @@ target_sources(StencilDialect
         Transforms/FuseApplyOps.hpp
         Transforms/FuseExtractSliceOps.cpp
         Transforms/FuseExtractSliceOps.hpp
+        Transforms/DeduplicateApplyInputs.cpp
+        Transforms/DeduplicateApplyInputs.hpp
         Transforms/Utility.cpp
         Transforms/Utility.hpp
 )
