@@ -21,6 +21,10 @@ target_sources(StencilDialect
         Transforms/BufferizableOpInterfaceImpl.hpp
         Transforms/FuseApplyOps.cpp
         Transforms/FuseApplyOps.hpp
+        Transforms/FuseExtractSliceOps.cpp
+        Transforms/FuseExtractSliceOps.hpp
+        Transforms/Utility.cpp
+        Transforms/Utility.hpp
 )
 
 target_include_directories(StencilDialect PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/include)

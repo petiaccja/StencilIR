@@ -1,5 +1,7 @@
 #include "FuseApplyOps.hpp"
 
+#include "Utility.hpp"
+
 #include <Dialect/Stencil/IR/StencilOps.hpp>
 
 #include <mlir/IR/PatternMatch.h>
@@ -101,26 +103,6 @@ float FusePrecedingStencilCost(stencil::StencilOp precedingStencil,
 }
 
 
-mlir::StringAttr UniqueFusedStencilName(stencil::StencilOp originalStencil, mlir::PatternRewriter& rewriter) {
-    std::string symName = originalStencil.getSymName().str();
-    std::regex format{ R"((.*)(_fused_)([0-9]+))" };
-    std::smatch match;
-    std::regex_match(symName, match, format);
-    if (!match.empty()) {
-        symName = match[1];
-    }
-
-    size_t serial = 1;
-    mlir::StringAttr fusedSymName;
-    do {
-        auto newName = symName + "_fused_" + std::to_string(serial);
-        fusedSymName = rewriter.getStringAttr(std::move(newName));
-        ++serial;
-    } while (nullptr != mlir::SymbolTable::lookupNearestSymbolFrom(originalStencil, fusedSymName));
-    return fusedSymName;
-}
-
-
 auto FusePrecedingStencilOp(stencil::StencilOp precedingStencil,
                             stencil::StencilOp targetStencil,
                             std::span<const std::pair<size_t, size_t>> resultsToParams,
@@ -186,7 +168,7 @@ auto FusePrecedingStencilOp(stencil::StencilOp precedingStencil,
 
     // Update function type
     fusedStencil.setFunctionTypeAttr(mlir::TypeAttr::get(rewriter.getFunctionType(fusedParamTypes, fusedResultTypes)));
-    fusedStencil.setSymNameAttr(UniqueFusedStencilName(targetStencil, rewriter));
+    fusedStencil.setSymNameAttr(UniqueStencilName(targetStencil, "fused", rewriter));
 
     return fusedStencil;
 }
@@ -308,7 +290,7 @@ auto FusePrecedingApplies(stencil::ApplyOp targetOp, mlir::PatternRewriter& rewr
 class FusePrecedingAppliesPattern : public OpRewritePattern<stencil::ApplyOp> {
 public:
     FusePrecedingAppliesPattern(MLIRContext* context,
-                       PatternBenefit benefit = 1)
+                                PatternBenefit benefit = 1)
         : OpRewritePattern<stencil::ApplyOp>(context, benefit) {}
 
     LogicalResult matchAndRewrite(stencil::ApplyOp applyOp,

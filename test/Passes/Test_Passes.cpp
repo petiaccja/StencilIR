@@ -41,3 +41,7 @@ TEST_CASE("Inline stencil invocations", "[StencilDialect]") {
 TEST_CASE("Fuse apply ops", "[StencilDialect]") {
     REQUIRE(CheckFile(TestFile("FuseApplyOps.mlir"), Pass(createFuseApplyOpsPass())));
 }
+
+TEST_CASE("Fuse extract slice ops", "[StencilDialect]") {
+    REQUIRE(CheckFile(TestFile("FuseExtractSliceOps.mlir"), Pass(createFuseExtractSliceOps())));
+}
