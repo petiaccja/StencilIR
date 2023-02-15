@@ -13,6 +13,7 @@ option(ENABLE_LLVM_COV "Adds compiler flags to generate LLVM source-based code c
 option(ENABLE_LLVM_ADDRESS_SANITIZER "Adds compiler flags to generate LLVM source-based code coverage. Only works with Clang." OFF)
 option(ENABLE_LLVM_MEMORY_SANITIZER "Adds compiler flags to generate LLVM source-based code coverage. Only works with Clang." OFF)
 set(EXTERNAL_LLVM_BUILD_TYPE ${CMAKE_BUILD_TYPE} CACHE STRING "Same as CMAKE_BUILD_TYPE, but applied to LLVM when downloading it.")
+option(EXTERNAL_LLVM_STRIP_DEBUG_INFO "Compiles the external LLVM without debug info, mainly to reduce its size." OFF)
 
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
 	if (ENABLE_LLVM_COV)
@@ -27,24 +28,10 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
 		add_compile_options("-fsanitize=memory")
 		add_link_options("-fsanitize=memory")
 	endif()
-	if ("${CMAKE_CXX_COMPILER_FRONTEND_VARIANT}" STREQUAL "MSVC")
-		set(RELWITHDEBINFO_OPTIONS "/Ob2")
-		set(RELWITHDEBINFO_REMOVE "/Ob1")
-		foreach(option ${RELWITHDEBINFO_REMOVE})
-			string(REPLACE ${option} "" CMAKE_CXX_FLAGS_RELWITHDEBINFO ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
-		endforeach()
-		add_compile_options("$<$<CONFIG:RELWITHDEBINFO>:${RELEASE_OPTIONS}>")
-	endif()
 elseif ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
 elseif ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Intel")
 elseif ("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC")
 	add_compile_options("/MP")
-	set(RELWITHDEBINFO_OPTIONS "/Ob2")
-	set(RELWITHDEBINFO_REMOVE "/Ob1")
-	foreach(option ${RELWITHDEBINFO_REMOVE})
-		string(REPLACE ${option} "" CMAKE_CXX_FLAGS_RELWITHDEBINFO ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
-	endforeach()
-	add_compile_options("$<$<CONFIG:RELWITHDEBINFO>:${RELEASE_OPTIONS}>")
 endif()
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -71,10 +58,11 @@ if(NOT MLIR_FOUND)
 			COMMAND "${CMAKE_COMMAND}"
 				-S "${EXTERNAL_LLVM_SOURCE_DIR}"
 				-B "${EXTERNAL_LLVM_BINARY_DIR}"
-				"-DCMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}"
-				"-DCMAKE_BUILD_TYPE=${EXTERNAL_LLVM_BUILD_TYPE}"
-				"-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}"
-				"-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
+				"-DCMAKE_BUILD_TYPE:STRING=${EXTERNAL_LLVM_BUILD_TYPE}"
+				"-DCMAKE_C_COMPILER:STRING=${CMAKE_C_COMPILER}"
+				"-DCMAKE_CXX_COMPILER:STRING=${CMAKE_CXX_COMPILER}"
+				"-DCMAKE_CXX_STANDARD:STRING=${CMAKE_CXX_STANDARD}"
+				"-DSTRIP_DEBUG_INFO:BOOL=${EXTERNAL_LLVM_STRIP_DEBUG_INFO}"
 				"-G" ${CMAKE_GENERATOR}
 			WORKING_DIRECTORY "${EXTERNAL_LLVM_BINARY_DIR}"
 			COMMAND_ERROR_IS_FATAL ANY

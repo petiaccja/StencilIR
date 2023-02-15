@@ -4,10 +4,40 @@ cmake_minimum_required(VERSION 3.20)
 
 include(ExternalProject)
 
+
+function(remove_debug_flags out_name input_flags)
+    if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU" OR "${CMAKE_CXX_COMPILER_FRONTEND_VARIANT}" MATCHES "GNU")
+        set(search_expr "------------")
+        set(replace_expr "")
+        set(append_expr "-g0")
+    elseif ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Intel")
+    elseif ("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC" OR "${CMAKE_CXX_COMPILER_FRONTEND_VARIANT}" MATCHES "MSVC")
+        set(search_expr "(/Z7|/Zi|/ZI)[ \t\n]*")
+        set(replace_expr "")
+        set(append_expr "")
+    endif()
+    string(REGEX REPLACE "${search_expr}" "${replace_expr}" stripped_flags "${input_flags}")
+    set(${out_name} "${stripped_flags} ${append_expr}" PARENT_SCOPE)
+endfunction()
+
+if (${STRIP_DEBUG_INFO})
+    remove_debug_flags(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+    remove_debug_flags(CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
+    remove_debug_flags(CMAKE_CXX_FLAGS_RELWITHDEBINFO ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
+    remove_debug_flags(CMAKE_CXX_FLAGS_MINSIZEREL ${CMAKE_CXX_FLAGS_MINSIZEREL})
+    remove_debug_flags(CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
+endif()
+
 set(llvm_cmake_args
-    "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
-    "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}"
-    "-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
+    "-DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}"
+    "-DCMAKE_C_COMPILER:STRING=${CMAKE_C_COMPILER}"
+    "-DCMAKE_CXX_COMPILER:STRING=${CMAKE_CXX_COMPILER}"
+    "-DCMAKE_CXX_STANDARD:STRING=${CMAKE_CXX_STANDARD}"
+    "-DCMAKE_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS}"
+    "-DCMAKE_CXX_FLAGS_DEBUG:STRING=${CMAKE_CXX_FLAGS_DEBUG}"
+    "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=${CMAKE_CXX_FLAGS_RELWITHDEBINFO}"
+    "-DCMAKE_CXX_FLAGS_MINSIZEREL:STRING=${CMAKE_CXX_FLAGS_MINSIZEREL}"
+    "-DCMAKE_CXX_FLAGS_RELEASE:STRING=${CMAKE_CXX_FLAGS_RELEASE}"
     "-G" "${CMAKE_GENERATOR}"
 )
 
