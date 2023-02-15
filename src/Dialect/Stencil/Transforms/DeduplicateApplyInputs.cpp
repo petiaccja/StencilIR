@@ -48,7 +48,7 @@ mlir::FailureOr<stencil::StencilOp> DeduplicateStencilInputs(stencil::StencilOp 
 
     // Update function type
     deduplicatedStencil.setFunctionTypeAttr(mlir::TypeAttr::get(rewriter.getFunctionType(deduplicatedParamTypes, deduplicatedResultTypes)));
-    deduplicatedStencil.setSymNameAttr(UniqueStencilName(stencilOp, "dedup", rewriter));
+    deduplicatedStencil.setSymNameAttr(UniqueStencilName(stencilOp, rewriter));
 
     return deduplicatedStencil;
 }

@@ -81,7 +81,7 @@ auto OffsetStencilInputs(stencil::StencilOp stencilOp,
             }
         }
     }
-    offsetedStencil.setSymNameAttr(UniqueStencilName(stencilOp, "offseted", rewriter));
+    offsetedStencil.setSymNameAttr(UniqueStencilName(stencilOp, rewriter));
     return offsetedStencil;
 }
 

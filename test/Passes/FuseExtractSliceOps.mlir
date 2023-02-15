@@ -1,4 +1,4 @@
-// CHECK: stencil.stencil private @stencil_offseted_1(%[[A:.*]]: tensor<?xf32>)
+// CHECK: stencil.stencil private @stencil_proc_[[NR:[0-9]+]](%[[A:.*]]: tensor<?xf32>)
 stencil.stencil private @stencil(%a: tensor<?xf32>) -> f32 attributes {num_dimensions = 1 : index} {
     // CHECK-NEXT: %[[IDX:.*]] = index
     %idx = index : vector<1xindex>
@@ -22,7 +22,7 @@ func.func @offseted(%a: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> {
     %tmp0 = bufferization.alloc_tensor(%sze) : tensor<?xf32>
     %0 = tensor.extract_slice %a[3][%sze][1] : tensor<?xf32> to tensor<?xf32>
     // CHECK-NOT: stencil.apply @stencil
-    // CHECK: stencil.apply @stencil_offseted_1
+    // CHECK: stencil.apply @stencil_proc_[[NR]]
     %1 = stencil.apply @stencil(%0) outs(%out) offsets [0] : (tensor<?xf32>, tensor<?xf32>) -> (tensor<?xf32>)
     return %1 : tensor<?xf32>
 }
@@ -41,7 +41,7 @@ func.func @dynamic(%a: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> {
     %tmp0 = bufferization.alloc_tensor(%sze) : tensor<?xf32>
     %0 = tensor.extract_slice %a[%c3][%sze][1] : tensor<?xf32> to tensor<?xf32>
     // CHECK: stencil.apply @stencil
-    // CHECK-NOT: stencil.apply @stencil_offseted_
+    // CHECK-NOT: stencil.apply @stencil_proc_
     %1 = stencil.apply @stencil(%0) outs(%out) offsets [0] : (tensor<?xf32>, tensor<?xf32>) -> (tensor<?xf32>)
     return %1 : tensor<?xf32>
 }
@@ -60,7 +60,7 @@ func.func @nonone(%a: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> {
     %tmp0 = bufferization.alloc_tensor(%sze) : tensor<?xf32>
     %0 = tensor.extract_slice %a[3][%sze][2] : tensor<?xf32> to tensor<?xf32>
     // CHECK: stencil.apply @stencil
-    // CHECK-NOT: stencil.apply @stencil_offseted_
+    // CHECK-NOT: stencil.apply @stencil_proc_
     %1 = stencil.apply @stencil(%0) outs(%out) offsets [0] : (tensor<?xf32>, tensor<?xf32>) -> (tensor<?xf32>)
     return %1 : tensor<?xf32>
 }

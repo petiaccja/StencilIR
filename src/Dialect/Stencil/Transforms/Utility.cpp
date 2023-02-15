@@ -3,8 +3,10 @@
 #include <regex>
 
 
-mlir::StringAttr UniqueStencilName(stencil::StencilOp originalStencil, std::string_view suffix, mlir::PatternRewriter& rewriter) {
+mlir::StringAttr UniqueStencilName(stencil::StencilOp originalStencil, mlir::PatternRewriter& rewriter) {
     using namespace std::string_literals;
+
+    constexpr std::string_view suffix = "proc";
 
     std::string symName = originalStencil.getSymName().str();
     std::regex format{ R"((.*)()_)"s + suffix.data() + R"(_([0-9]+))" };

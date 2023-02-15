@@ -5,4 +5,4 @@
 #include <mlir/IR/PatternMatch.h>
 
 
-mlir::StringAttr UniqueStencilName(stencil::StencilOp originalStencil, std::string_view suffix, mlir::PatternRewriter& rewriter);
+mlir::StringAttr UniqueStencilName(stencil::StencilOp originalStencil, mlir::PatternRewriter& rewriter);

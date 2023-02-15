@@ -2,7 +2,7 @@
 // Fusing a chain of pointwise stencils
 //------------------------------------------------------------------------------
 
-// CHECK: stencil.stencil private @chain_add_fused_2(%[[A:.*]]: tensor<?xf32>, %[[B:.*]]: tensor<?xf32>, %[[C:.*]]: tensor<?xf32>, %[[D:.*]]: tensor<?xf32>)
+// CHECK: stencil.stencil private @chain_add_proc_[[NR_CHAIN:[0-9]+]](%[[A:.*]]: tensor<?xf32>, %[[B:.*]]: tensor<?xf32>, %[[C:.*]]: tensor<?xf32>, %[[D:.*]]: tensor<?xf32>)
 stencil.stencil private @chain_add(%a: tensor<?xf32>, %b: tensor<?xf32>) -> f32 attributes {num_dimensions = 1 : index} {
     // CHECK-NEXT: %[[IDX:.*]] = index
     %idx = index : vector<1xindex>
@@ -27,8 +27,7 @@ func.func @chain(%a: tensor<?xf32>, %b: tensor<?xf32>, %c: tensor<?xf32>, %d: te
     %tmp0 = bufferization.alloc_tensor(%sz) : tensor<?xf32>
     %tmp1 = bufferization.alloc_tensor(%sz) : tensor<?xf32>
     // CHECK-NOT: %[[R:.*]] stencil.apply @chain_add
-    // CHECK-NOT: %[[R:.*]] stencil.apply @chain_add_fused_1
-    // CHECK: %[[R:.*]] stencil.apply @chain_add_fused_2
+    // CHECK: %[[R:.*]] stencil.apply @chain_add_proc_[[NR_CHAIN]]
     %0 = stencil.apply @chain_add(%a, %b) outs(%tmp0) offsets [0] : (tensor<?xf32>, tensor<?xf32>, tensor<?xf32>) -> (tensor<?xf32>)
     %1 = stencil.apply @chain_add(%0, %c) outs(%tmp1) offsets [0] : (tensor<?xf32>, tensor<?xf32>, tensor<?xf32>) -> (tensor<?xf32>)
     %2 = stencil.apply @chain_add(%1, %d) outs(%out) offsets [0] : (tensor<?xf32>, tensor<?xf32>, tensor<?xf32>) -> (tensor<?xf32>)
@@ -47,7 +46,7 @@ stencil.stencil private @mrv_source(%a: tensor<?xf32>) -> (f32, f32) attributes 
     return %as, %as : f32, f32
 }
 
-// CHECK: stencil.stencil private @mrv_target_fused_1(%[[A:.*]]: tensor<?xf32>)
+// CHECK: stencil.stencil private @mrv_target_proc_[[NR_MRV:[0-9]+]](%[[A:.*]]: tensor<?xf32>)
 stencil.stencil private @mrv_target(%a: tensor<?xf32>, %b: tensor<?xf32>) -> f32 attributes {num_dimensions = 1 : index} {
     // CHECK-NEXT: %[[IDX:.*]] = index
     %idx = index : vector<1xindex>
@@ -69,7 +68,7 @@ func.func @mrv(%a: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> {
     %tmp1 = bufferization.alloc_tensor(%sz) : tensor<?xf32>
     // CHECK-NOT: %[[R:.*]] stencil.apply @mrv_source
     // CHECK-NOT: %[[R:.*]] stencil.apply @mrv_target
-    // CHECK: %[[R:.*]] stencil.apply @mrv_target_fused_1
+    // CHECK: %[[R:.*]] stencil.apply @mrv_target_proc_[[NR_MRV]]
     %0, %1 = stencil.apply @mrv_source(%a) outs(%tmp0, %tmp1) offsets [0] : (tensor<?xf32>, tensor<?xf32>, tensor<?xf32>) -> (tensor<?xf32>, tensor<?xf32>)
     %2 = stencil.apply @mrv_target(%0, %1) outs(%out) offsets [0] : (tensor<?xf32>, tensor<?xf32>, tensor<?xf32>) -> (tensor<?xf32>)
     return %2 : tensor<?xf32>
