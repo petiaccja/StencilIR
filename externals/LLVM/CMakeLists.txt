@@ -21,11 +21,11 @@ function(remove_debug_flags out_name input_flags)
 endfunction()
 
 if (${STRIP_DEBUG_INFO})
-    remove_debug_flags(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
-    remove_debug_flags(CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
-    remove_debug_flags(CMAKE_CXX_FLAGS_RELWITHDEBINFO ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
-    remove_debug_flags(CMAKE_CXX_FLAGS_MINSIZEREL ${CMAKE_CXX_FLAGS_MINSIZEREL})
-    remove_debug_flags(CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
+    remove_debug_flags(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    remove_debug_flags(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+    remove_debug_flags(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+    remove_debug_flags(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL}")
+    remove_debug_flags(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
 endif()
 
 set(llvm_cmake_args
