@@ -14,6 +14,7 @@ option(ENABLE_LLVM_ADDRESS_SANITIZER "Adds compiler flags to generate LLVM sourc
 option(ENABLE_LLVM_MEMORY_SANITIZER "Adds compiler flags to generate LLVM source-based code coverage. Only works with Clang." OFF)
 set(EXTERNAL_LLVM_BUILD_TYPE ${CMAKE_BUILD_TYPE} CACHE STRING "Same as CMAKE_BUILD_TYPE, but applied to LLVM when downloading it.")
 option(EXTERNAL_LLVM_STRIP_DEBUG_INFO "Compiles the external LLVM without debug info, mainly to reduce its size." OFF)
+set(EXTRA_RUNTIME_DEPENDENCY_DIRS "" CACHE STRING "Needed by setuptools to create the Python packages.")
 
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
 	if (ENABLE_LLVM_COV)
@@ -106,5 +107,8 @@ set_target_properties(stencilir PROPERTIES INSTALL_RPATH "$ORIGIN")
 install(
 	TARGETS stencilir
 	RUNTIME_DEPENDENCIES
+		PRE_EXCLUDE_REGEXES "ext-ms-.*" "api-ms-.*" "hvsifiletrust.dll" "pdmutilities.dll"
+		DIRECTORIES ${EXTRA_RUNTIME_DEPENDENCY_DIRS}
+		POST_EXCLUDE_REGEXES ".*system32/.*\\.dll"
 	DESTINATION "${CMAKE_BINARY_DIR}/install/python"
 )

@@ -3,6 +3,8 @@ import pathlib
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
 import shutil
+import subprocess
+import sys
 
 
 class CMakeExtension(Extension):
@@ -38,7 +40,8 @@ class CMakeBuild(build_ext):
             '-G', 'Ninja',
             '-S', ext.cmake_source_dir,
             '-B', str(build_temp),
-            f'-DCMAKE_BUILD_TYPE={cmake_build_type}'
+            f'-DCMAKE_BUILD_TYPE={cmake_build_type}',
+            f'-DEXTRA_RUNTIME_DEPENDENCY_DIRS={";".join(path for path in sys.path if path)}'
         ]
 
         build_command = [
@@ -50,9 +53,16 @@ class CMakeBuild(build_ext):
         ]
 
         # Run cmake
-        self.spawn(configure_command)
         if not self.dry_run:
-            self.spawn(build_command)
+            try:
+                result = subprocess.run(configure_command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                if result.returncode != 0:
+                    raise RuntimeError(f"CMake configure failed:\n{result.stdout.decode()}")
+                result = subprocess.run(build_command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                if result.returncode != 0:
+                    raise RuntimeError(f"CMake build failed:\n{result.stdout.decode()}")
+            except FileNotFoundError as ex:
+                raise RuntimeError("CMake configure failed, is the cmake executable in your path?") from ex
 
         # Copy binaries
         install_dir = build_temp / "install" / "python"
