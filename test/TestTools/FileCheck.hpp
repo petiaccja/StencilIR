@@ -31,11 +31,11 @@ struct NestedPass : public Pass {
 
 
 bool CheckText(std::string_view input, std::string_view pattern);
-bool CheckFile(std::filesystem::path file, std::vector<std::unique_ptr<Pass>> passes);
+bool CheckFile(const std::filesystem::path& file, std::vector<std::unique_ptr<Pass>>&& passes);
 bool CheckAST(ast::Module& moduleNode, std::string_view pattern);
 
 template <class... Passes>
-auto CheckFile(std::filesystem::path file, Passes... passes) {
+auto CheckFile(const std::filesystem::path& file, Passes... passes) {
     std::vector<std::unique_ptr<Pass>> passVec;
     passVec.reserve(sizeof...(passes));
     (..., passVec.push_back(std::make_unique<Passes>(std::move(passes))));

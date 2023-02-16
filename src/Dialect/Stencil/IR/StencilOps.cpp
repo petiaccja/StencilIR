@@ -487,7 +487,7 @@ mlir::LogicalResult SampleOp::verify() {
 // Folding
 //------------------------------------------------------------------------------
 
-OpFoldResult JumpOp::fold(::llvm::ArrayRef<::mlir::Attribute> operands) {
+OpFoldResult JumpOp::fold([[maybe_unused]] llvm::ArrayRef<::mlir::Attribute> operands) {
     auto input = getInputIndex();
     auto offset = getOffset();
     auto range = offset.getAsRange<mlir::IntegerAttr>();

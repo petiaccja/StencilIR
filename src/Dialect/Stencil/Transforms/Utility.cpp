@@ -19,8 +19,8 @@ mlir::StringAttr UniqueStencilName(stencil::StencilOp originalStencil, mlir::Pat
     size_t serial = 1;
     mlir::StringAttr fusedSymName;
     do {
-        auto newName = symName + "_" + suffix.data() + "_" + std::to_string(serial);
-        fusedSymName = rewriter.getStringAttr(std::move(newName));
+        const auto newName = symName + "_" + suffix.data() + "_" + std::to_string(serial);
+        fusedSymName = rewriter.getStringAttr(newName);
         ++serial;
     } while (nullptr != mlir::SymbolTable::lookupNearestSymbolFrom(originalStencil, fusedSymName));
     return fusedSymName;

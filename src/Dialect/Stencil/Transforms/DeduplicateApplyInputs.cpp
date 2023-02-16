@@ -39,7 +39,7 @@ mlir::FailureOr<stencil::StencilOp> DeduplicateStencilInputs(stencil::StencilOp 
         if (*replaceWithIt) {
             const size_t replacementIdx = replaceWithIt->value();
             auto replacedArg = deduplicatedEntryBlock.getArgument(blockArgIdx);
-            auto replacementArg = deduplicatedEntryBlock.getArgument(replacementIdx);
+            auto replacementArg = deduplicatedEntryBlock.getArgument(unsigned(replacementIdx));
             replacedArg.replaceAllUsesWith(replacementArg);
             deduplicatedEntryBlock.eraseArgument(blockArgIdx);
             deduplicatedParamTypes.erase(deduplicatedParamTypes.begin() + blockArgIdx);

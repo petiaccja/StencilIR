@@ -43,7 +43,7 @@ bool IsOperandFusable(stencil::ApplyOp applyOp, size_t operandIdx) {
     const bool isDefinedByApply = definingOp && mlir::isa<stencil::ApplyOp>(definingOp);
 
     const auto stencil = mlir::SymbolTable::lookupNearestSymbolFrom<stencil::StencilOp>(applyOp, applyOp.getCalleeAttr());
-    const mlir::Value blockArg = stencil->getRegion(0).getBlocks().begin()->getArgument(operandIdx);
+    const mlir::Value blockArg = stencil->getRegion(0).getBlocks().begin()->getArgument(unsigned(operandIdx));
     const auto blockArgUsers = blockArg.getUsers();
     const bool isOnlyUsedBySample = std::all_of(blockArgUsers.begin(), blockArgUsers.end(), [](const auto& user) {
         return mlir::isa<stencil::SampleOp>(user);
@@ -94,13 +94,13 @@ float FusePrecedingStencilCost(stencil::StencilOp precedingStencil,
     const auto memoryAccessPattern = AnalyzeMemoryAccesses(precedingStencil.getRegion());
     size_t numUsesTotal = 0;
     for (const auto& [resultIdx, paramIdx] : resultsToParams) {
-        const auto uses = targetStencil.getRegion().getBlocks().front().getArgument(paramIdx).getUses();
+        const auto uses = targetStencil.getRegion().getBlocks().front().getArgument(unsigned(paramIdx)).getUses();
         const size_t numUses = std::distance(uses.begin(), uses.end());
         numUsesTotal += numUses;
     }
 
-    const float originalCost = writeCost + memoryAccessPattern.numMemoryAccesses * readCost + 2 * launchCost;
-    const float fusedCost = memoryAccessPattern.numMemoryAccesses * numUsesTotal * readCost + launchCost;
+    const float originalCost = writeCost + float(memoryAccessPattern.numMemoryAccesses) * readCost + 2.0f * launchCost;
+    const float fusedCost = float(memoryAccessPattern.numMemoryAccesses) * numUsesTotal * readCost + launchCost;
     return fusedCost - originalCost;
 }
 
@@ -130,7 +130,7 @@ auto FusePrecedingStencilOp(stencil::StencilOp precedingStencil,
     };
     mlir::InlinerInterface inlinerInterface{ rewriter.getContext() };
     for (const auto& [resultIdx, paramIdx] : resultsToParams) {
-        const auto blockArg = fusedEntryBlock.getArgument(paramIdx);
+        const auto blockArg = fusedEntryBlock.getArgument(unsigned(paramIdx));
         mlir::SmallVector<stencil::SampleOp, 16> sampleOps;
         for (auto user : blockArg.getUsers()) {
             auto sampleOp = mlir::dyn_cast<stencil::SampleOp>(user);
@@ -147,8 +147,8 @@ auto FusePrecedingStencilOp(stencil::StencilOp precedingStencil,
                                                                precedingStencil.getSymName(),
                                                                sampleOp.getIndex(),
                                                                invokeArgs);
-            rewriter.replaceOp(sampleOp, { invokeOp->getResult(resultIdx) });
-            if (failed(mlir::inlineCall(inlinerInterface, std::move(invokeOp), precedingStencil, &precedingStencil.getRegion()))) {
+            rewriter.replaceOp(sampleOp, { invokeOp->getResult(unsigned(resultIdx)) });
+            if (failed(mlir::inlineCall(inlinerInterface, invokeOp, precedingStencil, &precedingStencil.getRegion()))) {
                 rewriter.eraseOp(fusedStencil);
                 return mlir::failure();
             }
@@ -164,7 +164,7 @@ auto FusePrecedingStencilOp(stencil::StencilOp precedingStencil,
     std::ranges::sort(paramsToRemove);
     std::ranges::reverse(paramsToRemove);
     for (auto paramIdx : paramsToRemove) {
-        fusedEntryBlock.eraseArgument(paramIdx);
+        fusedEntryBlock.eraseArgument(unsigned(paramIdx));
         fusedParamTypes.erase(fusedParamTypes.begin() + paramIdx);
     }
 
@@ -308,7 +308,7 @@ public:
             return failure();
         }
 
-        auto [fusedOp, precedingOps] = maybeFusedOp.value();
+        const auto& [fusedOp, precedingOps] = maybeFusedOp.value();
 
         if (fusedOp == applyOp) {
             return success(); // Yeah, this is normal, return success.

@@ -76,7 +76,7 @@ TEST_CASE("Optimization", "[Program]") {
     std::ranges::fill(outputBuffer, 0);
 
     for (size_t x = 0; x < inputSize; ++x) {
-        inputBuffer[x] = (x * x * x) * 0.1f;
+        inputBuffer[x] = float(x * x * x) * 0.1f;
     }
 
     const auto program = CreateAST();
