@@ -45,7 +45,7 @@ bool IsOperandFusable(stencil::ApplyOp applyOp, size_t operandIdx) {
     const auto stencil = mlir::SymbolTable::lookupNearestSymbolFrom<stencil::StencilOp>(applyOp, applyOp.getCalleeAttr());
     const mlir::Value blockArg = stencil->getRegion(0).getBlocks().begin()->getArgument(operandIdx);
     const auto blockArgUsers = blockArg.getUsers();
-    const bool isOnlyUsedBySample = std::all_of(blockArgUsers.begin(), blockArgUsers.end(), [](auto&& user) {
+    const bool isOnlyUsedBySample = std::all_of(blockArgUsers.begin(), blockArgUsers.end(), [](const auto& user) {
         return mlir::isa<stencil::SampleOp>(user);
     });
 
@@ -304,20 +304,25 @@ public:
     LogicalResult matchAndRewrite(stencil::ApplyOp applyOp,
                                   PatternRewriter& rewriter) const override {
         auto maybeFusedOp = FusePrecedingApplies(applyOp, rewriter);
-        if (succeeded(maybeFusedOp)) {
-            auto [fusedOp, precedingOps] = maybeFusedOp.value();
-            if (fusedOp != applyOp) {
-                rewriter.replaceOp(applyOp, fusedOp->getResults());
-                for (auto precedingOp : precedingOps) {
-                    auto results = precedingOp->getResults();
-                    if (std::all_of(results.begin(), results.end(), [](mlir::Value result) { return result.getUses().empty(); })) {
-                        rewriter.eraseOp(precedingOp);
-                    }
-                }
-            }
-            return success();
+        if (failed(maybeFusedOp)) {
+            return failure();
         }
-        return failure();
+
+        auto [fusedOp, precedingOps] = maybeFusedOp.value();
+
+        if (fusedOp == applyOp) {
+            return success(); // Yeah, this is normal, return success.
+        }
+
+        rewriter.replaceOp(applyOp, fusedOp->getResults());
+        for (auto precedingOp : precedingOps) {
+            auto results = precedingOp->getResults();
+            if (std::all_of(results.begin(), results.end(), [](mlir::Value result) { return result.getUses().empty(); })) {
+                rewriter.eraseOp(precedingOp);
+            }
+        }
+
+        return success();
     }
 };
 

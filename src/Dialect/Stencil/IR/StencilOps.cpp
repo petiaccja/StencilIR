@@ -499,7 +499,7 @@ OpFoldResult JumpOp::fold(::llvm::ArrayRef<::mlir::Attribute> operands) {
 
 
 struct SimplifyJumpChain : public mlir::OpRewritePattern<JumpOp> {
-    SimplifyJumpChain(mlir::MLIRContext* context)
+    explicit SimplifyJumpChain(mlir::MLIRContext* context)
         : OpRewritePattern<JumpOp>(context, 1) {}
 
     mlir::LogicalResult matchAndRewrite(JumpOp op, mlir::PatternRewriter& rewriter) const override {
