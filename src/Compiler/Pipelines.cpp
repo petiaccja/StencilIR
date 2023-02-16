@@ -50,7 +50,7 @@ Stage CreateGlobalOptimizationStage(mlir::MLIRContext& context,
         stage.passes->addPass(mlir::bufferization::createAllocTensorEliminationPass());
     }
     if (optimizationOptions.fuseExtractSliceOps) {
-        stage.passes->addPass(createFuseExtractSliceOps());
+        stage.passes->addPass(createFuseExtractSliceOpsPass());
     }
     if (optimizationOptions.fuseApplyOps) {
         stage.passes->addPass(createFuseApplyOpsPass());

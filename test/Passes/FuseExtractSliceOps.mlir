@@ -19,7 +19,6 @@ func.func @offseted(%a: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> {
     %c3 = arith.constant 3 : index
     %sz = tensor.dim %out, %c0 : tensor<?xf32>
     %sze = arith.subi %sz, %c3 : index
-    %tmp0 = bufferization.alloc_tensor(%sze) : tensor<?xf32>
     %0 = tensor.extract_slice %a[3][%sze][1] : tensor<?xf32> to tensor<?xf32>
     // CHECK-NOT: stencil.apply @stencil
     // CHECK: stencil.apply @stencil_proc_[[NR]]
@@ -38,7 +37,6 @@ func.func @dynamic(%a: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> {
     %c3 = arith.constant 3 : index
     %sz = tensor.dim %out, %c0 : tensor<?xf32>
     %sze = arith.subi %sz, %c3 : index
-    %tmp0 = bufferization.alloc_tensor(%sze) : tensor<?xf32>
     %0 = tensor.extract_slice %a[%c3][%sze][1] : tensor<?xf32> to tensor<?xf32>
     // CHECK: stencil.apply @stencil
     // CHECK-NOT: stencil.apply @stencil_proc_
@@ -57,7 +55,6 @@ func.func @nonone(%a: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> {
     %c3 = arith.constant 3 : index
     %sz = tensor.dim %out, %c0 : tensor<?xf32>
     %sze = arith.subi %sz, %c3 : index
-    %tmp0 = bufferization.alloc_tensor(%sze) : tensor<?xf32>
     %0 = tensor.extract_slice %a[3][%sze][2] : tensor<?xf32> to tensor<?xf32>
     // CHECK: stencil.apply @stencil
     // CHECK-NOT: stencil.apply @stencil_proc_

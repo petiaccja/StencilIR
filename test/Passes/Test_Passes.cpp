@@ -43,5 +43,9 @@ TEST_CASE("Fuse apply ops", "[StencilDialect]") {
 }
 
 TEST_CASE("Fuse extract slice ops", "[StencilDialect]") {
-    REQUIRE(CheckFile(TestFile("FuseExtractSliceOps.mlir"), Pass(createFuseExtractSliceOps())));
+    REQUIRE(CheckFile(TestFile("FuseExtractSliceOps.mlir"), Pass(createFuseExtractSliceOpsPass())));
+}
+
+TEST_CASE("Deduplicate apply op inputs", "[StencilDialect]") {
+    REQUIRE(CheckFile(TestFile("DeduplicateApplyInputs.mlir"), Pass(createDeduplicateApplyInputsPass())));
 }

@@ -67,6 +67,10 @@ mlir::FailureOr<stencil::ApplyOp> DeduplicateApplyInputs(stencil::ApplyOp applyO
         }
     }
 
+    if (!std::any_of(replaceWith.begin(), replaceWith.end(), std::identity{})) {
+        return mlir::failure();
+    }
+
     auto stencilOp = mlir::cast<stencil::StencilOp>(mlir::SymbolTable::lookupNearestSymbolFrom(applyOp, applyOp.getCalleeAttr()));
     auto maybeDeduplicatedStencil = DeduplicateStencilInputs(stencilOp, replaceWith, rewriter);
     if (failed(maybeDeduplicatedStencil)) {
