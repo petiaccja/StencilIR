@@ -51,9 +51,21 @@ jobs:
         path: ${{runner.workspace}}/build/externals/LLVM/install
         key: llvm-cache-${{ matrix.c_compiler }}-${{ matrix.build_type }}-${{ matrix.os }}-c++${{ matrix.cxx_standard }}
 
+    - name: Build LLVM Library
+      if: steps.cache-llvm-library.outputs.cache-hit != 'true'
+      env:
+        CC: ${{matrix.c_compiler}}
+        CXX: ${{matrix.cxx_compiler}}
+      run: |
+        cmake -E make_directory ${{runner.workspace}}/build/externals/LLVM
+        cmake -S ${{github.workspace}}/externals/LLVM -B ${{runner.workspace}}/build/externals/LLVM -G Ninja -DCMAKE_BUILD_TYPE=${{matrix.build_type}} -DCMAKE_CXX_STANDARD=${{ matrix.cxx_standard }} -DSTRIP_DEBUG_INFO:BOOL=ON
+        cmake --build ${{runner.workspace}}/build/externals/LLVM --parallel
+
     - name: Configure CMake
       working-directory: ${{runner.workspace}}/build
       env:
+        MLIR_DIR: ${{runner.workspace}}/build/externals/LLVM/install/lib/cmake/mlir
+        LLVM_DIR: ${{runner.workspace}}/build/externals/LLVM/install/lib/cmake/llvm
         CC: ${{matrix.c_compiler}}
         CXX: ${{matrix.cxx_compiler}}
       run: cmake -S ${{github.workspace}} -B ${{runner.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=${{matrix.build_type}} -DCMAKE_CXX_STANDARD=${{ matrix.cxx_standard }} -DEXTERNAL_LLVM_STRIP_DEBUG_INFO:BOOL=ON
