@@ -19,7 +19,8 @@ Runner::Runner(mlir::ModuleOp& llvmIr, int optLevel) {
     constexpr auto targetMachine = nullptr;
     auto optPipeline = mlir::makeOptimizingTransformer(optLevel, sizeLevel, targetMachine);
 
-    (void)&rtclock; // This is needed on Windows so that the MLIR runner utils DLL is actually linked against.
+    // This is needed on Windows so that the MLIR runner utils DLL is actually linked against.
+    [[maybe_unused]] volatile auto forceRunnerUtils = &rtclock;
     const auto runnerUtilsLibPath = GetModulePath(R"(.*mlir_c_runner_utils.*)");
     if (!runnerUtilsLibPath) {
         throw std::runtime_error("Could not find MLIR runner utilities shared library.");
