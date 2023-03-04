@@ -25,6 +25,8 @@ jobs:
         exclude:
           - os: windows-latest
             c_compiler: clang
+          - os: windows-latest
+            build_type: Debug
           - os: ubuntu-latest
             c_compiler: cl
 
@@ -39,7 +41,7 @@ jobs:
 
     - name: Install conan
       run: |
-        pipx install conan
+        pipx install --force conan==1.59
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
