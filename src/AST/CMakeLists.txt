@@ -21,8 +21,8 @@ target_sources(AST
 )
 target_include_directories(AST INTERFACE ${CMAKE_CURRENT_LIST_DIR}/..)
 
-target_include_directories(AST PUBLIC ${LLVM_INCLUDE_DIRS})
-target_include_directories(AST PUBLIC ${MLIR_INCLUDE_DIRS})
+target_include_directories(AST SYSTEM PUBLIC ${LLVM_INCLUDE_DIRS})
+target_include_directories(AST SYSTEM PUBLIC ${MLIR_INCLUDE_DIRS})
 target_link_directories(AST PUBLIC ${LLVM_BUILD_LIBRARY_DIR})
 target_compile_definitions(AST PUBLIC ${LLVM_DEFINITIONS})
 

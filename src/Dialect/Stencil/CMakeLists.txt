@@ -24,8 +24,8 @@ target_sources(StencilDialect
 target_include_directories(StencilDialect PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/include)
 target_include_directories(StencilDialect INTERFACE ${CMAKE_CURRENT_LIST_DIR}/../..)
 
-target_include_directories(StencilDialect PUBLIC ${LLVM_INCLUDE_DIRS})
-target_include_directories(StencilDialect PUBLIC ${MLIR_INCLUDE_DIRS})
+target_include_directories(StencilDialect SYSTEM PUBLIC ${LLVM_INCLUDE_DIRS})
+target_include_directories(StencilDialect SYSTEM PUBLIC ${MLIR_INCLUDE_DIRS})
 target_link_directories(StencilDialect PUBLIC ${LLVM_BUILD_LIBRARY_DIR})
 target_compile_definitions(StencilDialect PUBLIC ${LLVM_DEFINITIONS})
 

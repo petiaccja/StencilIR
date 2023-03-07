@@ -23,8 +23,8 @@ target_sources(Conversion
 
 target_include_directories(Conversion INTERFACE ${CMAKE_CURRENT_LIST_DIR}/..)
 
-target_include_directories(Conversion PUBLIC ${LLVM_INCLUDE_DIRS})
-target_include_directories(Conversion PUBLIC ${MLIR_INCLUDE_DIRS})
+target_include_directories(Conversion SYSTEM PUBLIC ${LLVM_INCLUDE_DIRS})
+target_include_directories(Conversion SYSTEM PUBLIC ${MLIR_INCLUDE_DIRS})
 target_link_directories(Conversion PUBLIC ${LLVM_BUILD_LIBRARY_DIR})
 target_compile_definitions(Conversion PUBLIC ${LLVM_DEFINITIONS})
 

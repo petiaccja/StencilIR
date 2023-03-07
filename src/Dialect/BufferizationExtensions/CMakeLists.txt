@@ -19,8 +19,8 @@ target_sources(BufferizationExtensions
 target_include_directories(BufferizationExtensions PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/include)
 target_include_directories(BufferizationExtensions INTERFACE ${CMAKE_CURRENT_LIST_DIR}/../..)
 
-target_include_directories(BufferizationExtensions PUBLIC ${LLVM_INCLUDE_DIRS})
-target_include_directories(BufferizationExtensions PUBLIC ${MLIR_INCLUDE_DIRS})
+target_include_directories(BufferizationExtensions SYSTEM PUBLIC ${LLVM_INCLUDE_DIRS})
+target_include_directories(BufferizationExtensions SYSTEM PUBLIC ${MLIR_INCLUDE_DIRS})
 target_link_directories(BufferizationExtensions PUBLIC ${LLVM_BUILD_LIBRARY_DIR})
 target_compile_definitions(BufferizationExtensions PUBLIC ${LLVM_DEFINITIONS})
 
