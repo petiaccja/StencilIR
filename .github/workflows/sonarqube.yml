@@ -26,7 +26,7 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: |
-          pipx install conan
+          pipx install --force conan==1.59
           sudo apt install llvm
 
       - name: Install sonar-scanner and build-wrapper

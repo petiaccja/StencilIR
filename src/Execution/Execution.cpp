@@ -3,6 +3,7 @@
 #include "DynamicLinking.hpp"
 
 #include <llvm/Support/TargetSelect.h>
+#include <mlir/ExecutionEngine/CRunnerUtils.h>
 #include <mlir/ExecutionEngine/ExecutionEngine.h>
 #include <mlir/ExecutionEngine/OptUtils.h>
 #include <mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h>
@@ -18,7 +19,8 @@ Runner::Runner(mlir::ModuleOp& llvmIr, int optLevel) {
     constexpr auto targetMachine = nullptr;
     auto optPipeline = mlir::makeOptimizingTransformer(optLevel, sizeLevel, targetMachine);
 
-
+    // This is needed on Windows so that the MLIR runner utils DLL is actually linked against.
+    [[maybe_unused]] volatile auto forceRunnerUtils = &rtclock;
     const auto runnerUtilsLibPath = GetModulePath(R"(.*mlir_c_runner_utils.*)");
     if (!runnerUtilsLibPath) {
         throw std::runtime_error("Could not find MLIR runner utilities shared library.");

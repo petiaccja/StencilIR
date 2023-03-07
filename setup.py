@@ -3,6 +3,10 @@ import pathlib
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
 import shutil
+import subprocess
+import sys
+import psutil
+import re
 
 
 class CMakeExtension(Extension):
@@ -32,13 +36,20 @@ class CMakeBuild(build_ext):
 
         cmake_build_type = os.environ["CMAKE_BUILD_TYPE"]
 
+        process = psutil.Process(os.getpid())
+        memory_maps = process.memory_maps()
+        python_dlls = [pathlib.Path(map.path) for map in memory_maps if re.search("python[0-9]+\.dll", map.path.lower())]
+        dll_paths = list(set([file.parent.absolute() for file in python_dlls]))
+        extra_runtime_dependency_dirs = [str(path) for path in dll_paths]
+        
         # CMake commands
         configure_command = [
             'cmake',
             '-G', 'Ninja',
             '-S', ext.cmake_source_dir,
             '-B', str(build_temp),
-            f'-DCMAKE_BUILD_TYPE={cmake_build_type}'
+            f'-DCMAKE_BUILD_TYPE={cmake_build_type}',
+            f'-DEXTRA_RUNTIME_DEPENDENCY_DIRS={";".join(extra_runtime_dependency_dirs)}'
         ]
 
         build_command = [
@@ -50,9 +61,16 @@ class CMakeBuild(build_ext):
         ]
 
         # Run cmake
-        self.spawn(configure_command)
         if not self.dry_run:
-            self.spawn(build_command)
+            try:
+                result = subprocess.run(configure_command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                if result.returncode != 0:
+                    raise RuntimeError(f"CMake configure failed:\n{result.stdout.decode()}")
+                result = subprocess.run(build_command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                if result.returncode != 0:
+                    raise RuntimeError(f"CMake build failed:\n{result.stdout.decode()}")
+            except FileNotFoundError as ex:
+                raise RuntimeError("CMake configure failed, is the cmake executable in your path?") from ex
 
         # Copy binaries
         install_dir = build_temp / "install" / "python"
