@@ -760,6 +760,10 @@ public:
         mlir::Value expr = Generate(*node.expr);
         mlir::Type type = ConvertType(builder, *node.type);
 
+        if (expr.getType() == type) {
+            return { { expr } };
+        }
+
         auto ftype = type.dyn_cast<mlir::FloatType>();
         auto fexpr = expr.getType().dyn_cast<mlir::FloatType>();
         auto itype = type.dyn_cast<mlir::IntegerType>();
