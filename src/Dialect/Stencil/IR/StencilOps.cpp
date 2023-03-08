@@ -544,7 +544,7 @@ OpFoldResult ProjectOp::fold([[maybe_unused]] llvm::ArrayRef<::mlir::Attribute> 
     const auto positions = getPositions();
     const auto range = positions.getAsRange<mlir::IntegerAttr>();
     int64_t idx = 0;
-    for (const auto& pos: range) {
+    for (const auto& pos : range) {
         if (pos.getInt() != idx++) {
             return getResult();
         }

@@ -13,10 +13,10 @@
 #include <mlir/Transforms/Passes.h>
 
 #include <algorithm>
+#include <optional>
 #include <ranges>
 #include <regex>
 #include <span>
-#include <optional>
 
 
 using mlir::MLIRContext;
