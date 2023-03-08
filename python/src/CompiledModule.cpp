@@ -72,7 +72,7 @@ Runner CompiledModule::Compile(std::shared_ptr<ast::Module> ast, CompileOptions 
 
     auto targetStages = [&] {
         switch (options.targetArch) {
-            case eTargetArch::X86: return TargetCPUPipeline(context);
+            case eTargetArch::X86: return TargetCPUPipeline(context, options.optimizationOptions);
             default: throw std::invalid_argument("Target architecture not supported yet.");
         }
     }();

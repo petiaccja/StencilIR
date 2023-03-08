@@ -285,11 +285,25 @@ PYBIND11_MODULE(stencilir, m) {
         .value("O3", eOptimizationLevel::O3)
         .export_values();
 
+    pybind11::class_<OptimizationOptions>(m, "OptimizationOptions")
+        .def(pybind11::init<bool, bool, bool, bool>(),
+             pybind11::arg("eliminate_alloc_buffers") = false,
+             pybind11::arg("inline_functions") = false,
+             pybind11::arg("fuse_extract_slice_ops") = false,
+             pybind11::arg("fuse_apply_ops") = false)
+        .def_readwrite("eliminate_alloc_buffers", &OptimizationOptions::eliminateAllocBuffers)
+        .def_readwrite("inline_functions", &OptimizationOptions::inlineFunctions)
+        .def_readwrite("fuse_extract_slice_ops", &OptimizationOptions::fuseExtractSliceOps)
+        .def_readwrite("fuse_apply_ops", &OptimizationOptions::fuseApplyOps);
+
     pybind11::class_<CompileOptions>(m, "CompileOptions")
-        .def(pybind11::init())
-        .def(pybind11::init<eTargetArch, eOptimizationLevel>())
+        .def(pybind11::init<eTargetArch, eOptimizationLevel, OptimizationOptions>(),
+             pybind11::arg("target_arch"),
+             pybind11::arg("opt_level"),
+             pybind11::arg("opt_options") = OptimizationOptions{})
         .def_readwrite("target_arch", &CompileOptions::targetArch)
-        .def_readwrite("opt_level", &CompileOptions::optimizationLevel);
+        .def_readwrite("opt_level", &CompileOptions::optimizationLevel)
+        .def_readwrite("opt_options", &CompileOptions::optimizationOptions);
 
     pybind11::class_<CompiledModule>(m, "CompiledModule")
         .def("invoke", &CompiledModule::Invoke)
