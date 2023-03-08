@@ -3,6 +3,7 @@
 #include <Conversion/Passes.hpp>
 #include <Diagnostics/Exception.hpp>
 #include <Dialect/Stencil/Transforms/Passes.hpp>
+#include <Transforms/Passes.hpp>
 
 #include <mlir/Dialect/Bufferization/Transforms/Passes.h>
 #include <mlir/Transforms/Passes.h>
@@ -42,10 +43,17 @@ TEST_CASE("Fuse apply ops", "[StencilDialect]") {
     REQUIRE(CheckFile(TestFile("FuseApplyOps.mlir"), Pass(createFuseApplyOpsPass())));
 }
 
+
 TEST_CASE("Fuse extract slice ops", "[StencilDialect]") {
     REQUIRE(CheckFile(TestFile("FuseExtractSliceOps.mlir"), Pass(createFuseExtractSliceOpsPass())));
 }
 
+
 TEST_CASE("Deduplicate apply op inputs", "[StencilDialect]") {
     REQUIRE(CheckFile(TestFile("DeduplicateApplyInputs.mlir"), Pass(createDeduplicateApplyInputsPass())));
+}
+
+
+TEST_CASE("Reduce dim ops", "[Canonicalization]") {
+    REQUIRE(CheckFile(TestFile("ReduceDimOps.mlir"), Pass(createReduceDimOpsPass())));
 }

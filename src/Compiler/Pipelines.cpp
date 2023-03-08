@@ -4,6 +4,7 @@
 #include <Dialect/BufferizationExtensions/Transforms/OneShotBufferizeCombined.hpp>
 #include <Dialect/Stencil/Transforms/BufferizableOpInterfaceImpl.hpp>
 #include <Dialect/Stencil/Transforms/Passes.hpp>
+#include <Transforms/Passes.hpp>
 
 #include <mlir/Conversion/Passes.h>
 #include <mlir/Dialect/Arithmetic/Transforms/Passes.h>
@@ -67,6 +68,7 @@ std::vector<Stage> TargetCPUPipeline(mlir::MLIRContext& context,
     Stage canonicalization{ "canonicalization", context };
     canonicalization.passes->addPass(mlir::createCSEPass());
     canonicalization.passes->addPass(mlir::createCanonicalizerPass());
+    canonicalization.passes->addPass(createReduceDimOpsPass());
     canonicalization.passes->addPass(mlir::createTopologicalSortPass());
 
     Stage bufferization = CreateBufferizationStage(context);
