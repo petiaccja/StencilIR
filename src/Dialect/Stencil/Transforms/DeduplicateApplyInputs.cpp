@@ -16,6 +16,7 @@
 #include <ranges>
 #include <regex>
 #include <span>
+#include <optional>
 
 
 using mlir::MLIRContext;
