@@ -215,6 +215,7 @@ def ProjectOp : Stencil_Op<"project", [NoSideEffect]> {
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = "$source `` $positions attr-dict `:` functional-type($source, $result)";
   let summary = "Project and optionally shuffle the elements of an index.";
+  let hasFolder = 1;
 }
 
 

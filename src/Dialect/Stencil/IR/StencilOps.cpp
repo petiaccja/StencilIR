@@ -540,4 +540,17 @@ void JumpOp::getCanonicalizationPatterns(RewritePatternSet& results, MLIRContext
 }
 
 
+OpFoldResult ProjectOp::fold([[maybe_unused]] llvm::ArrayRef<::mlir::Attribute> operands) {
+    const auto positions = getPositions();
+    const auto range = positions.getAsRange<mlir::IntegerAttr>();
+    int64_t idx = 0;
+    for (const auto& pos: range) {
+        if (pos.getInt() != idx++) {
+            return getResult();
+        }
+    }
+    return getSource();
+}
+
+
 } // namespace stencil
