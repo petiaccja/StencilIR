@@ -3,11 +3,13 @@
 #include <llvm/ADT/ArrayRef.h>
 #include <mlir/IR/Builders.h>
 #include <mlir/IR/BuiltinTypes.h>
+#include <mlir/IR/PatternMatch.h>
 #include <mlir/IR/TypeRange.h>
 #include <mlir/IR/Types.h>
 #include <mlir/IR/ValueRange.h>
 #include <mlir/Interfaces/ViewLikeInterface.h>
 #include <mlir/Support/LLVM.h>
+#include <mlir/Transforms/InliningUtils.h>
 
 // clang-format: off
 #include <Stencil/IR/StencilDialect.cpp.inc>
@@ -16,15 +18,77 @@
 // clang-format: on
 
 
-void stencil::StencilDialect::initialize() {
+namespace stencil {
+using namespace mlir;
+
+
+class StencilInlinerInterface;
+
+
+void StencilDialect::initialize() {
     addOperations<
 #define GET_OP_LIST
 #include <Stencil/IR/Stencil.cpp.inc>
         >();
+    addInterfaces<StencilInlinerInterface>();
 }
 
-namespace stencil {
-using namespace mlir;
+
+//------------------------------------------------------------------------------
+// Inliner interface
+//------------------------------------------------------------------------------
+
+class StencilInlinerInterface : public DialectInlinerInterface {
+    using DialectInlinerInterface::DialectInlinerInterface;
+
+    bool isLegalToInline(Operation* call, Operation* callable, bool wouldBeCloned) const override {
+        return true;
+    }
+
+    bool isLegalToInline(Region* dest, Region* src, bool wouldBeCloned, BlockAndValueMapping& valueMapping) const override {
+        return true;
+    }
+
+    bool isLegalToInline(Operation* op, Region* dest, bool wouldBeCloned, BlockAndValueMapping& valueMapping) const override {
+        return true;
+    }
+
+    void handleTerminator(Operation* op, Block* newDest) const override {
+        llvm_unreachable("must implement handleTerminator in the case of multiple inlined blocks");
+    }
+
+    void handleTerminator(Operation* op, ArrayRef<Value> valuesToReplace) const override {
+        auto returnOp = cast<ReturnOp>(op);
+
+        assert(returnOp.getNumOperands() == valuesToReplace.size());
+        for (const auto& it : llvm::enumerate(returnOp.getOperands())) {
+            valuesToReplace[it.index()].replaceAllUsesWith(it.value());
+        }
+    }
+
+    Operation* materializeCallConversion(OpBuilder& builder,
+                                         Value input,
+                                         Type resultType,
+                                         Location conversionLoc) const override {
+        return nullptr;
+    }
+
+    void processInlinedCallBlocks(Operation* call, iterator_range<Region::iterator> inlinedBlocks) const override {
+        auto invokeOp = cast<InvokeOp>(call);
+        auto indexValue = invokeOp.getIndex();
+
+        for (auto& block : inlinedBlocks) {
+            block.walk([&](Operation* operation) {
+                if (auto indexOp = dyn_cast<IndexOp>(operation)) {
+                    indexOp.getResult().replaceAllUsesWith(indexValue);
+                    indexOp->erase();
+                }
+                return WalkResult::advance();
+            });
+        }
+    }
+};
+
 
 //------------------------------------------------------------------------------
 // StencilOp
@@ -416,6 +480,76 @@ mlir::LogicalResult SampleOp::verify() {
     }
 
     return success();
+}
+
+
+//------------------------------------------------------------------------------
+// Folding
+//------------------------------------------------------------------------------
+
+OpFoldResult JumpOp::fold([[maybe_unused]] llvm::ArrayRef<::mlir::Attribute> operands) {
+    auto input = getInputIndex();
+    auto offset = getOffset();
+    auto range = offset.getAsRange<mlir::IntegerAttr>();
+    if (std::all_of(range.begin(), range.end(), [](mlir::IntegerAttr attr) { return attr.getInt() == 0; })) {
+        return input;
+    }
+    return getResult();
+}
+
+
+struct SimplifyJumpChain : public mlir::OpRewritePattern<JumpOp> {
+    explicit SimplifyJumpChain(mlir::MLIRContext* context)
+        : OpRewritePattern<JumpOp>(context, 1) {}
+
+    mlir::LogicalResult matchAndRewrite(JumpOp op, mlir::PatternRewriter& rewriter) const override {
+        auto input = op.getInputIndex();
+        auto definingOp = input.getDefiningOp();
+        if (definingOp) {
+            if (auto definingJumpOp = mlir::dyn_cast<JumpOp>(definingOp)) {
+                mlir::SmallVector<mlir::Attribute, 4> offsetSum;
+                auto myOffset = op.getOffset();
+                auto definingOffset = definingJumpOp.getOffset();
+
+                auto myRange = myOffset.getAsRange<mlir::IntegerAttr>();
+                auto definingRange = definingOffset.getAsRange<mlir::IntegerAttr>();
+                assert(myOffset.size() == definingOffset.size());
+                auto [myIt, defIt] = std::tuple{ myRange.begin(), definingRange.begin() };
+                for (; myIt != myRange.end() && defIt != definingRange.end(); ++myIt, ++defIt) {
+                    auto type = (*myIt).getType();
+                    auto value = (*myIt).getInt() + (*myIt).getInt();
+                    auto sum = mlir::IntegerAttr::get(type, value);
+                    offsetSum.push_back(mlir::cast<mlir::Attribute>(sum));
+                }
+
+                assert(offsetSum.size() == myOffset.size());
+
+                rewriter.replaceOpWithNewOp<JumpOp>(op,
+                                                    op->getResultTypes()[0],
+                                                    definingJumpOp.getInputIndex(),
+                                                    mlir::ArrayAttr::get(getContext(), offsetSum));
+                return success();
+            }
+        }
+        return mlir::failure();
+    }
+};
+
+void JumpOp::getCanonicalizationPatterns(RewritePatternSet& results, MLIRContext* context) {
+    results.add<SimplifyJumpChain>(context);
+}
+
+
+OpFoldResult ProjectOp::fold([[maybe_unused]] llvm::ArrayRef<::mlir::Attribute> operands) {
+    const auto positions = getPositions();
+    const auto range = positions.getAsRange<mlir::IntegerAttr>();
+    int64_t idx = 0;
+    for (const auto& pos : range) {
+        if (pos.getInt() != idx++) {
+            return getResult();
+        }
+    }
+    return getSource();
 }
 
 

@@ -76,7 +76,7 @@ TEST_CASE("Structured", "[Program]") {
     }
 
     const auto program = CreateAST();
-    const auto stages = RunAST(*program, "main", input, output);
+    const auto stages = RunAST(*program, "main", false, input, output);
 
     const std::array<float, outputSizeX* outputSizeY> expectedBuffer = {
         -0.8f, -1.4f, -2.0f, -2.6f, -3.2f, -3.8f, -4.4f,

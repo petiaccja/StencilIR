@@ -3,6 +3,8 @@
 #include <Conversion/Passes.hpp>
 #include <Dialect/BufferizationExtensions/Transforms/OneShotBufferizeCombined.hpp>
 #include <Dialect/Stencil/Transforms/BufferizableOpInterfaceImpl.hpp>
+#include <Dialect/Stencil/Transforms/Passes.hpp>
+#include <Transforms/Passes.hpp>
 
 #include <mlir/Conversion/Passes.h>
 #include <mlir/Dialect/Arithmetic/Transforms/Passes.h>
@@ -38,27 +40,39 @@ Stage CreateBufferizationStage(mlir::MLIRContext& context) {
 }
 
 
-Stage CreateMacroOptimizationStage(mlir::MLIRContext& context,
-                                   const MacroOptimizationOptions& macroOptimizationOptions) {
-    Stage stage{ "macro_opt", context };
+Stage CreateGlobalOptimizationStage(mlir::MLIRContext& context,
+                                    const OptimizationOptions& optimizationOptions) {
+    Stage stage{ "global_opt", context };
 
-    if (macroOptimizationOptions.eliminateAllocBuffers) {
+    if (optimizationOptions.inlineFunctions) {
+        stage.passes->addPass(mlir::createInlinerPass());
+    }
+    if (optimizationOptions.eliminateAllocBuffers) {
         stage.passes->addPass(mlir::bufferization::createAllocTensorEliminationPass());
     }
+    if (optimizationOptions.fuseExtractSliceOps) {
+        stage.passes->addPass(createFuseExtractSliceOpsPass());
+    }
+    if (optimizationOptions.fuseApplyOps) {
+        stage.passes->addPass(createFuseApplyOpsPass());
+    }
+
+    stage.passes->addPass(mlir::createCSEPass());
 
     return stage;
 }
 
 
 std::vector<Stage> TargetCPUPipeline(mlir::MLIRContext& context,
-                                     const MacroOptimizationOptions& macroOptimizationOptions) {
+                                     const OptimizationOptions& optimizationOptions) {
     Stage canonicalization{ "canonicalization", context };
     canonicalization.passes->addPass(mlir::createCSEPass());
     canonicalization.passes->addPass(mlir::createCanonicalizerPass());
+    canonicalization.passes->addPass(createReduceDimOpsPass());
     canonicalization.passes->addPass(mlir::createTopologicalSortPass());
 
     Stage bufferization = CreateBufferizationStage(context);
-    Stage macroOpt = CreateMacroOptimizationStage(context, macroOptimizationOptions);
+    Stage globalOpt = CreateGlobalOptimizationStage(context, optimizationOptions);
 
     Stage loops{ "loops", context };
     loops.passes->addPass(createStencilApplyToLoopsPass());
@@ -84,7 +98,7 @@ std::vector<Stage> TargetCPUPipeline(mlir::MLIRContext& context,
     llvm.passes->addPass(mlir::createCanonicalizerPass());
 
     std::array stages{ std::move(canonicalization),
-                       std::move(macroOpt),
+                       std::move(globalOpt),
                        std::move(bufferization),
                        std::move(loops),
                        std::move(standard),

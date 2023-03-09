@@ -10,6 +10,7 @@ target_sources(TestIntegration
     PRIVATE
         Test_Structured.cpp
         Test_Unstructured.cpp
+        Test_Optimization.cpp
 )
 
 target_link_libraries(TestIntegration AST Compiler Execution)

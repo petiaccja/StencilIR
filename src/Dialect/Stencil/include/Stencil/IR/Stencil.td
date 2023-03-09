@@ -23,7 +23,7 @@ class Stencil_Op<string mnemonic, list<Trait> traits = []> :
 
 
 def StencilOp : Stencil_Op<"stencil", [
-  AffineScope, AutomaticAllocationScope,
+  AffineScope, AutomaticAllocationScope, CallableOpInterface,
   FunctionOpInterface, IsolatedFromAbove, OpAsmOpInterface, Symbol
 ]> {
   let arguments = (ins
@@ -56,6 +56,19 @@ def StencilOp : Stencil_Op<"stencil", [
     /// asserts that the attributes of the current function and dest are
     /// compatible.
     void cloneInto(StencilOp dest, mlir::BlockAndValueMapping &mapper);
+
+    //===------------------------------------------------------------------===//
+    // CallableOpInterface
+    //===------------------------------------------------------------------===//
+
+    /// Returns the region on the current operation that is callable. This may
+    /// return null in the case of an external callable object, e.g. an external
+    /// function.
+    ::mlir::Region *getCallableRegion() { return isExternal() ? nullptr : &getBody(); }
+
+    /// Returns the results types that the callable region produces when
+    /// executed.
+    ::mlir::ArrayRef<::mlir::Type> getCallableResults() { return getFunctionType().getResults(); }
 
     //===------------------------------------------------------------------===//
     // FunctionOpInterface Methods
@@ -131,10 +144,10 @@ def ApplyOp : Stencil_Op<"apply", [
 
 
 def InvokeOp : Stencil_Op<"invoke", [
-  MemRefsNormalizable, AttrSizedOperandSegments,
+  MemRefsNormalizable, CallOpInterface,
   DeclareOpInterfaceMethods<SymbolUserOpInterface>
 ]> {
-  let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<Index>:$indices, Variadic<AnyType>:$arguments);
+  let arguments = (ins FlatSymbolRefAttr:$callee, AnyVector:$index, Variadic<AnyType>:$arguments);
   let results = (outs Variadic<AnyType>);
   let extraClassDeclaration = [{
     mlir::FunctionType getCalleeType();
@@ -144,7 +157,7 @@ def InvokeOp : Stencil_Op<"invoke", [
       return {arg_operand_begin(), arg_operand_end()};
     }
 
-    operand_iterator arg_operand_begin() { return operand_begin(); }
+    operand_iterator arg_operand_begin() { return operand_begin() + 1; }
     operand_iterator arg_operand_end() { return operand_end(); }
 
     /// Return the callee of this operation.
@@ -155,7 +168,7 @@ def InvokeOp : Stencil_Op<"invoke", [
 
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = [{
-    $callee `<` $indices `>` `(` $arguments `)` attr-dict `:` functional-type($arguments, results)
+    $callee `<` $index `>` `` `(` $arguments `)` attr-dict `:` functional-type(operands, results)
   }];
 }
 
@@ -188,6 +201,8 @@ def JumpOp : Stencil_Op<"jump", [NoSideEffect]> {
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = "$input_index `,` $offset attr-dict `:` functional-type($input_index, $offseted_index)";
   let summary = "Move an index by a constant offset.";
+  let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 
@@ -200,6 +215,7 @@ def ProjectOp : Stencil_Op<"project", [NoSideEffect]> {
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = "$source `` $positions attr-dict `:` functional-type($source, $result)";
   let summary = "Project and optionally shuffle the elements of an index.";
+  let hasFolder = 1;
 }
 
 

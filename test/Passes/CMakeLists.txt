@@ -7,7 +7,7 @@ target_sources(TestPasses
 )
 
 target_link_libraries(TestPasses LLVMFileCheck LLVMSupport)
-target_link_libraries(TestPasses AST StencilDialect Conversion BufferizationExtensions)
+target_link_libraries(TestPasses AST StencilDialect Conversion BufferizationExtensions Transforms)
 target_link_libraries(TestPasses TestTools)
 
 find_package(Catch2)

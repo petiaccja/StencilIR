@@ -30,6 +30,7 @@ enum class eOptimizationLevel {
 struct CompileOptions {
     eTargetArch targetArch;
     eOptimizationLevel optimizationLevel;
+    OptimizationOptions optimizationOptions;
 };
 
 

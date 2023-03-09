@@ -118,7 +118,7 @@ bool CheckAST(ast::Module& moduleNode, std::string_view pattern) {
 }
 
 
-bool CheckFile(std::filesystem::path file, std::vector<std::unique_ptr<mlir::Pass>> passes) {
+bool CheckFile(const std::filesystem::path& file, std::vector<std::unique_ptr<Pass>>&& passes) {
     std::ifstream is(file);
     if (!is.is_open()) {
         throw std::runtime_error("failed to open file: " + file.string());
@@ -153,7 +153,7 @@ bool CheckFile(std::filesystem::path file, std::vector<std::unique_ptr<mlir::Pas
 
     mlir::PassManager pm{ &context };
     for (auto& pass : passes) {
-        pm.addPass(std::move(pass));
+        pass->MoveTo(pm);
     }
 
     {

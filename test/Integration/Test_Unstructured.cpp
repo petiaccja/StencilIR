@@ -103,7 +103,7 @@ TEST_CASE("Unstructured", "[Program]") {
     StridedMemRefType<float, 2> cellWeightsMem{ cellWeights.data(), cellWeights.data(), 0, { numEdges, 2 }, { 1, numEdges } };
 
     const auto program = CreateAST();
-    const auto stages = RunAST(*program, "main", cellKMem, edgeToCellMem, cellWeightsMem, edgeKMem);
+    const auto stages = RunAST(*program, "main", false, cellKMem, edgeToCellMem, cellWeightsMem, edgeKMem);
 
     const std::array<float, numEdges* numLevels> expectedBuffer = {
         1.f, 1.14354706f, 1.20482254f, 1.2464242f, 1.27830124f,

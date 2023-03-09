@@ -3,9 +3,12 @@
 #include "Compiler.hpp"
 
 
-struct MacroOptimizationOptions {
-    bool eliminateAllocBuffers = true;
+struct OptimizationOptions {
+    bool inlineFunctions = false;
+    bool eliminateAllocBuffers = false;
+    bool fuseApplyOps = false;
+    bool fuseExtractSliceOps = false;
 };
 
 std::vector<Stage> TargetCPUPipeline(mlir::MLIRContext& context,
-                                     const MacroOptimizationOptions& macroOptimizationOptions = {});
+                                     const OptimizationOptions& macroOptimizationOptions = {});
