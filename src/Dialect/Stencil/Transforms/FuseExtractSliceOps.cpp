@@ -88,14 +88,18 @@ auto OffsetStencilInputs(stencil::StencilOp stencilOp,
 
 mlir::FailureOr<stencil::ApplyOp> FusePrecedingExtractSlices(stencil::ApplyOp applyOp, mlir::PatternRewriter& rewriter) {
     mlir::SmallVector<std::optional<mlir::SmallVector<int64_t, 3>>, 16> offsets;
-    for (const auto& input : applyOp.getInputs()) {
-        const auto definingOp = input.getDefiningOp();
-        if (definingOp) {
-            if (auto extractSliceOp = mlir::dyn_cast<mlir::tensor::ExtractSliceOp>(definingOp)) {
-                offsets.push_back(GetStaticOffsets(extractSliceOp));
-            }
-        }
-    }
+    std::transform(applyOp.getInputs().begin(),
+                   applyOp.getInputs().end(),
+                   std::back_inserter(offsets),
+                   [](const auto& input) -> std::optional<mlir::SmallVector<int64_t, 3>> {
+                       const auto definingOp = input.getDefiningOp();
+                       if (definingOp) {
+                           if (auto extractSliceOp = mlir::dyn_cast<mlir::tensor::ExtractSliceOp>(definingOp)) {
+                               return { GetStaticOffsets(extractSliceOp) };
+                           }
+                       }
+                       return {};
+                   });
 
     if (std::none_of(offsets.begin(), offsets.end(), std::identity{})) {
         return applyOp;
