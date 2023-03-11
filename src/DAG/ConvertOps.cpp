@@ -31,7 +31,7 @@ mlir::Location ConvertLocation(mlir::OpBuilder& builder, const std::optional<Loc
 // Module, functions, stencils
 //------------------------------------------------------------------------------
 
-mlir::Operation* ConvertModuleOp(Converter& converter, OperationImpl& op, mlir::ValueRange operands) {
+mlir::Operation* ConvertModuleOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
     const auto loc = ConvertLocation(builder, op.Location());
 
@@ -46,7 +46,7 @@ mlir::Operation* ConvertModuleOp(Converter& converter, OperationImpl& op, mlir::
 }
 
 
-mlir::Operation* ConvertFuncOp(Converter& converter, OperationImpl& op, mlir::ValueRange operands) {
+mlir::Operation* ConvertFuncOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
     const auto loc = ConvertLocation(builder, op.Location());
     const auto& attr = std::any_cast<const FuncAttr&>(op.Attributes());
@@ -66,7 +66,7 @@ mlir::Operation* ConvertFuncOp(Converter& converter, OperationImpl& op, mlir::Va
 }
 
 
-mlir::Operation* ConvertReturnOp(Converter& converter, OperationImpl& op, mlir::ValueRange operands) {
+mlir::Operation* ConvertReturnOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
     const auto loc = ConvertLocation(builder, op.Location());
 
@@ -88,7 +88,7 @@ mlir::Operation* ConvertReturnOp(Converter& converter, OperationImpl& op, mlir::
 // Arithmetic-logic
 //------------------------------------------------------------------------------
 
-mlir::Operation* ConvertArithmeticOp(Converter& converter, OperationImpl& op, mlir::ValueRange operands) {
+mlir::Operation* ConvertArithmeticOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
     const auto loc = ConvertLocation(builder, op.Location());
     const auto& attr = std::any_cast<const eArithmeticFunction&>(op.Attributes());

@@ -4,51 +4,38 @@
 namespace dag {
 
 
-std::vector<std::shared_ptr<ResultImpl>> AsImpls(std::span<const Result> args) {
-    std::vector<std::shared_ptr<ResultImpl>> r;
-    r.reserve(args.size());
-    std::transform(args.begin(), args.end(), std::back_inserter(r), [](const auto& v) {
-        return (std::shared_ptr<ResultImpl>)v;
-    });
-    return r;
+
+Value::Value(Operation def, size_t index)
+    : impl(std::make_shared<ValueImpl>(ValueImpl{ std::weak_ptr{ std::shared_ptr<OperationImpl>{ def } }, {}, index })) {}
+
+Operation Value::DefiningOp() const {
+    auto locked = impl->def.lock();
+    if (!locked) {
+        throw std::logic_error("operation that created this value has been deleted");
+    }
+    return locked;
+}
+
+size_t Value::Index() const {
+    return impl->index;
+}
+
+void Value::AddUser(Operation user) {
+    impl->users.insert(user);
+}
+
+void Value::RemoveUser(Operation user) {
+    impl->users.erase(user);
 }
 
 
-std::vector<std::shared_ptr<OperandImpl>> AsImpls(std::span<const Operand> args) {
-    std::vector<std::shared_ptr<OperandImpl>> r;
-    r.reserve(args.size());
-    std::transform(args.begin(), args.end(), std::back_inserter(r), [](const auto& v) {
-        return (std::shared_ptr<OperandImpl>)v;
-    });
-    return r;
-}
 
-
-std::vector<RegionImpl> AsImpls(std::span<const Region> args) {
-    std::vector<RegionImpl> r;
-    r.reserve(args.size());
-    std::transform(args.begin(), args.end(), std::back_inserter(r), [](const Region& v) {
-        std::vector<std::shared_ptr<ResultImpl>> args;
-        std::vector<std::shared_ptr<OperationImpl>> ops;
-
-        args.reserve(v.args.size());
-        ops.reserve(v.operations.size());
-
-        std::transform(v.operations.begin(), v.operations.end(), std::back_inserter(ops), [](const Operation& v) {
-            return (std::shared_ptr<OperationImpl>)v;
-        });
-        return RegionImpl{ std::move(args), std::move(ops) };
-    });
-    return r;
-}
-
-
-Result::Result(Operation def, size_t index)
-    : impl(std::make_shared<ResultImpl>((std::shared_ptr<OperationImpl>)def, index)) {}
-
-
-Operand::Operand(Result result, Operation user)
-    : impl(std::make_shared<OperandImpl>((std::shared_ptr<ResultImpl>)result, (std::shared_ptr<OperationImpl>)user)) {}
+std::type_index Operation::Type() const { return impl->m_type; }
+std::span<Value> Operation::Operands() const { return impl->m_operands; }
+std::span<Value> Operation::Results() const { return impl->m_results; }
+std::span<Region> Operation::Regions() const { return impl->m_regions; }
+const std::any& Operation::Attributes() const { return impl->m_attributes; }
+const std::optional<Location>& Operation::Location() const { return impl->m_loc; }
 
 
 } // namespace dag

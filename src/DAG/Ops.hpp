@@ -6,16 +6,16 @@ namespace dag {
 
 template <class ConcreteOp>
 struct Op {
-    Op(std::span<const Operand> operands,
-       std::span<const Result> results,
-       std::span<const Region> regions,
+    Op(std::vector<Value> operands,
+       std::vector<Value> results,
+       std::vector<Region> regions,
        std::any attributes,
        std::optional<Location> loc = {})
-        : operation(static_cast<ConcreteOp&>(*this), operands, results, regions, loc) {}
+        : operation(static_cast<ConcreteOp&>(*this), std::move(operands), std::move(results), std::move(regions), attributes, loc) {}
     Operation operation;
     operator Operation() const { return operation; }
     operator std::shared_ptr<OperationImpl>() const { return operation; }
-    std::span<const std::shared_ptr<ResultImpl>> Results() { return operation->Results(); }
+    std::span<Value> Results() { return operation.Results(); }
 };
 
 
@@ -27,21 +27,12 @@ struct FuncAttr {
 
 
 inline Region CreateFunctionRegion(Operation op, std::shared_ptr<ast::FunctionType> signature) {
-    std::vector<Result> args;
+    std::vector<Value> args;
     size_t index = 0;
     for (auto type : signature->results) {
-        args.push_back(Result(op, index++));
+        args.push_back(Value(op, index++));
     }
     return Region{ args, {} };
-}
-
-
-inline std::vector<Operand> CreateOperands(Operation op, std::span<Result> values) {
-    std::vector<Operand> operands;
-    std::ranges::transform(values, std::back_inserter(operands), [&](const Result& result) {
-        return Operand(result, op);
-    });
-    return operands;
 }
 
 
@@ -49,12 +40,12 @@ struct ModuleOp : Op<ModuleOp> {
     ModuleOp(std::optional<Location> loc = {})
         : Op({},
              {},
-             std::array{ Region{} },
+             { Region{} },
              {},
              loc) {}
 
-    RegionImpl& Body() {
-        return operation->Regions().front();
+    Region& Body() {
+        return operation.Regions().front();
     }
 };
 
@@ -66,19 +57,19 @@ struct FuncOp : Op<FuncOp> {
            std::optional<Location> loc = {})
         : Op({},
              {},
-             std::array{ CreateFunctionRegion(*this, signature) },
+             { CreateFunctionRegion(*this, signature) },
              FuncAttr{ name, signature, isPublic },
              loc) {}
 
-    RegionImpl& Body() {
-        return operation->Regions().front();
+    Region& Body() {
+        return operation.Regions().front();
     }
 };
 
 
 struct ReturnOp : Op<ReturnOp> {
-    ReturnOp(std::vector<Result> values, std::optional<Location> loc = {})
-        : Op(CreateOperands(*this, values), {}, {}, {}, loc) {}
+    ReturnOp(std::vector<Value> values, std::optional<Location> loc = {})
+        : Op(values, {}, {}, {}, loc) {}
 };
 
 
@@ -97,9 +88,9 @@ enum class eArithmeticFunction {
 
 
 struct ArithmeticOp : Op<ArithmeticOp> {
-    ArithmeticOp(Result lhs, Result rhs, eArithmeticFunction function, std::optional<Location> loc = {})
-        : Op(std::array{ Operand(lhs, *this), Operand(lhs, *this) },
-             std::array{ Result(*this, 0) },
+    ArithmeticOp(Value lhs, Value rhs, eArithmeticFunction function, std::optional<Location> loc = {})
+        : Op({ lhs, rhs },
+             { Value(*this, 0) },
              {},
              function,
              loc) {}

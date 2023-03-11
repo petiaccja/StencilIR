@@ -16,17 +16,17 @@ namespace dag {
 class Converter;
 
 
-using ConverterFunction = std::function<mlir::Operation*(Converter&, OperationImpl&, mlir::ValueRange)>;
+using ConverterFunction = std::function<mlir::Operation*(Converter&, Operation, mlir::ValueRange)>;
 
 
 class Converter {
 public:
     Converter(mlir::MLIRContext& context) : m_builder(&context) {}
 
-    mlir::Operation* operator()(std::shared_ptr<OperationImpl> operation);
+    mlir::Operation* operator()(Operation operation);
 
     mlir::OpBuilder& Builder() { return m_builder; }
-    void MapEntryBlock(const RegionImpl& region, mlir::Block& block);
+    void MapEntryBlock(const Region& region, mlir::Block& block);
 
     template <class ConcreteOp>
     void RegisterOp(ConverterFunction converterFunction) {
@@ -35,7 +35,7 @@ public:
 
 private:
     std::unordered_map<std::type_index, ConverterFunction> m_converterFunctions;
-    std::unordered_map<std::shared_ptr<ResultImpl>, mlir::Value> m_convertedResults;
+    std::unordered_map<std::shared_ptr<ValueImpl>, mlir::Value> m_convertedResults;
     mlir::OpBuilder m_builder;
 };
 
