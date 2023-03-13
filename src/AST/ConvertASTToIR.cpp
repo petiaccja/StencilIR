@@ -393,6 +393,9 @@ public:
         const auto parentOp = builder.getBlock()->getParentOp();
         const auto calleeAttr = builder.getStringAttr(node.callee);
         const auto calleeOp = mlir::SymbolTable::lookupNearestSymbolFrom(parentOp, calleeAttr);
+        if (!calleeOp) {
+            throw UndefinedSymbolError{ loc, node.callee };
+        }
         const auto calleeFuncOp = mlir::dyn_cast<mlir::func::FuncOp>(calleeOp);
         if (!calleeFuncOp) {
             throw UndefinedSymbolError{ loc, node.callee };
