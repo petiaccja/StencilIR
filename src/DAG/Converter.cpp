@@ -1,5 +1,8 @@
 #include "Converter.hpp"
 
+#include <Diagnostics/Exception.hpp>
+#include <Diagnostics/Formatting.hpp>
+
 #include <mlir/IR/Operation.h>
 
 #include <algorithm>
@@ -7,6 +10,17 @@
 
 
 namespace dag {
+
+
+
+static mlir::Location ConvertLocation(mlir::OpBuilder& builder, const std::optional<Location>& location) {
+    if (location) {
+        auto fileattr = builder.getStringAttr(location->file);
+        return mlir::FileLineColLoc::get(fileattr, location->line, location->col);
+    }
+    return builder.getUnknownLoc();
+}
+
 
 
 mlir::Operation* Converter::operator()(Operation operation) {
@@ -18,13 +32,18 @@ mlir::Operation* Converter::operator()(Operation operation) {
     const auto& converterFun = converterFunIt->second;
 
     mlir::SmallVector<mlir::Value> convertedOperands;
-    const auto operands = operation.Operands();
+    const auto& operands = operation.Operands();
     convertedOperands.reserve(operands.size());
 
-    std::ranges::transform(operands, std::back_inserter(convertedOperands), [this](const auto& operand) {
-        auto valueIt = m_convertedResults.find(operand);
-        if (valueIt != m_convertedResults.end()) {
-            throw std::invalid_argument("operations are not topologically sorted");
+    std::ranges::transform(operands, std::back_inserter(convertedOperands), [this, &operation](const auto& operand) {
+        auto valueIt = m_convertedResults.find(operand.source);
+        if (valueIt == m_convertedResults.end()) {
+            mlir::Diagnostic diag(ConvertLocation(m_builder, operation.Location()), mlir::DiagnosticSeverity::Error);
+            diag << "operation not preceded by its arguments";
+            diag.attachNote() << "current operation's RTTI type is " << operation.Type().name();
+            std::vector<mlir::Diagnostic> diags;
+            diags.push_back(std::move(diag));
+            throw CompilationError(diags);
         }
         return valueIt->second;
     });

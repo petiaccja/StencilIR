@@ -7,18 +7,22 @@
 #include <Diagnostics/Exception.hpp>
 #include <Diagnostics/Handlers.hpp>
 #include <Dialect/Stencil/IR/StencilOps.hpp>
+#include <Dialect/Stencil/Transforms/BufferizableOpInterfaceImpl.hpp>
 
 #include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
+#include <mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/IR/BuiltinDialect.h>
 #include <mlir/IR/BuiltinOps.h>
+#include <mlir/IR/DialectRegistry.h>
 #include <mlir/IR/Verifier.h>
+#include <mlir/InitAllDialects.h>
 
 
 namespace dag {
 
 
-mlir::Location ConvertLocation(mlir::OpBuilder& builder, const std::optional<Location>& location) {
+static mlir::Location ConvertLocation(mlir::OpBuilder& builder, const std::optional<Location>& location) {
     if (location) {
         auto fileattr = builder.getStringAttr(location->file);
         return mlir::FileLineColLoc::get(fileattr, location->line, location->col);
@@ -54,10 +58,11 @@ mlir::Operation* ConvertFuncOp(Converter& converter, Operation op, mlir::ValueRa
     auto functionType = ConvertType(builder, *attr.signature).dyn_cast<mlir::FunctionType>();
 
     auto converted = builder.create<mlir::func::FuncOp>(loc, attr.name, functionType);
-    converter.MapEntryBlock(op.Regions().front(), converted.getBody().front());
+    const auto entryBlock = converted.addEntryBlock();
+    converter.MapEntryBlock(op.Regions().front(), *entryBlock);
 
     converted.setVisibility(attr.isPublic ? mlir::SymbolTable::Visibility::Public : mlir::SymbolTable::Visibility::Private);
-    builder.setInsertionPointToEnd(&converted.getBody().front());
+    builder.setInsertionPointToEnd(entryBlock);
     for (const auto& op : op.Regions().front().operations) {
         converter(op);
     }
@@ -137,10 +142,21 @@ mlir::Operation* ConvertArithmeticOp(Converter& converter, Operation op, mlir::V
 //------------------------------------------------------------------------------
 
 mlir::Operation* ConvertOperation(mlir::MLIRContext& context, Operation op) {
+    mlir::registerAllDialects(context);
+    mlir::DialectRegistry registry;
+    registry.insert<stencil::StencilDialect>();
+    mlir::bufferization::func_ext::registerBufferizableOpInterfaceExternalModels(registry);
+    stencil::registerBufferizableOpInterfaceExternalModels(registry);
+    context.appendDialectRegistry(registry);
+    context.loadAllAvailableDialects();
+
+
     Converter converter{ context };
 
     converter.RegisterOp<ModuleOp>(&ConvertModuleOp);
     converter.RegisterOp<FuncOp>(&ConvertFuncOp);
+    converter.RegisterOp<ArithmeticOp>(&ConvertArithmeticOp);
+    converter.RegisterOp<ReturnOp>(&ConvertReturnOp);
 
     auto converted = converter(op);
 

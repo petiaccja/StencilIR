@@ -29,9 +29,17 @@ void Value::RemoveUser(Operation user) {
 }
 
 
+Operand::Operand(Value source, Operation owner)
+    : source(source), owner((std::shared_ptr<OperationImpl>)owner) {
+    source.AddUser(owner);
+}
+Operand::~Operand() {
+    source.RemoveUser(owner.lock());
+}
+
 
 std::type_index Operation::Type() const { return impl->m_type; }
-std::span<Value> Operation::Operands() const { return impl->m_operands; }
+std::span<Operand> Operation::Operands() const { return impl->m_operands; }
 std::span<Value> Operation::Results() const { return impl->m_results; }
 std::span<Region> Operation::Regions() const { return impl->m_regions; }
 const std::any& Operation::Attributes() const { return impl->m_attributes; }
