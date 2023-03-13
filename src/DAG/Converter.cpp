@@ -27,7 +27,12 @@ mlir::Operation* Converter::operator()(Operation operation) {
     const auto type = operation.Type();
     const auto converterFunIt = m_converterFunctions.find(type);
     if (converterFunIt == m_converterFunctions.end()) {
-        throw std::invalid_argument("no converter function for given operation");
+        mlir::Diagnostic diag(ConvertLocation(m_builder, operation.Location()), mlir::DiagnosticSeverity::Error);
+        diag << "no converter for given operation";
+        diag.attachNote() << "operation's RTTI type is " << operation.Type().name();
+        std::vector<mlir::Diagnostic> diags;
+        diags.push_back(std::move(diag));
+        throw CompilationError(diags);
     }
     const auto& converterFun = converterFunIt->second;
 
@@ -36,7 +41,7 @@ mlir::Operation* Converter::operator()(Operation operation) {
     convertedOperands.reserve(operands.size());
 
     std::ranges::transform(operands, std::back_inserter(convertedOperands), [this, &operation](const auto& operand) {
-        auto valueIt = m_convertedResults.find(operand.source);
+        auto valueIt = m_convertedResults.find(operand.Source());
         if (valueIt == m_convertedResults.end()) {
             mlir::Diagnostic diag(ConvertLocation(m_builder, operation.Location()), mlir::DiagnosticSeverity::Error);
             diag << "operation not preceded by its arguments";

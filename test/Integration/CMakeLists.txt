@@ -11,7 +11,6 @@ target_sources(TestIntegration
         Test_Structured.cpp
         Test_Unstructured.cpp
         Test_Optimization.cpp
-        Test_DAG.cpp
 )
 
 target_link_libraries(TestIntegration AST Compiler Execution DAG)

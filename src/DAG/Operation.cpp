@@ -8,7 +8,7 @@ namespace dag {
 Value::Value(Operation def, size_t index)
     : impl(std::make_shared<ValueImpl>(ValueImpl{ std::weak_ptr{ std::shared_ptr<OperationImpl>{ def } }, {}, index })) {}
 
-Operation Value::DefiningOp() const {
+Operation Value::Owner() const {
     auto locked = impl->def.lock();
     if (!locked) {
         throw std::logic_error("operation that created this value has been deleted");
@@ -38,12 +38,32 @@ Operand::~Operand() {
 }
 
 
-std::type_index Operation::Type() const { return impl->m_type; }
-std::span<Operand> Operation::Operands() const { return impl->m_operands; }
-std::span<Value> Operation::Results() const { return impl->m_results; }
-std::span<Region> Operation::Regions() const { return impl->m_regions; }
-const std::any& Operation::Attributes() const { return impl->m_attributes; }
-const std::optional<Location>& Operation::Location() const { return impl->m_loc; }
+Operation::Operation(std::type_index type,
+                     std::vector<Value> operands,
+                     size_t numResults,
+                     std::vector<Region> regions,
+                     std::any attributes,
+                     std::optional<dag::Location> loc)
+    : impl(std::make_shared<OperationImpl>(OperationImpl{ type,
+                                                          {},
+                                                          {},
+                                                          std::move(regions),
+                                                          attributes,
+                                                          loc })) {
+    for (auto& value : operands) {
+        impl->operands.push_back(Operand(value, *this));
+    }
+    for (size_t i = 0; i < numResults; ++i) {
+        impl->results.push_back(Value(*this, i));
+    }
+}
+
+std::type_index Operation::Type() const { return impl->type; }
+std::span<Operand> Operation::Operands() const { return impl->operands; }
+std::span<Value> Operation::Results() const { return impl->results; }
+std::span<Region> Operation::Regions() const { return impl->regions; }
+const std::any& Operation::Attributes() const { return impl->attributes; }
+const std::optional<Location>& Operation::Location() const { return impl->loc; }
 
 
 } // namespace dag

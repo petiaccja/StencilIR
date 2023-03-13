@@ -234,4 +234,20 @@ decltype(auto) VisitType(const Type& type, Visitor&& visitor) {
 }
 
 
+inline const auto Float32 = FloatType::Get(32);
+inline const auto Float64 = FloatType::Get(64);
+
+inline const auto Int8 = IntegerType::Get(8, true);
+inline const auto Int16 = IntegerType::Get(16, true);
+inline const auto Int32 = IntegerType::Get(32, true);
+inline const auto Int64 = IntegerType::Get(64, true);
+
+inline const auto Uint8 = IntegerType::Get(8, false);
+inline const auto Uint16 = IntegerType::Get(16, false);
+inline const auto Uint32 = IntegerType::Get(32, false);
+inline const auto Uint64 = IntegerType::Get(64, false);
+
+inline const auto Bool = IntegerType::Get(1, true);
+
+
 } // namespace ast

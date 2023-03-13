@@ -3,7 +3,11 @@ add_executable(TestDAG)
 target_sources(TestDAG
     PRIVATE
         main.cpp
-        Test_Function.cpp
+        Test_Module.cpp
+        Test_ArithmeticLogic.cpp
+        Test_ControlFlow.cpp
+        Test_Stencil.cpp
+        Test_Tensor.cpp
 )
 
 target_link_libraries(TestDAG LLVMFileCheck LLVMSupport)

@@ -33,6 +33,13 @@ class Operation;
 struct Region {
     std::vector<Value> args;
     std::vector<Operation> operations;
+
+    template <class OpT, class... Args>
+    OpT Create(Args&&... args) {
+        auto op = OpT(std::forward<Args>(args)...);
+        operations.push_back(op);
+        return op;
+    }
 };
 
 
@@ -45,11 +52,11 @@ struct ValueImpl {
 
 class Value {
 public:
-    Value(Operation def, size_t index);
+    Value(Operation owner, size_t index);
     Value(std::shared_ptr<ValueImpl> impl) : impl(impl) {}
     operator std::shared_ptr<ValueImpl>() const { return impl; }
 
-    Operation DefiningOp() const;
+    Operation Owner() const;
     size_t Index() const;
     void AddUser(Operation user);
     void RemoveUser(Operation user);
@@ -63,43 +70,34 @@ class Operand {
 public:
     Operand(Value source, Operation owner);
     ~Operand();
+
+    Value Source() const { return source; }
+    std::weak_ptr<OperationImpl> Owner() const { return owner; }
+
+private:
     Value source;
     std::weak_ptr<OperationImpl> owner;
 };
 
 
 struct OperationImpl {
-    std::type_index m_type;
-    std::vector<Operand> m_operands;
-    std::vector<Value> m_results;
-    std::vector<Region> m_regions;
-    std::any m_attributes;
-    std::optional<Location> m_loc;
+    std::type_index type;
+    std::vector<Operand> operands;
+    std::vector<Value> results;
+    std::vector<Region> regions;
+    std::any attributes;
+    std::optional<Location> loc;
 };
 
 
 class Operation {
 public:
-    template <class ConcreteOp>
-    Operation(ConcreteOp& op,
+    Operation(std::type_index type,
               std::vector<Value> operands,
               size_t numResults,
               std::vector<Region> regions,
               std::any attributes,
-              std::optional<Location> loc = {})
-        : impl(std::make_shared<OperationImpl>(OperationImpl{ typeid(op),
-                                                              {},
-                                                              {},
-                                                              std::move(regions),
-                                                              attributes,
-                                                              loc })) {
-        for (auto& value : operands) {
-            impl->m_operands.push_back(Operand(value, *this));
-        }
-        for (size_t i = 0; i < numResults; ++i) {
-            impl->m_results.push_back(Value(*this, i));
-        }
-    }
+              std::optional<Location> loc = {});
 
 
     Operation(std::shared_ptr<OperationImpl> impl) : impl(impl) {}
