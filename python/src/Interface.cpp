@@ -1,4 +1,5 @@
 #include "CompiledModule.hpp"
+#include <DAG/Ops.hpp>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
@@ -14,9 +15,59 @@ CompiledModule Compile(std::shared_ptr<Module> ast, CompileOptions options, bool
 }
 
 
+void SubmoduleIR(pybind11::module_& main) {
+    using namespace dag;
+
+    auto ir = main.def_submodule("ir");
+
+    // Base classes
+    pybind11::class_<Value, std::shared_ptr<Value>>(ir, "Value");
+    pybind11::class_<Region, std::shared_ptr<Region>>(ir, "Region");
+    pybind11::class_<Operation, std::shared_ptr<Operation>> operation(ir, "Operation");
+    pybind11::class_<SingleRegion, std::shared_ptr<SingleRegion>> singleRegion(ir, "SingleRegion", operation);
+
+    // Module structure
+    pybind11::class_<ModuleOp, std::shared_ptr<ModuleOp>>(ir, "ModuleOp", singleRegion);
+    pybind11::class_<FuncOp, std::shared_ptr<FuncOp>>(ir, "FuncOp", singleRegion);
+    pybind11::class_<StencilOp, std::shared_ptr<StencilOp>>(ir, "StencilOp", singleRegion);
+    pybind11::class_<ReturnOp, std::shared_ptr<ReturnOp>>(ir, "ReturnOp", operation);
+    pybind11::class_<CallOp, std::shared_ptr<CallOp>>(ir, "CallOp", operation);
+    pybind11::class_<ApplyOp, std::shared_ptr<ApplyOp>>(ir, "ApplyOp", operation);
+
+    // Arithmetic-logic
+    pybind11::class_<CastOp, std::shared_ptr<CastOp>>(ir, "CastOp", operation);
+    pybind11::class_<ConstantOp, std::shared_ptr<ConstantOp>>(ir, "ConstantOp", operation);
+    pybind11::class_<ArithmeticOp, std::shared_ptr<ArithmeticOp>>(ir, "ArithmeticOp", operation);
+    pybind11::class_<ComparisonOp, std::shared_ptr<ComparisonOp>>(ir, "ComparisonOp", operation);
+    pybind11::class_<MinOp, std::shared_ptr<MinOp>>(ir, "MinOp", operation);
+    pybind11::class_<MaxOp, std::shared_ptr<MaxOp>>(ir, "MaxOp", operation);
+
+    // Control flow
+    pybind11::class_<IfOp, std::shared_ptr<IfOp>>(ir, "IfOp", operation);
+    pybind11::class_<ForOp, std::shared_ptr<ForOp>>(ir, "ForOp", singleRegion);
+    pybind11::class_<YieldOp, std::shared_ptr<YieldOp>>(ir, "YieldOp", operation);
+
+    // Tensor
+    pybind11::class_<DimOp, std::shared_ptr<DimOp>>(ir, "DimOp", operation);
+    pybind11::class_<AllocTensorOp, std::shared_ptr<AllocTensorOp>>(ir, "AllocTensorOp", operation);
+    pybind11::class_<ExtractSliceOp, std::shared_ptr<ExtractSliceOp>>(ir, "ExtractSliceOp", operation);
+    pybind11::class_<InsertSliceOp, std::shared_ptr<InsertSliceOp>>(ir, "InsertSliceOp", operation);
+
+    // Stencil
+    pybind11::class_<IndexOp, std::shared_ptr<IndexOp>>(ir, "IndexOp", operation);
+    pybind11::class_<JumpOp, std::shared_ptr<JumpOp>>(ir, "JumpOp", operation);
+    pybind11::class_<ProjectOp, std::shared_ptr<ProjectOp>>(ir, "ProjectOp", operation);
+    pybind11::class_<ExtendOp, std::shared_ptr<ExtendOp>>(ir, "ExtendOp", operation);
+    pybind11::class_<ExchangeOp, std::shared_ptr<ExchangeOp>>(ir, "ExchangeOp", operation);
+    pybind11::class_<ExtractOp, std::shared_ptr<ExtractOp>>(ir, "ExtractOp", operation);
+    pybind11::class_<SampleOp, std::shared_ptr<SampleOp>>(ir, "SampleOp", operation);
+}
+
+
 PYBIND11_MODULE(stencilir, m) {
     m.doc() = "Stencil IR Python bindings";
 
+    SubmoduleIR(m);
     //----------------------------------
     // AST nodes
     //----------------------------------
