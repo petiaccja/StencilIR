@@ -92,9 +92,8 @@ mlir::FailureOr<stencil::ApplyOp> FusePrecedingExtractSlices(stencil::ApplyOp ap
                    applyOp.getInputs().end(),
                    std::back_inserter(offsets),
                    [](const auto& input) -> std::optional<mlir::SmallVector<int64_t, 3>> {
-                       const auto definingOp = input.getDefiningOp();
-                       if (definingOp) {
-                           if (auto extractSliceOp = mlir::dyn_cast<mlir::tensor::ExtractSliceOp>(definingOp)) {
+                       if (const auto definingOp = input.getDefiningOp()) {
+                           if (const auto extractSliceOp = mlir::dyn_cast<mlir::tensor::ExtractSliceOp>(definingOp)) {
                                return { GetStaticOffsets(extractSliceOp) };
                            }
                        }
