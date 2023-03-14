@@ -11,7 +11,7 @@ TEST_CASE("If", "[DAG]") {
     auto ifop = func.Create<dag::IfOp>(func.GetRegionArg(0), 1);
     ifop.GetThenRegion().Create<dag::YieldOp>(std::vector<dag::Value>{ func.GetRegionArg(1) });
     ifop.GetElseRegion().Create<dag::YieldOp>(std::vector<dag::Value>{ func.GetRegionArg(2) });
-    func.Create<dag::ReturnOp>(std::vector{ ifop.Results()[0] });
+    func.Create<dag::ReturnOp>(std::vector{ ifop.GetResults()[0] });
 
     const auto pattern = R"(
         // CHECK: func @fn(%[[COND:.*]]: i1, %[[TV:.*]]: f32, %[[FV:.*]]: f32) -> f32
@@ -34,7 +34,7 @@ TEST_CASE("For", "[DAG]") {
     auto forop = func.Create<dag::ForOp>(func.GetRegionArg(0), func.GetRegionArg(1), func.GetRegionArg(2),
                                          std::vector{ func.GetRegionArg(3) });
     forop.GetBody().Create<dag::YieldOp>(std::vector<dag::Value>{ forop.GetRegionArg(1) });
-    func.Create<dag::ReturnOp>(std::vector{ forop.Results()[0] });
+    func.Create<dag::ReturnOp>(std::vector{ forop.GetResults()[0] });
 
     const auto pattern = R"(
         // CHECK: func @fn(%[[START:.*]]: index, %[[STOP:.*]]: index, %[[STEP:.*]]: index, %[[INIT:.*]]: f32) -> f32

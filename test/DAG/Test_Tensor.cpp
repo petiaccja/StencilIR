@@ -13,7 +13,7 @@ TEST_CASE("Dim", "[DAG]") {
                                             { ast::IndexType::Get() }));
 
     auto dim = func.Create<dag::DimOp>(func.GetRegionArg(0), func.GetRegionArg(1));
-    func.Create<dag::ReturnOp>(std::vector{ dim.Results()[0] });
+    func.Create<dag::ReturnOp>(std::vector{ dim.GetResults()[0] });
 
     const auto pattern = R"(
         // CHECK: func @fn(%[[TENSOR:.*]]: tensor<?xf32>, %[[INDEX:.*]]: index) -> index
@@ -33,7 +33,7 @@ TEST_CASE("Alloc tensor", "[DAG]") {
                                             { ast::FieldType::Get(ast::Float32, 1) }));
 
     auto alloc = func.Create<dag::AllocTensorOp>(ast::Float32, std::vector{ func.GetRegionArg(0) });
-    func.Create<dag::ReturnOp>(std::vector{ alloc.Results()[0] });
+    func.Create<dag::ReturnOp>(std::vector{ alloc.GetResults()[0] });
 
     const auto pattern = R"(
         // CHECK: func @fn(%[[SIZE:.*]]: index) -> tensor<?xf32>
@@ -59,7 +59,7 @@ TEST_CASE("Extract slice", "[DAG]") {
                                                     std::vector{ func.GetRegionArg(1) },
                                                     std::vector{ func.GetRegionArg(2) },
                                                     std::vector{ func.GetRegionArg(3) });
-    func.Create<dag::ReturnOp>(std::vector{ extract.Results()[0] });
+    func.Create<dag::ReturnOp>(std::vector{ extract.GetResults()[0] });
 
     const auto pattern = R"(
         // CHECK: func @fn(%[[SOURCE:.*]]: tensor<?xf32>, %[[OFFSET:.*]]: index, %[[SIZE:.*]]: index, %[[STRIDE:.*]]: index) -> tensor<?xf32>
@@ -87,7 +87,7 @@ TEST_CASE("Insert slice", "[DAG]") {
                                                   std::vector{ func.GetRegionArg(2) },
                                                   std::vector{ func.GetRegionArg(3) },
                                                   std::vector{ func.GetRegionArg(4) });
-    func.Create<dag::ReturnOp>(std::vector{ insert.Results()[0] });
+    func.Create<dag::ReturnOp>(std::vector{ insert.GetResults()[0] });
 
     const auto pattern = R"(
         // CHECK: func @fn(%[[SOURCE:.*]]: tensor<?xf32>, %[[DEST:.*]]: tensor<?xf32>, %[[OFFSET:.*]]: index, %[[SIZE:.*]]: index, %[[STRIDE:.*]]: index) -> tensor<?xf32>

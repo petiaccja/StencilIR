@@ -2,22 +2,30 @@
 
 #include "Invoke.hpp"
 
+#include <AST/ConvertASTToIR.hpp>
+#include <DAG/ConvertOps.hpp>
+
 #include <memory_resource>
 #include <new>
 #include <span>
 
 
-static thread_local std::vector<StageResult> stageResults; // TODO: fix this hack.
+
+CompiledModule::CompiledModule(std::shared_ptr<ast::Module> ast, CompileOptions options)
+    : m_ir(ast), m_options(options), m_functions(ExtractFunctions(ast)) {
+}
 
 
-CompiledModule::CompiledModule(std::shared_ptr<ast::Module> ast, CompileOptions options, bool storeIr)
-    : m_runner(Compile(ast, options, (stageResults = {}, storeIr ? &stageResults : nullptr))),
-      m_functions(ExtractFunctions(ast)) {
-    m_ir = stageResults;
+CompiledModule::CompiledModule(dag::ModuleOp ir, CompileOptions options)
+    : m_ir(ir), m_options(options), m_functions(ExtractFunctions(ir)) {
 }
 
 
 pybind11::object CompiledModule::Invoke(std::string function, pybind11::args arguments) {
+    if (!m_runner) {
+        Compile();
+    }
+
     const auto& functionIt = m_functions.find(function);
     if (functionIt == m_functions.end()) {
         throw std::invalid_argument("no function named '" + function + "' in compiled module");
@@ -30,8 +38,8 @@ pybind11::object CompiledModule::Invoke(std::string function, pybind11::args arg
                                     + " arguments, " + std::to_string(arguments.size()) + " provided");
     }
 
-    ArgumentPack inputs{ functionType.parameters, &m_runner };
-    ArgumentPack outputs{ functionType.returns, &m_runner };
+    ArgumentPack inputs{ functionType.parameters, m_runner.get() };
+    ArgumentPack outputs{ functionType.returns, m_runner.get() };
 
 
     const auto inputAlignment = std::align_val_t{ inputs.GetAlignment() };
@@ -49,7 +57,7 @@ pybind11::object CompiledModule::Invoke(std::string function, pybind11::args arg
     inputs.GetOpaquePointers(inputBuffer.get(), std::back_inserter(opaquePointers));
     opaquePointers.push_back(outputBuffer.get());
 
-    m_runner.Invoke(function, std::span{ opaquePointers });
+    m_runner->Invoke(function, std::span{ opaquePointers });
 
     if (functionType.returns.size() > 1) {
         return outputs.Read(outputBuffer.get());
@@ -62,32 +70,38 @@ pybind11::object CompiledModule::Invoke(std::string function, pybind11::args arg
 }
 
 
-std::vector<StageResult> CompiledModule::GetIR() const {
-    return m_ir;
+std::vector<StageResult> CompiledModule::GetStageResults() const {
+    return m_stageResults;
 }
 
 
-Runner CompiledModule::Compile(std::shared_ptr<ast::Module> ast, CompileOptions options, std::vector<StageResult>* stageResults) {
-    mlir::MLIRContext context;
-
-    auto targetStages = [&] {
-        switch (options.targetArch) {
-            case eTargetArch::X86: return TargetCPUPipeline(context, options.optimizationOptions);
-            default: throw std::invalid_argument("Target architecture not supported yet.");
+void CompiledModule::Compile() {
+    auto pipeline = [&] {
+        switch (m_options.targetArch) {
+            case eTargetArch::X86: return TargetCPUPipeline(m_context, m_options.optimizationOptions);
+            default: throw std::invalid_argument("target architecture not supported yet.");
         }
     }();
-    const int optLevel = static_cast<int>(options.optimizationLevel);
+    const int optLevel = static_cast<int>(m_options.optimizationLevel);
 
-    const auto ir = ConvertASTToIR(context, *ast);
-    Compiler compiler(std::move(targetStages));
-    auto llvm = stageResults ? compiler.Run(ir, *stageResults) : compiler.Run(ir);
+    auto convertIr = [this](const auto& ir) -> mlir::ModuleOp {
+        if constexpr (std::is_convertible_v<decltype(ir), std::shared_ptr<ast::Module>>) {
+            return ConvertASTToIR(m_context, *ir);
+        }
+        else if constexpr (std::is_convertible_v<decltype(ir), dag::ModuleOp>) {
+            return mlir::dyn_cast<mlir::ModuleOp>(dag::ConvertOperation(m_context, ir));
+        }
+        std::terminate();
+    };
+    const auto mlirIr = std::visit(convertIr, m_ir);
+    Compiler compiler(std::move(pipeline));
+    auto llvmIr = compiler.Run(mlirIr, m_stageResults);
 
-    return Runner{ llvm, optLevel };
+    m_runner = std::make_unique<Runner>(llvmIr, optLevel);
 }
 
 
-auto CompiledModule::ExtractFunctions(std::shared_ptr<ast::Module> ast)
-    -> std::unordered_map<std::string, FunctionType> {
+auto CompiledModule::ExtractFunctions(std::shared_ptr<ast::Module> ast) -> std::unordered_map<std::string, FunctionType> {
     std::unordered_map<std::string, FunctionType> functions;
     for (const auto& function : ast->functions) {
         std::vector<ast::TypePtr> parameters;
@@ -95,6 +109,18 @@ auto CompiledModule::ExtractFunctions(std::shared_ptr<ast::Module> ast)
             parameters.push_back(parameter.type);
         }
         functions.emplace(function->name, FunctionType{ parameters, function->results });
+    }
+    return functions;
+}
+
+
+auto CompiledModule::ExtractFunctions(dag::ModuleOp ir) -> std::unordered_map<std::string, FunctionType> {
+    std::unordered_map<std::string, FunctionType> functions;
+    for (const auto& op : ir.GetBody().operations) {
+        if (op.Type() == typeid(dag::FuncOp)) {
+            const auto& attr = std::any_cast<const dag::FuncAttr&>(op.GetAttributes());
+            functions.emplace(attr.name, FunctionType{ attr.signature->parameters, attr.signature->results });
+        }
     }
     return functions;
 }

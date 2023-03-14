@@ -56,8 +56,8 @@ public:
     Value(std::shared_ptr<ValueImpl> impl) : impl(impl) {}
     operator std::shared_ptr<ValueImpl>() const { return impl; }
 
-    Operation Owner() const;
-    size_t Index() const;
+    Operation GetOwner() const;
+    size_t GetIndex() const;
     void AddUser(Operation user);
     void RemoveUser(Operation user);
 
@@ -71,8 +71,8 @@ public:
     Operand(Value source, Operation owner);
     ~Operand();
 
-    Value Source() const { return source; }
-    std::weak_ptr<OperationImpl> Owner() const { return owner; }
+    Value GetSource() const { return source; }
+    std::weak_ptr<OperationImpl> GetOwner() const { return owner; }
 
 private:
     Value source;
@@ -104,11 +104,11 @@ public:
     operator std::shared_ptr<OperationImpl>() const { return impl; }
 
     std::type_index Type() const;
-    std::span<Operand> Operands() const;
-    std::span<Value> Results() const;
-    std::span<Region> Regions() const;
-    const std::any& Attributes() const;
-    const std::optional<Location>& Location() const;
+    std::span<Operand> GetOperands() const;
+    std::span<Value> GetResults() const;
+    std::span<Region> GetRegions() const;
+    const std::any& GetAttributes() const;
+    const std::optional<Location>& GetLocation() const;
 
 private:
     std::shared_ptr<OperationImpl> impl;

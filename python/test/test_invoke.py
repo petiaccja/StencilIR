@@ -14,7 +14,7 @@ def test_returns_void():
     module = sir.Module([function], [], None)
 
     compile_options = sir.CompileOptions(sir.TargetArch.X86, sir.OptimizationLevel.O0)
-    compiled_module = sir.compile(module, compile_options)
+    compiled_module = sir.CompiledModule(module, compile_options)
 
     result = compiled_module.invoke("main")
     assert result is None
@@ -32,7 +32,7 @@ def test_returns_single():
     module = sir.Module([function], [], None)
 
     compile_options = sir.CompileOptions(sir.TargetArch.X86, sir.OptimizationLevel.O0)
-    compiled_module = sir.compile(module, compile_options)
+    compiled_module = sir.CompiledModule(module, compile_options)
 
     result = compiled_module.invoke("main")
     assert isinstance(result, float)
@@ -59,7 +59,7 @@ def test_returns_multiple():
     module = sir.Module([function], [], None)
 
     compile_options = sir.CompileOptions(sir.TargetArch.X86, sir.OptimizationLevel.O0)
-    compiled_module = sir.compile(module, compile_options, True)
+    compiled_module = sir.CompiledModule(module, compile_options)
 
     result = compiled_module.invoke("main")
     assert isinstance(result, tuple)
@@ -79,7 +79,7 @@ def test_scalar_passthrough():
     module = sir.Module([function], [], None)
 
     compile_options = sir.CompileOptions(sir.TargetArch.X86, sir.OptimizationLevel.O0)
-    compiled_module = sir.compile(module, compile_options)
+    compiled_module = sir.CompiledModule(module, compile_options)
 
     value = 3.14
     result = compiled_module.invoke("main", value)
@@ -98,8 +98,7 @@ def test_field_passthrough():
     module = sir.Module([function], [], None)
 
     compile_options = sir.CompileOptions(sir.TargetArch.X86, sir.OptimizationLevel.O0)
-    compiled_module = sir.compile(module, compile_options, True)
-    ir = compiled_module.get_ir()
+    compiled_module = sir.CompiledModule(module, compile_options)
 
     value = np.ones((3, 4), dtype=np.float64)
     result = compiled_module.invoke("main", value)
@@ -125,10 +124,21 @@ def test_mixed_passthrough():
     module = sir.Module([function], [], None)
 
     compile_options = sir.CompileOptions(sir.TargetArch.X86, sir.OptimizationLevel.O3)
-    compiled_module = sir.compile(module, compile_options, True)
-    ir = compiled_module.get_ir()
+    compiled_module = sir.CompiledModule(module, compile_options)
 
     v1, v2 = np.ones((3, 4), dtype=np.float64), 12.0
     v1r, v2r = compiled_module.invoke("main", v1, v2)
     assert np.allclose(v1, v1r)
     assert v2 == v2r
+
+
+def test_dag():
+    module = sir.ir.ModuleOp()
+    func = module.add(sir.ir.FuncOp("main", sir.FunctionType([], []), True, None))
+    func.add(sir.ir.ReturnOp([], None))
+
+    compile_options = sir.CompileOptions(sir.TargetArch.X86, sir.OptimizationLevel.O0)
+    compiled_module = sir.CompiledModule(module, compile_options)
+    compiled_module.compile()
+    result = compiled_module.invoke("main")
+    assert result is None

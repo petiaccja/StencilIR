@@ -12,7 +12,7 @@ TEST_CASE("Arithmetic cast", "[DAG]") {
 
     SECTION("Cast") {
         auto cast = func.Create<dag::CastOp>(func.GetRegionArg(0), ast::FloatType::Get(64));
-        func.Create<dag::ReturnOp>(std::vector{ cast.Result() });
+        func.Create<dag::ReturnOp>(std::vector{ cast.GetResult() });
 
         const auto pattern = R"(
             // CHECK: func @fn(%[[ARG:.*]]: f32) -> f64
@@ -33,7 +33,7 @@ TEST_CASE("Arithmetic constant", "[DAG]") {
 
     SECTION("Constant") {
         auto constant = func.Create<dag::ConstantOp>(1.0f, ast::FloatType::Get(32));
-        func.Create<dag::ReturnOp>(std::vector{ constant.Result() });
+        func.Create<dag::ReturnOp>(std::vector{ constant.GetResult() });
 
         const auto pattern = R"(
             // CHECK: func @fn() -> f32
@@ -54,7 +54,7 @@ TEST_CASE("Arithmetic binary", "[DAG]") {
 
     SECTION("Add") {
         auto add = func.Create<dag::ArithmeticOp>(func.GetRegionArg(0), func.GetRegionArg(1), dag::eArithmeticFunction::ADD);
-        func.Create<dag::ReturnOp>(std::vector{ add.Result() });
+        func.Create<dag::ReturnOp>(std::vector{ add.GetResult() });
 
         const auto pattern = R"(
             // CHECK: func @fn(%[[LHS:.*]]: f32, %[[RHS:.*]]: f32) -> f32
@@ -66,7 +66,7 @@ TEST_CASE("Arithmetic binary", "[DAG]") {
     }
     SECTION("Min") {
         auto min = func.Create<dag::MinOp>(func.GetRegionArg(0), func.GetRegionArg(1));
-        func.Create<dag::ReturnOp>(std::vector{ min.Result() });
+        func.Create<dag::ReturnOp>(std::vector{ min.GetResult() });
 
         const auto pattern = R"(
             // CHECK: func @fn(%[[LHS:.*]]: f32, %[[RHS:.*]]: f32) -> f32
@@ -78,7 +78,7 @@ TEST_CASE("Arithmetic binary", "[DAG]") {
     }
     SECTION("Max") {
         auto max = func.Create<dag::MaxOp>(func.GetRegionArg(0), func.GetRegionArg(1));
-        func.Create<dag::ReturnOp>(std::vector{ max.Result() });
+        func.Create<dag::ReturnOp>(std::vector{ max.GetResult() });
 
         const auto pattern = R"(
             // CHECK: func @fn(%[[LHS:.*]]: f32, %[[RHS:.*]]: f32) -> f32
@@ -99,7 +99,7 @@ TEST_CASE("Logic binary", "[DAG]") {
 
     SECTION("Less") {
         auto lt = func.Create<dag::ComparisonOp>(func.GetRegionArg(0), func.GetRegionArg(1), dag::eComparisonFunction::LT);
-        func.Create<dag::ReturnOp>(std::vector{ lt.Result() });
+        func.Create<dag::ReturnOp>(std::vector{ lt.GetResult() });
 
         const auto pattern = R"(
             // CHECK: func @fn(%[[LHS:.*]]: f32, %[[RHS:.*]]: f32) -> i1

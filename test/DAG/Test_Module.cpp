@@ -40,7 +40,7 @@ TEST_CASE("Call", "[DAG]") {
 
     auto caller = mod.Create<dag::FuncOp>("caller", ast::FunctionType::Get({ ast::Float32 }, { ast::Float32 }));
     auto call = caller.Create<dag::CallOp>(callee, std::vector{ caller.GetRegionArg(0) });
-    caller.Create<dag::ReturnOp>(std::vector{ call.Results()[0] });
+    caller.Create<dag::ReturnOp>(std::vector{ call.GetResults()[0] });
 
     const auto pattern = R"(
         // CHECK: func @caller(%[[ARG:.*]]: f32) -> f32
@@ -71,7 +71,7 @@ TEST_CASE("Apply", "[DAG]") {
                                            std::vector{ func.GetRegionArg(1) },
                                            std::vector<dag::Value>{},
                                            std::vector<int64_t>{ 0, 0 });
-    func.Create<dag::ReturnOp>(std::vector{ apply.Results()[0] });
+    func.Create<dag::ReturnOp>(std::vector{ apply.GetResults()[0] });
 
 
     const auto pattern = R"(

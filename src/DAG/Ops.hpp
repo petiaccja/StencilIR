@@ -1,16 +1,10 @@
+#pragma once
+
 #include "Operation.hpp"
 
 
 namespace dag {
 
-// Needs tests:
-//
-// IndexOp
-// JumpOp
-// ExtendOp
-// ExchangeOp
-// ExtractOp
-// SampleOp
 
 //------------------------------------------------------------------------------
 // Enumerations
@@ -89,8 +83,8 @@ struct SingleRegion : Operation {
                  std::optional<dag::Location> loc = {})
         : Operation(type, operands, numResults, { Region{} }, attributes, loc) {}
 
-    Region& GetBody() { return Regions().front(); }
-    const Region& GetBody() const { return Regions().front(); }
+    Region& GetBody() { return GetRegions().front(); }
+    const Region& GetBody() const { return GetRegions().front(); }
 
     size_t GetNumRegionArgs() const { return GetBody().args.size(); }
     const auto& GetRegionArgs() const { return GetBody().args; }
@@ -139,11 +133,11 @@ struct FuncOp : SingleRegion {
     }
 
     std::string_view GetName() const {
-        return std::any_cast<const FuncAttr&>(Attributes()).name;
+        return std::any_cast<const FuncAttr&>(GetAttributes()).name;
     }
 
     std::shared_ptr<ast::FunctionType> GetFunctionType() const {
-        return std::any_cast<const FuncAttr&>(Attributes()).signature;
+        return std::any_cast<const FuncAttr&>(GetAttributes()).signature;
     }
 };
 
@@ -162,11 +156,11 @@ struct StencilOp : SingleRegion {
     }
 
     std::string_view GetName() const {
-        return std::any_cast<const StencilAttr&>(Attributes()).name;
+        return std::any_cast<const StencilAttr&>(GetAttributes()).name;
     }
 
     std::shared_ptr<ast::FunctionType> GetFunctionType() const {
-        return std::any_cast<const StencilAttr&>(Attributes()).signature;
+        return std::any_cast<const StencilAttr&>(GetAttributes()).signature;
     }
 };
 
@@ -174,6 +168,8 @@ struct StencilOp : SingleRegion {
 struct ReturnOp : Operation {
     ReturnOp(std::vector<Value> values, std::optional<dag::Location> loc = {})
         : Operation(typeid(decltype(*this)), values, 0, {}, {}, loc) {}
+
+    auto GetValues() const { return GetOperands(); }
 };
 
 
@@ -185,6 +181,10 @@ struct CallOp : Operation {
                     {},
                     CallAttr{ std::string(func.GetName()) },
                     loc) {}
+
+    std::string GetCallee() const { return std::any_cast<const CallAttr&>(GetAttributes()).name; }
+    size_t GetNumResults() const { return GetResults().size(); }
+    auto GetArgs() const { return GetOperands(); }
 };
 
 
@@ -201,6 +201,16 @@ struct ApplyOp : Operation {
                     {},
                     ApplyAttr{ std::string{ stencil.GetName() }, inputs.size(), outputs.size(), offsets.size(), staticOffsets },
                     loc) {}
+
+    std::string GetStencil() const { return std::any_cast<const ApplyAttr&>(GetAttributes()).name; }
+    size_t GetNumResults() const { return GetResults().size(); }
+    size_t GetNumInputs() const { return std::any_cast<const ApplyAttr&>(GetAttributes()).numInputs; }
+    size_t GetNumOutputs() const { return std::any_cast<const ApplyAttr&>(GetAttributes()).numOutputs; }
+    size_t GetNumOffsets() const { return std::any_cast<const ApplyAttr&>(GetAttributes()).numOffsets; }
+    auto GetInputs() const { return GetOperands().subspan(0, GetNumInputs()); }
+    auto GetOutputs() const { return GetOperands().subspan(GetNumInputs(), GetNumOutputs()); }
+    auto GetOffsets() const { return GetOperands().subspan(GetNumInputs() + GetNumOutputs(), GetNumOffsets()); }
+    auto GetStaticOffsets() const { return std::any_cast<const ApplyAttr&>(GetAttributes()).staticOffsets; }
 };
 
 
@@ -214,8 +224,9 @@ struct InvokeOp;
 struct CastOp : Operation {
     CastOp(Value input, ast::TypePtr type, std::optional<dag::Location> loc = {})
         : Operation(typeid(decltype(*this)), { input }, 1, {}, type, loc) {}
-    Value Input() const { return Operands()[0].Source(); }
-    Value Result() const { return Results()[0]; }
+    Value GetInput() const { return GetOperands()[0].GetSource(); }
+    ast::TypePtr GetType() const { return std::any_cast<ast::TypePtr>(GetAttributes()); }
+    Value GetResult() const { return GetResults()[0]; }
 };
 
 
@@ -226,7 +237,9 @@ struct ConstantOp : Operation {
     explicit ConstantOp(auto value, ast::TypePtr type, std::optional<dag::Location> loc = {})
         : Operation(typeid(decltype(*this)), {}, 1, {}, ConstantAttr{ type, WrapValue(value, type) }, loc) {}
 
-    Value Result() const { return Results()[0]; }
+    auto GetValue() const { return std::any_cast<const ConstantAttr&>(GetAttributes()).value; }
+    ast::TypePtr GetType() const { return std::any_cast<const ConstantAttr&>(GetAttributes()).type; }
+    Value GetResult() const { return GetResults()[0]; }
 
 private:
     static std::any WrapValue(auto value, ast::TypePtr type) {
@@ -248,36 +261,38 @@ private:
 struct ArithmeticOp : Operation {
     ArithmeticOp(Value lhs, Value rhs, eArithmeticFunction function, std::optional<dag::Location> loc = {})
         : Operation(typeid(decltype(*this)), { lhs, rhs }, 1, {}, function, loc) {}
-    Value Lhs() const { return Operands()[0].Source(); }
-    Value Rhs() const { return Operands()[1].Source(); }
-    Value Result() const { return Results()[0]; }
+    Value GetLeft() const { return GetOperands()[0].GetSource(); }
+    Value GetRight() const { return GetOperands()[1].GetSource(); }
+    eArithmeticFunction GetFunction() const { return std::any_cast<eArithmeticFunction>(GetAttributes()); }
+    Value GetResult() const { return GetResults()[0]; }
 };
 
 
 struct ComparisonOp : Operation {
     ComparisonOp(Value lhs, Value rhs, eComparisonFunction function, std::optional<dag::Location> loc = {})
         : Operation(typeid(decltype(*this)), { lhs, rhs }, 1, {}, function, loc) {}
-    Value Lhs() const { return Operands()[0].Source(); }
-    Value Rhs() const { return Operands()[1].Source(); }
-    Value Result() const { return Results()[0]; }
+    Value GetLeft() const { return GetOperands()[0].GetSource(); }
+    Value GetRight() const { return GetOperands()[1].GetSource(); }
+    eComparisonFunction GetFunction() const { return std::any_cast<eComparisonFunction>(GetAttributes()); }
+    Value GetResult() const { return GetResults()[0]; }
 };
 
 
 struct MinOp : Operation {
     MinOp(Value lhs, Value rhs, std::optional<dag::Location> loc = {})
         : Operation(typeid(decltype(*this)), { lhs, rhs }, 1, {}, {}, loc) {}
-    Value Lhs() const { return Operands()[0].Source(); }
-    Value Rhs() const { return Operands()[1].Source(); }
-    Value Result() const { return Results()[0]; }
+    Value GetLeft() const { return GetOperands()[0].GetSource(); }
+    Value GetRight() const { return GetOperands()[1].GetSource(); }
+    Value GetResult() const { return GetResults()[0]; }
 };
 
 
 struct MaxOp : Operation {
     MaxOp(Value lhs, Value rhs, std::optional<dag::Location> loc = {})
         : Operation(typeid(decltype(*this)), { lhs, rhs }, 1, {}, {}, loc) {}
-    Value Lhs() const { return Operands()[0].Source(); }
-    Value Rhs() const { return Operands()[1].Source(); }
-    Value Result() const { return Results()[0]; }
+    Value GetLeft() const { return GetOperands()[0].GetSource(); }
+    Value GetRight() const { return GetOperands()[1].GetSource(); }
+    Value GetResult() const { return GetResults()[0]; }
 };
 
 
@@ -289,11 +304,13 @@ struct IfOp : Operation {
     IfOp(Value cond, size_t numResults, std::optional<dag::Location> loc = {})
         : Operation(typeid(decltype(*this)), { cond }, numResults, { Region(), Region() }, {}, loc) {}
 
-    Region& GetThenRegion() { return Regions()[0]; }
-    const Region& GetThenRegion() const { return Regions()[0]; }
+    Value GetCondition() const { return GetOperands()[0].GetSource(); }
 
-    Region& GetElseRegion() { return Regions()[1]; }
-    const Region& GetElseRegion() const { return Regions()[1]; }
+    Region& GetThenRegion() { return GetRegions()[0]; }
+    const Region& GetThenRegion() const { return GetRegions()[0]; }
+
+    Region& GetElseRegion() { return GetRegions()[1]; }
+    const Region& GetElseRegion() const { return GetRegions()[1]; }
 };
 
 
@@ -309,12 +326,18 @@ struct ForOp : SingleRegion {
             GetBody().args.push_back(Value(*this, 1 + index++));
         }
     }
+
+    Value GetStart() const { return GetOperands()[0].GetSource(); }
+    Value GetStop() const { return GetOperands()[1].GetSource(); }
+    Value GetStep() const { return GetOperands()[2].GetSource(); }
 };
 
 
 struct YieldOp : Operation {
     YieldOp(std::vector<Value> values, std::optional<dag::Location> loc = {})
         : Operation(typeid(decltype(*this)), values, 0, {}, {}, loc) {}
+
+    auto GetValues() { return GetOperands(); }
 };
 
 
@@ -325,12 +348,16 @@ struct YieldOp : Operation {
 struct DimOp : Operation {
     DimOp(Value source, Value index, std::optional<dag::Location> loc = {})
         : Operation(typeid(decltype(*this)), { source, index }, 1, {}, {}, loc) {}
+
+    auto GetResult() const { return GetResults()[0]; }
 };
 
 
 struct AllocTensorOp : Operation {
     AllocTensorOp(ast::TypePtr elementType, std::vector<Value> sizes, std::optional<dag::Location> loc = {})
         : Operation(typeid(decltype(*this)), sizes, 1, {}, elementType, loc) {}
+
+    auto GetResult() const { return GetResults()[0]; }
 };
 
 
@@ -346,6 +373,8 @@ struct ExtractSliceOp : Operation {
                     {},
                     {},
                     loc) {}
+
+    auto GetResult() const { return GetResults()[0]; }
 };
 
 
@@ -362,6 +391,8 @@ struct InsertSliceOp : Operation {
                     {},
                     {},
                     loc) {}
+
+    auto GetResult() const { return GetResults()[0]; }
 };
 
 
@@ -373,7 +404,7 @@ struct IndexOp : Operation {
     IndexOp(std::optional<dag::Location> loc = {})
         : Operation(typeid(decltype(*this)), {}, 1, {}, {}, loc) {}
 
-    auto Result() const { return Results()[0]; }
+    auto GetResult() const { return GetResults()[0]; }
 };
 
 
@@ -381,7 +412,7 @@ struct JumpOp : Operation {
     JumpOp(Value index, std::vector<int64_t> offsets, std::optional<dag::Location> loc = {})
         : Operation(typeid(decltype(*this)), { index }, 1, {}, offsets, loc) {}
 
-    auto Result() const { return Results()[0]; }
+    auto GetResult() const { return GetResults()[0]; }
 };
 
 
@@ -389,7 +420,7 @@ struct ProjectOp : Operation {
     ProjectOp(Value index, std::vector<int64_t> positions, std::optional<dag::Location> loc = {})
         : Operation(typeid(decltype(*this)), { index }, 1, {}, positions, loc) {}
 
-    auto Result() const { return Results()[0]; }
+    auto GetResult() const { return GetResults()[0]; }
 };
 
 
@@ -397,7 +428,7 @@ struct ExtendOp : Operation {
     ExtendOp(Value index, int64_t position, Value value, std::optional<dag::Location> loc = {})
         : Operation(typeid(decltype(*this)), { index, value }, 1, {}, position, loc) {}
 
-    auto Result() const { return Results()[0]; }
+    auto GetResult() const { return GetResults()[0]; }
 };
 
 
@@ -405,7 +436,7 @@ struct ExchangeOp : Operation {
     ExchangeOp(Value index, int64_t position, Value value, std::optional<dag::Location> loc = {})
         : Operation(typeid(decltype(*this)), { index, value }, 1, {}, position, loc) {}
 
-    auto Result() const { return Results()[0]; }
+    auto GetResult() const { return GetResults()[0]; }
 };
 
 
@@ -413,7 +444,7 @@ struct ExtractOp : Operation {
     ExtractOp(Value index, int64_t position, std::optional<dag::Location> loc = {})
         : Operation(typeid(decltype(*this)), { index }, 1, {}, position, loc) {}
 
-    auto Result() const { return Results()[0]; }
+    auto GetResult() const { return GetResults()[0]; }
 };
 
 
@@ -421,7 +452,7 @@ struct SampleOp : Operation {
     SampleOp(Value tensor, Value index, std::optional<dag::Location> loc = {})
         : Operation(typeid(decltype(*this)), { tensor, index }, 1, {}, {}, loc) {}
 
-    auto Result() const { return Results()[0]; }
+    auto GetResult() const { return GetResults()[0]; }
 };
 
 

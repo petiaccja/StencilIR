@@ -3,9 +3,9 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include <AST/ConvertASTToIR.hpp>
 #include <AST/Nodes.hpp>
 #include <Compiler/Pipelines.hpp>
+#include <DAG/Ops.hpp>
 #include <Execution/Execution.hpp>
 
 #include <memory>
@@ -41,21 +41,22 @@ class CompiledModule {
     };
 
 public:
-    CompiledModule(std::shared_ptr<ast::Module> ast, CompileOptions options, bool storeIr = false);
+    CompiledModule(std::shared_ptr<ast::Module> ast, CompileOptions options);
+    CompiledModule(dag::ModuleOp ast, CompileOptions options);
 
+    void Compile();
     pybind11::object Invoke(std::string function, pybind11::args args);
-    std::vector<StageResult> GetIR() const;
+    std::vector<StageResult> GetStageResults() const;
 
 private:
-    static auto ExtractFunctions(std::shared_ptr<ast::Module> ast)
-        -> std::unordered_map<std::string, FunctionType>;
-
-    static Runner Compile(std::shared_ptr<ast::Module> ast,
-                          CompileOptions options,
-                          std::vector<StageResult>* stageResults = nullptr);
+    static auto ExtractFunctions(std::shared_ptr<ast::Module> ast) -> std::unordered_map<std::string, FunctionType>;
+    static auto ExtractFunctions(dag::ModuleOp ir) -> std::unordered_map<std::string, FunctionType>;
 
 private:
-    Runner m_runner;
+    mlir::MLIRContext m_context;
+    std::unique_ptr<Runner> m_runner;
+    std::variant<dag::ModuleOp, std::shared_ptr<ast::Module>> m_ir;
+    CompileOptions m_options;
     std::unordered_map<std::string, FunctionType> m_functions;
-    std::vector<StageResult> m_ir;
+    std::vector<StageResult> m_stageResults;
 };

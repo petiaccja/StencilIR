@@ -8,7 +8,7 @@ namespace dag {
 Value::Value(Operation def, size_t index)
     : impl(std::make_shared<ValueImpl>(ValueImpl{ std::weak_ptr{ std::shared_ptr<OperationImpl>{ def } }, {}, index })) {}
 
-Operation Value::Owner() const {
+Operation Value::GetOwner() const {
     auto locked = impl->def.lock();
     if (!locked) {
         throw std::logic_error("operation that created this value has been deleted");
@@ -16,7 +16,7 @@ Operation Value::Owner() const {
     return locked;
 }
 
-size_t Value::Index() const {
+size_t Value::GetIndex() const {
     return impl->index;
 }
 
@@ -59,11 +59,11 @@ Operation::Operation(std::type_index type,
 }
 
 std::type_index Operation::Type() const { return impl->type; }
-std::span<Operand> Operation::Operands() const { return impl->operands; }
-std::span<Value> Operation::Results() const { return impl->results; }
-std::span<Region> Operation::Regions() const { return impl->regions; }
-const std::any& Operation::Attributes() const { return impl->attributes; }
-const std::optional<Location>& Operation::Location() const { return impl->loc; }
+std::span<Operand> Operation::GetOperands() const { return impl->operands; }
+std::span<Value> Operation::GetResults() const { return impl->results; }
+std::span<Region> Operation::GetRegions() const { return impl->regions; }
+const std::any& Operation::GetAttributes() const { return impl->attributes; }
+const std::optional<Location>& Operation::GetLocation() const { return impl->loc; }
 
 
 } // namespace dag

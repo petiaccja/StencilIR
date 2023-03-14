@@ -37,12 +37,12 @@ static mlir::Location ConvertLocation(mlir::OpBuilder& builder, const std::optio
 
 mlir::Operation* ConvertModuleOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
 
     auto converted = builder.create<mlir::ModuleOp>(loc);
 
     builder.setInsertionPointToEnd(converted.getBody());
-    for (const auto& op : op.Regions().front().operations) {
+    for (const auto& op : op.GetRegions().front().operations) {
         converter(op);
     }
 
@@ -52,18 +52,18 @@ mlir::Operation* ConvertModuleOp(Converter& converter, Operation op, mlir::Value
 
 mlir::Operation* ConvertFuncOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
-    const auto& attr = std::any_cast<const FuncAttr&>(op.Attributes());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
+    const auto& attr = std::any_cast<const FuncAttr&>(op.GetAttributes());
 
     auto functionType = ConvertType(builder, *attr.signature).dyn_cast<mlir::FunctionType>();
 
     auto converted = builder.create<mlir::func::FuncOp>(loc, attr.name, functionType);
     const auto entryBlock = converted.addEntryBlock();
-    converter.MapEntryBlock(op.Regions().front(), *entryBlock);
+    converter.MapEntryBlock(op.GetRegions().front(), *entryBlock);
 
     converted.setVisibility(attr.isPublic ? mlir::SymbolTable::Visibility::Public : mlir::SymbolTable::Visibility::Private);
     builder.setInsertionPointToEnd(entryBlock);
-    for (const auto& op : op.Regions().front().operations) {
+    for (const auto& op : op.GetRegions().front().operations) {
         converter(op);
     }
 
@@ -73,19 +73,19 @@ mlir::Operation* ConvertFuncOp(Converter& converter, Operation op, mlir::ValueRa
 
 mlir::Operation* ConvertStencilOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
-    const auto& attr = std::any_cast<const StencilAttr&>(op.Attributes());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
+    const auto& attr = std::any_cast<const StencilAttr&>(op.GetAttributes());
 
     auto functionType = ConvertType(builder, *attr.signature).dyn_cast<mlir::FunctionType>();
 
     auto converted = builder.create<stencil::StencilOp>(loc, attr.name, functionType, mlir::APInt(64, attr.numDims));
 
     const auto entryBlock = converted.addEntryBlock();
-    converter.MapEntryBlock(op.Regions().front(), *entryBlock);
+    converter.MapEntryBlock(op.GetRegions().front(), *entryBlock);
 
     converted.setVisibility(attr.isPublic ? mlir::SymbolTable::Visibility::Public : mlir::SymbolTable::Visibility::Private);
     builder.setInsertionPointToEnd(entryBlock);
-    for (const auto& op : op.Regions().front().operations) {
+    for (const auto& op : op.GetRegions().front().operations) {
         converter(op);
     }
 
@@ -95,7 +95,7 @@ mlir::Operation* ConvertStencilOp(Converter& converter, Operation op, mlir::Valu
 
 mlir::Operation* ConvertReturnOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
 
     auto parentOp = builder.getInsertionBlock()->getParentOp();
     assert(parentOp);
@@ -113,8 +113,8 @@ mlir::Operation* ConvertReturnOp(Converter& converter, Operation op, mlir::Value
 
 mlir::Operation* ConvertCallOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
-    const auto& attr = std::any_cast<CallAttr>(op.Attributes());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
+    const auto& attr = std::any_cast<CallAttr>(op.GetAttributes());
 
     const auto parentOp = builder.getBlock()->getParentOp();
     const auto calleeAttr = builder.getStringAttr(attr.name);
@@ -132,8 +132,8 @@ mlir::Operation* ConvertCallOp(Converter& converter, Operation op, mlir::ValueRa
 
 mlir::Operation* ConvertApplyOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
-    const auto& attr = std::any_cast<const ApplyAttr&>(op.Attributes());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
+    const auto& attr = std::any_cast<const ApplyAttr&>(op.GetAttributes());
 
     const auto callee = mlir::StringRef(attr.name);
     auto inputs = operands.slice(0, attr.numInputs);
@@ -158,8 +158,8 @@ mlir::Operation* ConvertApplyOp(Converter& converter, Operation op, mlir::ValueR
 
 mlir::Operation* ConvertCastOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
-    const auto& attr = std::any_cast<const ast::TypePtr&>(op.Attributes());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
+    const auto& attr = std::any_cast<const ast::TypePtr&>(op.GetAttributes());
 
     mlir::Value expr = operands[0];
     mlir::Type type = ConvertType(builder, *attr);
@@ -227,8 +227,8 @@ mlir::Operation* ConvertCastOp(Converter& converter, Operation op, mlir::ValueRa
 
 mlir::Operation* ConvertConstantOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
-    const auto& attr = std::any_cast<const ConstantAttr&>(op.Attributes());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
+    const auto& attr = std::any_cast<const ConstantAttr&>(op.GetAttributes());
 
     const auto type = ConvertType(builder, *attr.type);
 
@@ -252,8 +252,8 @@ mlir::Operation* ConvertConstantOp(Converter& converter, Operation op, mlir::Val
 
 mlir::Operation* ConvertArithmeticOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
-    const auto& attr = std::any_cast<const eArithmeticFunction&>(op.Attributes());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
+    const auto& attr = std::any_cast<const eArithmeticFunction&>(op.GetAttributes());
 
     auto [lhs, rhs] = PromoteToCommonType(builder, loc, operands[0], operands[1]);
     bool isFloat = lhs.getType().isa<mlir::FloatType>();
@@ -296,8 +296,8 @@ mlir::Operation* ConvertArithmeticOp(Converter& converter, Operation op, mlir::V
 
 mlir::Operation* ConvertComparisonOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
-    const auto& attr = std::any_cast<const eComparisonFunction&>(op.Attributes());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
+    const auto& attr = std::any_cast<const eComparisonFunction&>(op.GetAttributes());
 
     auto [lhs, rhs] = PromoteToCommonType(builder, loc, operands[0], operands[1]);
     bool isFloat = lhs.getType().isa<mlir::FloatType>();
@@ -331,7 +331,7 @@ mlir::Operation* ConvertComparisonOp(Converter& converter, Operation op, mlir::V
 
 mlir::Operation* ConvertMinOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
 
     auto [lhs, rhs] = PromoteToCommonType(builder, loc, operands[0], operands[1]);
     bool isFloat = lhs.getType().isa<mlir::FloatType>();
@@ -344,7 +344,7 @@ mlir::Operation* ConvertMinOp(Converter& converter, Operation op, mlir::ValueRan
 
 mlir::Operation* ConvertMaxOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
 
     auto [lhs, rhs] = PromoteToCommonType(builder, loc, operands[0], operands[1]);
     bool isFloat = lhs.getType().isa<mlir::FloatType>();
@@ -362,7 +362,7 @@ mlir::Operation* ConvertMaxOp(Converter& converter, Operation op, mlir::ValueRan
 
 mlir::Operation* ConvertIfOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
 
     const mlir::Value condition = operands[0];
 
@@ -374,7 +374,7 @@ mlir::Operation* ConvertIfOp(Converter& converter, Operation op, mlir::ValueRang
     auto& block = *builder.createBlock(currentRegion, currentRegion->end());
 
     builder.setInsertionPointToEnd(&block);
-    for (const auto& op : op.Regions()[0].operations) {
+    for (const auto& op : op.GetRegions()[0].operations) {
         converter(op);
     }
 
@@ -387,7 +387,7 @@ mlir::Operation* ConvertIfOp(Converter& converter, Operation op, mlir::ValueRang
     builder.setInsertionPoint(insertionBlock, insertionPoint);
 
     // Create the actual IfOp with result types and both blocks.
-    const bool hasElseBlock = !op.Regions()[1].operations.empty();
+    const bool hasElseBlock = !op.GetRegions()[1].operations.empty();
     auto converted = builder.create<mlir::scf::IfOp>(loc, resultTypes, condition, hasElseBlock);
 
     auto& thenBlock = *converted.thenBlock();
@@ -398,7 +398,7 @@ mlir::Operation* ConvertIfOp(Converter& converter, Operation op, mlir::ValueRang
         auto& elseBlock = *converted.elseBlock();
         elseBlock.clear();
         builder.setInsertionPointToEnd(&elseBlock);
-        for (const auto& op : op.Regions()[1].operations) {
+        for (const auto& op : op.GetRegions()[1].operations) {
             converter(op);
         }
     }
@@ -410,7 +410,7 @@ mlir::Operation* ConvertIfOp(Converter& converter, Operation op, mlir::ValueRang
 
 mlir::Operation* ConvertForOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
 
     const mlir::Value start = operands[0];
     const mlir::Value end = operands[1];
@@ -421,10 +421,10 @@ mlir::Operation* ConvertForOp(Converter& converter, Operation op, mlir::ValueRan
 
     auto& body = *converted.getBody();
     body.clear();
-    converter.MapEntryBlock(op.Regions().front(), body);
+    converter.MapEntryBlock(op.GetRegions().front(), body);
 
     builder.setInsertionPointToEnd(&body);
-    for (const auto& op : op.Regions().front().operations) {
+    for (const auto& op : op.GetRegions().front().operations) {
         converter(op);
     }
 
@@ -434,7 +434,7 @@ mlir::Operation* ConvertForOp(Converter& converter, Operation op, mlir::ValueRan
 
 mlir::Operation* ConvertYieldOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
     return builder.create<mlir::scf::YieldOp>(loc, operands);
 }
 
@@ -446,7 +446,7 @@ mlir::Operation* ConvertYieldOp(Converter& converter, Operation op, mlir::ValueR
 
 mlir::Operation* ConvertDimOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
     const mlir::Value tensor = operands[0];
     const mlir::Value index = operands[1];
     return builder.create<mlir::tensor::DimOp>(loc, tensor, index);
@@ -455,8 +455,8 @@ mlir::Operation* ConvertDimOp(Converter& converter, Operation op, mlir::ValueRan
 
 mlir::Operation* ConvertAllocTensorOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
-    const auto& attr = std::any_cast<ast::TypePtr>(op.Attributes());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
+    const auto& attr = std::any_cast<ast::TypePtr>(op.GetAttributes());
 
     const auto elementType = ConvertType(builder, *attr);
     const auto sizes = operands;
@@ -468,7 +468,7 @@ mlir::Operation* ConvertAllocTensorOp(Converter& converter, Operation op, mlir::
 
 mlir::Operation* ConvertExtractSliceOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
 
     const mlir::Value source = operands[0];
 
@@ -483,7 +483,7 @@ mlir::Operation* ConvertExtractSliceOp(Converter& converter, Operation op, mlir:
 
 mlir::Operation* ConvertInsertSliceOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
 
     const mlir::Value source = operands[0];
     const mlir::Value dest = operands[1];
@@ -502,7 +502,7 @@ mlir::Operation* ConvertInsertSliceOp(Converter& converter, Operation op, mlir::
 
 mlir::Operation* ConvertIndexOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
 
     auto currentBlock = builder.getBlock();
     auto currentOp = currentBlock->getParentOp();
@@ -519,8 +519,8 @@ mlir::Operation* ConvertIndexOp(Converter& converter, Operation op, mlir::ValueR
 
 mlir::Operation* ConvertProjectOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
-    const auto positions = std::any_cast<const std::vector<int64_t>&>(op.Attributes());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
+    const auto positions = std::any_cast<const std::vector<int64_t>&>(op.GetAttributes());
 
     const mlir::Value index = operands[0];
     return builder.create<stencil::ProjectOp>(loc, index, positions);
@@ -529,8 +529,8 @@ mlir::Operation* ConvertProjectOp(Converter& converter, Operation op, mlir::Valu
 
 mlir::Operation* ConvertJumpOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
-    const auto offset = std::any_cast<const std::vector<int64_t>&>(op.Attributes());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
+    const auto offset = std::any_cast<const std::vector<int64_t>&>(op.GetAttributes());
 
     const mlir::Value index = operands[0];
     const auto offsetAttr = builder.getI64ArrayAttr(offset);
@@ -540,8 +540,8 @@ mlir::Operation* ConvertJumpOp(Converter& converter, Operation op, mlir::ValueRa
 
 mlir::Operation* ConvertExtendOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
-    const auto position = std::any_cast<int64_t>(op.Attributes());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
+    const auto position = std::any_cast<int64_t>(op.GetAttributes());
 
     const mlir::Value index = operands[0];
     const mlir::Value value = operands[1];
@@ -551,8 +551,8 @@ mlir::Operation* ConvertExtendOp(Converter& converter, Operation op, mlir::Value
 
 mlir::Operation* ConvertExchangeOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
-    const auto position = std::any_cast<int64_t>(op.Attributes());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
+    const auto position = std::any_cast<int64_t>(op.GetAttributes());
 
     const mlir::Value index = operands[0];
     const mlir::Value value = operands[1];
@@ -562,8 +562,8 @@ mlir::Operation* ConvertExchangeOp(Converter& converter, Operation op, mlir::Val
 
 mlir::Operation* ConvertExtractOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
-    const auto position = std::any_cast<int64_t>(op.Attributes());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
+    const auto position = std::any_cast<int64_t>(op.GetAttributes());
 
     const mlir::Value index = operands[0];
     return builder.create<stencil::ExtractOp>(loc, index, position);
@@ -572,7 +572,7 @@ mlir::Operation* ConvertExtractOp(Converter& converter, Operation op, mlir::Valu
 
 mlir::Operation* ConvertSampleOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
-    const auto loc = ConvertLocation(builder, op.Location());
+    const auto loc = ConvertLocation(builder, op.GetLocation());
 
     const mlir::Value field = operands[0];
     const mlir::Value index = operands[1];
