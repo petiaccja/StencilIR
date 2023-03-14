@@ -69,12 +69,12 @@ mlir::Operation* Converter::operator()(Operation operation) {
 
 
 void Converter::MapEntryBlock(const Region& region, mlir::Block& block) {
-    if (block.getNumArguments() != region.args.size()) {
+    if (block.getNumArguments() != region.GetArgs().size()) {
         throw std::invalid_argument("region and block must have the same number of arguments");
     }
-    auto regionArgIt = region.args.begin();
+    auto regionArgIt = region.GetArgs().begin();
     auto blockArgIt = block.args_begin();
-    for (; regionArgIt != region.args.end(); ++regionArgIt, ++blockArgIt) {
+    for (; regionArgIt != region.GetArgs().end(); ++regionArgIt, ++blockArgIt) {
         m_convertedResults.insert({ *regionArgIt, *blockArgIt });
     }
 }

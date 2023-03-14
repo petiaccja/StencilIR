@@ -1,5 +1,4 @@
 import stencilir
-import stencilir.ir
 
 def test_bindings_exist():
     stencil = stencilir.Stencil("stencil", [], [], [], 3, True, None)
@@ -8,5 +7,5 @@ def test_bindings_exist():
     assert module
 
 def test_dag_exists():
-    module = stencilir.ir.ModuleOp()
+    module = stencilir.ops.ModuleOp()
     assert module

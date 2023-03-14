@@ -116,7 +116,7 @@ auto CompiledModule::ExtractFunctions(std::shared_ptr<ast::Module> ast) -> std::
 
 auto CompiledModule::ExtractFunctions(dag::ModuleOp ir) -> std::unordered_map<std::string, FunctionType> {
     std::unordered_map<std::string, FunctionType> functions;
-    for (const auto& op : ir.GetBody().operations) {
+    for (const auto& op : ir.GetBody().GetOperations()) {
         if (op.Type() == typeid(dag::FuncOp)) {
             const auto& attr = std::any_cast<const dag::FuncAttr&>(op.GetAttributes());
             functions.emplace(attr.name, FunctionType{ attr.signature->parameters, attr.signature->results });

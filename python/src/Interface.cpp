@@ -1,4 +1,5 @@
 #include "CompiledModule.hpp"
+#include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
@@ -7,13 +8,24 @@
 #include <Diagnostics/Exception.hpp>
 
 
+template <class Range>
+auto as_list(Range&& range) {
+    pybind11::list list;
+    for (const auto& v : range) {
+        list.append(v);
+    }
+    return list;
+    // return std::vector{ std::begin(range), std::end(range) };
+}
+
+
 void SubmoduleIR(pybind11::module_& main) {
     using namespace dag;
     namespace py = pybind11;
 
-    auto ir = main.def_submodule("ir");
+    auto ops = main.def_submodule("ops");
 
-    py::enum_<dag::eArithmeticFunction>(ir, "ArithmeticFunction")
+    py::enum_<dag::eArithmeticFunction>(ops, "ArithmeticFunction")
         .value("ADD", dag::eArithmeticFunction::ADD)
         .value("SUB", dag::eArithmeticFunction::SUB)
         .value("MUL", dag::eArithmeticFunction::MUL)
@@ -27,7 +39,7 @@ void SubmoduleIR(pybind11::module_& main) {
         .export_values();
 
 
-    py::enum_<dag::eComparisonFunction>(ir, "ComparisonFunction")
+    py::enum_<dag::eComparisonFunction>(ops, "ComparisonFunction")
         .value("EQ", dag::eComparisonFunction::EQ)
         .value("NEQ", dag::eComparisonFunction::NEQ)
         .value("LT", dag::eComparisonFunction::LT)
@@ -36,7 +48,7 @@ void SubmoduleIR(pybind11::module_& main) {
         .value("GTE", dag::eComparisonFunction::GTE)
         .export_values();
 
-    py::class_<dag::Location>(ir, "Location")
+    py::class_<dag::Location>(ops, "Location")
         .def(py::init<std::string, int, int>(), py::arg("file"), py::arg("line"), py::arg("column"))
         .def_readwrite("file", &dag::Location::file)
         .def_readwrite("line", &dag::Location::line)
@@ -44,53 +56,60 @@ void SubmoduleIR(pybind11::module_& main) {
 
 
     // Base classes
-    py::class_<Value, std::shared_ptr<Value>>(ir, "Value")
+    py::class_<Value, std::shared_ptr<Value>>(ops, "Value")
         .def("owner", &Value::GetOwner)
         .def("index", &Value::GetIndex);
-    py::class_<Region, std::shared_ptr<Region>>(ir, "Region")
-        .def("add", [](Region& self, Operation op) { self.operations.push_back(op); return op; })
-        .def_readwrite("operations", &Region::operations)
-        .def_readwrite("args", &Region::args);
-    py::class_<Operation, std::shared_ptr<Operation>> operation(ir, "Operation");
-    operation.def("get_operands", &Operation::GetOperands)
-        .def("get_results", &Operation::GetResults)
-        .def("get_regions", &Operation::GetRegions)
+    py::class_<Operand, std::shared_ptr<Operand>>(ops, "Operand")
+        .def("owner", &Operand::GetOwner)
+        .def("source", &Operand::GetSource);
+    py::class_<Region, std::shared_ptr<Region>>(ops, "Region")
+        .def("add", [](Region& self, py::object op) {
+            auto asOp = py::cast<Operation>(op);
+            self.GetOperations().push_back(asOp);
+            return op;
+        })
+        .def("get_operations", [](Region& self) { return self.GetOperations(); })
+        .def("get_args", [](Region& self) { return self.GetArgs(); });
+    py::class_<Operation, std::shared_ptr<Operation>> operation(ops, "Operation");
+    operation.def("get_operands", [](Operation& self) { return as_list(self.GetOperands()); })
+        .def("get_results", [](Operation& self) { return as_list(self.GetResults()); })
+        .def("get_regions", [](Operation& self) { return as_list(self.GetRegions()); })
         .def("get_location", &Operation::GetLocation);
-    py::class_<SingleRegion, std::shared_ptr<SingleRegion>> singleRegion(ir, "SingleRegion", operation);
+    py::class_<SingleRegion, std::shared_ptr<SingleRegion>> singleRegion(ops, "SingleRegion", operation);
     singleRegion.def("get_body", [](SingleRegion& self) { return self.GetBody(); })
         .def("get_num_region_args", &SingleRegion::GetNumRegionArgs)
         .def("get_region_args", &SingleRegion::GetRegionArgs)
         .def("get_region_arg", &SingleRegion::GetRegionArg)
         .def("add", [](SingleRegion& self, py::object op) {
             auto asOp = py::cast<Operation>(op);
-            self.GetBody().operations.push_back(asOp);
+            self.GetBody().GetOperations().push_back(asOp);
             return op;
         });
 
     // Module structure
-    py::class_<ModuleOp, std::shared_ptr<ModuleOp>>(ir, "ModuleOp", singleRegion)
+    py::class_<ModuleOp, std::shared_ptr<ModuleOp>>(ops, "ModuleOp", singleRegion)
         .def(py::init<>());
-    py::class_<FuncOp, std::shared_ptr<FuncOp>>(ir, "FuncOp", singleRegion)
+    py::class_<FuncOp, std::shared_ptr<FuncOp>>(ops, "FuncOp", singleRegion)
         .def(py::init<std::string, std::shared_ptr<ast::FunctionType>, bool, std::optional<dag::Location>>(),
              py::arg("name"), py::arg("type"), py::arg("is_public"), py::arg("location"))
         .def("get_name", &FuncOp::GetName)
         .def("get_function_type", &FuncOp::GetFunctionType);
-    py::class_<StencilOp, std::shared_ptr<StencilOp>>(ir, "StencilOp", singleRegion)
+    py::class_<StencilOp, std::shared_ptr<StencilOp>>(ops, "StencilOp", singleRegion)
         .def(py::init<std::string, std::shared_ptr<ast::FunctionType>, int, bool, std::optional<dag::Location>>(),
              py::arg("name"), py::arg("type"), py::arg("num_dims"), py::arg("is_public"), py::arg("location"))
         .def("get_name", &StencilOp::GetName)
         .def("get_function_type", &StencilOp::GetFunctionType);
-    py::class_<ReturnOp, std::shared_ptr<ReturnOp>>(ir, "ReturnOp", operation)
+    py::class_<ReturnOp, std::shared_ptr<ReturnOp>>(ops, "ReturnOp", operation)
         .def(py::init<std::vector<Value>, std::optional<dag::Location>>(),
              py::arg("values"), py::arg("location"))
         .def("get_values", &ReturnOp::GetValues);
-    py::class_<CallOp, std::shared_ptr<CallOp>>(ir, "CallOp", operation)
+    py::class_<CallOp, std::shared_ptr<CallOp>>(ops, "CallOp", operation)
         .def(py::init<FuncOp, std::vector<Value>, std::optional<dag::Location>>(),
              py::arg("callee"), py::arg("args"), py::arg("location"))
         .def("get_callee", &CallOp::GetCallee)
         .def("get_num_results", &CallOp::GetNumResults)
         .def("get_args", &CallOp::GetArgs);
-    py::class_<ApplyOp, std::shared_ptr<ApplyOp>>(ir, "ApplyOp", operation)
+    py::class_<ApplyOp, std::shared_ptr<ApplyOp>>(ops, "ApplyOp", operation)
         .def(py::init<StencilOp, std::vector<Value>, std::vector<Value>, std::vector<Value>, std::vector<int64_t>, std::optional<dag::Location>>(),
              py::arg("stencil"), py::arg("inputs"), py::arg("outputs"), py::arg("offsets"), py::arg("static_offsets"), py::arg("location"))
         .def("get_stencil", &ApplyOp::GetStencil)
@@ -101,13 +120,13 @@ void SubmoduleIR(pybind11::module_& main) {
         .def("get_static_offsets", &ApplyOp::GetStaticOffsets);
 
     // Arithmetic-logic
-    py::class_<CastOp, std::shared_ptr<CastOp>>(ir, "CastOp", operation)
+    py::class_<CastOp, std::shared_ptr<CastOp>>(ops, "CastOp", operation)
         .def(py::init<Value, ast::TypePtr, std::optional<dag::Location>>(),
              py::arg("input"), py::arg("type"), py::arg("location"))
         .def("get_input", &CastOp::GetInput)
         .def("get_type", &CastOp::GetType)
         .def("get_result", &CastOp::GetResult);
-    py::class_<ConstantOp, std::shared_ptr<ConstantOp>>(ir, "ConstantOp", operation)
+    py::class_<ConstantOp, std::shared_ptr<ConstantOp>>(ops, "ConstantOp", operation)
         .def(py::init([](py::object value, ast::TypePtr type, std::optional<dag::Location> loc) {
                  try {
                      return ConstantOp(py::cast<bool>(value), type, loc);
@@ -130,27 +149,27 @@ void SubmoduleIR(pybind11::module_& main) {
         .def("get_value", &ConstantOp::GetValue)
         .def("get_type", &ConstantOp::GetType)
         .def("get_result", &ConstantOp::GetResult);
-    py::class_<ArithmeticOp, std::shared_ptr<ArithmeticOp>>(ir, "ArithmeticOp", operation)
+    py::class_<ArithmeticOp, std::shared_ptr<ArithmeticOp>>(ops, "ArithmeticOp", operation)
         .def(py::init<Value, Value, eArithmeticFunction, std::optional<dag::Location>>(),
              py::arg("left"), py::arg("right"), py::arg("function"), py::arg("location"))
         .def("get_left", &ArithmeticOp::GetLeft)
         .def("get_right", &ArithmeticOp::GetRight)
         .def("get_result", &ArithmeticOp::GetResult)
         .def("get_function", &ArithmeticOp::GetFunction);
-    py::class_<ComparisonOp, std::shared_ptr<ComparisonOp>>(ir, "ComparisonOp", operation)
+    py::class_<ComparisonOp, std::shared_ptr<ComparisonOp>>(ops, "ComparisonOp", operation)
         .def(py::init<Value, Value, eComparisonFunction, std::optional<dag::Location>>(),
              py::arg("left"), py::arg("right"), py::arg("function"), py::arg("location"))
         .def("get_left", &ComparisonOp::GetLeft)
         .def("get_right", &ComparisonOp::GetRight)
         .def("get_result", &ComparisonOp::GetResult)
         .def("get_function", &ComparisonOp::GetFunction);
-    py::class_<MinOp, std::shared_ptr<MinOp>>(ir, "MinOp", operation)
+    py::class_<MinOp, std::shared_ptr<MinOp>>(ops, "MinOp", operation)
         .def(py::init<Value, Value, std::optional<dag::Location>>(),
              py::arg("left"), py::arg("right"), py::arg("location"))
         .def("get_left", &MinOp::GetLeft)
         .def("get_right", &MinOp::GetRight)
         .def("get_result", &MinOp::GetResult);
-    py::class_<MaxOp, std::shared_ptr<MaxOp>>(ir, "MaxOp", operation)
+    py::class_<MaxOp, std::shared_ptr<MaxOp>>(ops, "MaxOp", operation)
         .def(py::init<Value, Value, std::optional<dag::Location>>(),
              py::arg("left"), py::arg("right"), py::arg("location"))
         .def("get_left", &MaxOp::GetLeft)
@@ -158,67 +177,67 @@ void SubmoduleIR(pybind11::module_& main) {
         .def("get_result", &MaxOp::GetResult);
 
     // Control flow
-    py::class_<IfOp, std::shared_ptr<IfOp>>(ir, "IfOp", operation)
+    py::class_<IfOp, std::shared_ptr<IfOp>>(ops, "IfOp", operation)
         .def(py::init<Value, size_t, std::optional<dag::Location>>(),
              py::arg("condition"), py::arg("num_results"), py::arg("location"))
         .def("get_condition", &IfOp::GetCondition)
         .def("get_then_region", [](IfOp& self) { return self.GetThenRegion(); })
         .def("get_else_region", [](IfOp& self) { return self.GetElseRegion(); });
-    py::class_<ForOp, std::shared_ptr<ForOp>>(ir, "ForOp", singleRegion)
+    py::class_<ForOp, std::shared_ptr<ForOp>>(ops, "ForOp", singleRegion)
         .def(py::init<Value, Value, Value, std::vector<Value>, std::optional<dag::Location>>(),
              py::arg("start"), py::arg("stop"), py::arg("step"), py::arg("init"), py::arg("location"))
         .def("get_start", &ForOp::GetStart)
         .def("get_stop", &ForOp::GetStop)
         .def("get_step", &ForOp::GetStep);
-    py::class_<YieldOp, std::shared_ptr<YieldOp>>(ir, "YieldOp", operation)
+    py::class_<YieldOp, std::shared_ptr<YieldOp>>(ops, "YieldOp", operation)
         .def(py::init<std::vector<Value>, std::optional<dag::Location>>(),
              py::arg("values"), py::arg("location"))
         .def("get_values", &YieldOp::GetValues);
 
     // Tensor
-    py::class_<DimOp, std::shared_ptr<DimOp>>(ir, "DimOp", operation)
+    py::class_<DimOp, std::shared_ptr<DimOp>>(ops, "DimOp", operation)
         .def(py::init<Value, Value, std::optional<dag::Location>>(),
              py::arg("source"), py::arg("index"), py::arg("location"))
         .def("get_result", &DimOp::GetResult);
-    py::class_<AllocTensorOp, std::shared_ptr<AllocTensorOp>>(ir, "AllocTensorOp", operation)
+    py::class_<AllocTensorOp, std::shared_ptr<AllocTensorOp>>(ops, "AllocTensorOp", operation)
         .def(py::init<ast::TypePtr, std::vector<Value>, std::optional<dag::Location>>(),
              py::arg("element_type"), py::arg("sizes"), py::arg("location"))
         .def("get_result", &AllocTensorOp::GetResult);
-    py::class_<ExtractSliceOp, std::shared_ptr<ExtractSliceOp>>(ir, "ExtractSliceOp", operation)
+    py::class_<ExtractSliceOp, std::shared_ptr<ExtractSliceOp>>(ops, "ExtractSliceOp", operation)
         .def(py::init<Value, std::vector<Value>, std::vector<Value>, std::vector<Value>, std::optional<dag::Location>>(),
              py::arg("source"), py::arg("offsets"), py::arg("sizes"), py::arg("strides"), py::arg("location"))
         .def("get_result", &ExtractSliceOp::GetResult);
-    py::class_<InsertSliceOp, std::shared_ptr<InsertSliceOp>>(ir, "InsertSliceOp", operation)
+    py::class_<InsertSliceOp, std::shared_ptr<InsertSliceOp>>(ops, "InsertSliceOp", operation)
         .def(py::init<Value, Value, std::vector<Value>, std::vector<Value>, std::vector<Value>, std::optional<dag::Location>>(),
              py::arg("source"), py::arg("dest"), py::arg("offsets"), py::arg("sizes"), py::arg("strides"), py::arg("location"))
         .def("get_result", &InsertSliceOp::GetResult);
 
     // Stencil
-    py::class_<IndexOp, std::shared_ptr<IndexOp>>(ir, "IndexOp", operation)
+    py::class_<IndexOp, std::shared_ptr<IndexOp>>(ops, "IndexOp", operation)
         .def(py::init<std::optional<dag::Location>>(),
              py::arg("location"))
         .def("get_result", &IndexOp::GetResult);
-    py::class_<JumpOp, std::shared_ptr<JumpOp>>(ir, "JumpOp", operation)
+    py::class_<JumpOp, std::shared_ptr<JumpOp>>(ops, "JumpOp", operation)
         .def(py::init<Value, std::vector<int64_t>, std::optional<dag::Location>>(),
              py::arg("source"), py::arg("offsets"), py::arg("location"))
         .def("get_result", &JumpOp::GetResult);
-    py::class_<ProjectOp, std::shared_ptr<ProjectOp>>(ir, "ProjectOp", operation)
+    py::class_<ProjectOp, std::shared_ptr<ProjectOp>>(ops, "ProjectOp", operation)
         .def(py::init<Value, std::vector<int64_t>, std::optional<dag::Location>>(),
              py::arg("source"), py::arg("positions"), py::arg("location"))
         .def("get_result", &ProjectOp::GetResult);
-    py::class_<ExtendOp, std::shared_ptr<ExtendOp>>(ir, "ExtendOp", operation)
+    py::class_<ExtendOp, std::shared_ptr<ExtendOp>>(ops, "ExtendOp", operation)
         .def(py::init<Value, int64_t, Value, std::optional<dag::Location>>(),
              py::arg("source"), py::arg("position"), py::arg("value"), py::arg("location"))
         .def("get_result", &ExtendOp::GetResult);
-    py::class_<ExchangeOp, std::shared_ptr<ExchangeOp>>(ir, "ExchangeOp", operation)
+    py::class_<ExchangeOp, std::shared_ptr<ExchangeOp>>(ops, "ExchangeOp", operation)
         .def(py::init<Value, int64_t, Value, std::optional<dag::Location>>(),
              py::arg("source"), py::arg("position"), py::arg("value"), py::arg("location"))
         .def("get_result", &ExchangeOp::GetResult);
-    py::class_<ExtractOp, std::shared_ptr<ExtractOp>>(ir, "ExtractOp", operation)
+    py::class_<ExtractOp, std::shared_ptr<ExtractOp>>(ops, "ExtractOp", operation)
         .def(py::init<Value, int64_t, std::optional<dag::Location>>(),
              py::arg("source"), py::arg("position"), py::arg("location"))
         .def("get_result", &ExtractOp::GetResult);
-    py::class_<SampleOp, std::shared_ptr<SampleOp>>(ir, "SampleOp", operation)
+    py::class_<SampleOp, std::shared_ptr<SampleOp>>(ops, "SampleOp", operation)
         .def(py::init<Value, Value, std::optional<dag::Location>>(),
              py::arg("source"), py::arg("index"), py::arg("location"))
         .def("get_result", &SampleOp::GetResult);
@@ -555,11 +574,6 @@ PYBIND11_MODULE(stencilir, m) {
         catch (const CompilationError& ex) {
             std::stringstream ss;
             ss << ex.GetMessage();
-            if (!ex.GetModule().empty()) {
-                ss << std::endl
-                   << "Module:"
-                   << ex.GetModule();
-            }
             compilationError(ss.str().c_str());
         }
     });

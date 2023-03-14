@@ -86,8 +86,8 @@ struct SingleRegion : Operation {
     Region& GetBody() { return GetRegions().front(); }
     const Region& GetBody() const { return GetRegions().front(); }
 
-    size_t GetNumRegionArgs() const { return GetBody().args.size(); }
-    const auto& GetRegionArgs() const { return GetBody().args; }
+    size_t GetNumRegionArgs() const { return GetBody().GetArgs().size(); }
+    const auto& GetRegionArgs() const { return GetBody().GetArgs(); }
     const Value GetRegionArg(size_t index) const {
         assert(GetNumRegionArgs() > index);
         return GetRegionArgs()[index];
@@ -96,7 +96,7 @@ struct SingleRegion : Operation {
     template <class OpT, class... Args>
     OpT Create(Args&&... args) {
         auto op = OpT(std::forward<Args>(args)...);
-        GetBody().operations.push_back(op);
+        GetBody().GetOperations().push_back(op);
         return op;
     }
 };
@@ -128,7 +128,7 @@ struct FuncOp : SingleRegion {
         : SingleRegion(typeid(decltype(*this)), {}, 0, FuncAttr{ name, signature, isPublic }, loc) {
         size_t index = 0;
         for (auto type : signature->parameters) {
-            GetBody().args.push_back(Value(*this, index++));
+            GetBody().GetArgs().push_back(Value(*this, index++));
         }
     }
 
@@ -151,7 +151,7 @@ struct StencilOp : SingleRegion {
         : SingleRegion(typeid(decltype(*this)), {}, 0, StencilAttr{ name, signature, numDims, isPublic }, loc) {
         size_t index = 0;
         for (auto type : signature->parameters) {
-            GetBody().args.push_back(Value(*this, index++));
+            GetBody().GetArgs().push_back(Value(*this, index++));
         }
     }
 
@@ -321,9 +321,9 @@ struct ForOp : SingleRegion {
                        init.size(),
                        {},
                        loc) {
-        GetBody().args.push_back(Value(*this, 0)); // Loop index
+        GetBody().GetArgs().push_back(Value(*this, 0)); // Loop index
         for (size_t index = 0; index < init.size(); ++index) { // Loop carried vars
-            GetBody().args.push_back(Value(*this, 1 + index++));
+            GetBody().GetArgs().push_back(Value(*this, 1 + index++));
         }
     }
 

@@ -24,22 +24,16 @@ struct Location {
 
 
 struct ValueImpl;
+struct RegionImpl;
 struct OperationImpl;
 
 class Value;
 class Operation;
 
 
-struct Region {
+struct RegionImpl {
     std::vector<Value> args;
     std::vector<Operation> operations;
-
-    template <class OpT, class... Args>
-    OpT Create(Args&&... args) {
-        auto op = OpT(std::forward<Args>(args)...);
-        operations.push_back(op);
-        return op;
-    }
 };
 
 
@@ -47,6 +41,27 @@ struct ValueImpl {
     std::weak_ptr<OperationImpl> def;
     std::unordered_set<std::shared_ptr<OperationImpl>> users;
     size_t index;
+};
+
+
+class Region {
+public:
+    Region() : impl(std::make_shared<RegionImpl>()) {}
+
+    template <class OpT, class... Args>
+    OpT Create(Args&&... args) {
+        auto op = OpT(std::forward<Args>(args)...);
+        impl->operations.push_back(op);
+        return op;
+    }
+
+    std::vector<Value>& GetArgs() { return impl->args; }
+    const std::vector<Value>& GetArgs() const { return impl->args; }
+    std::vector<Operation>& GetOperations() { return impl->operations; }
+    const std::vector<Operation>& GetOperations() const { return impl->operations; }
+
+private:
+    std::shared_ptr<RegionImpl> impl;
 };
 
 

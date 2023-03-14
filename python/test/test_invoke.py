@@ -133,9 +133,9 @@ def test_mixed_passthrough():
 
 
 def test_dag():
-    module = sir.ir.ModuleOp()
-    func = module.add(sir.ir.FuncOp("main", sir.FunctionType([], []), True, None))
-    func.add(sir.ir.ReturnOp([], None))
+    module = sir.ops.ModuleOp()
+    func = module.add(sir.ops.FuncOp("main", sir.FunctionType([], []), True, None))
+    func.add(sir.ops.ReturnOp([], None))
 
     compile_options = sir.CompileOptions(sir.TargetArch.X86, sir.OptimizationLevel.O0)
     compiled_module = sir.CompiledModule(module, compile_options)

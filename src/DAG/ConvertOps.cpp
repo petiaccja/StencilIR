@@ -42,7 +42,7 @@ mlir::Operation* ConvertModuleOp(Converter& converter, Operation op, mlir::Value
     auto converted = builder.create<mlir::ModuleOp>(loc);
 
     builder.setInsertionPointToEnd(converted.getBody());
-    for (const auto& op : op.GetRegions().front().operations) {
+    for (const auto& op : op.GetRegions().front().GetOperations()) {
         converter(op);
     }
 
@@ -63,7 +63,7 @@ mlir::Operation* ConvertFuncOp(Converter& converter, Operation op, mlir::ValueRa
 
     converted.setVisibility(attr.isPublic ? mlir::SymbolTable::Visibility::Public : mlir::SymbolTable::Visibility::Private);
     builder.setInsertionPointToEnd(entryBlock);
-    for (const auto& op : op.GetRegions().front().operations) {
+    for (const auto& op : op.GetRegions().front().GetOperations()) {
         converter(op);
     }
 
@@ -85,7 +85,7 @@ mlir::Operation* ConvertStencilOp(Converter& converter, Operation op, mlir::Valu
 
     converted.setVisibility(attr.isPublic ? mlir::SymbolTable::Visibility::Public : mlir::SymbolTable::Visibility::Private);
     builder.setInsertionPointToEnd(entryBlock);
-    for (const auto& op : op.GetRegions().front().operations) {
+    for (const auto& op : op.GetRegions().front().GetOperations()) {
         converter(op);
     }
 
@@ -374,7 +374,7 @@ mlir::Operation* ConvertIfOp(Converter& converter, Operation op, mlir::ValueRang
     auto& block = *builder.createBlock(currentRegion, currentRegion->end());
 
     builder.setInsertionPointToEnd(&block);
-    for (const auto& op : op.GetRegions()[0].operations) {
+    for (const auto& op : op.GetRegions()[0].GetOperations()) {
         converter(op);
     }
 
@@ -387,7 +387,7 @@ mlir::Operation* ConvertIfOp(Converter& converter, Operation op, mlir::ValueRang
     builder.setInsertionPoint(insertionBlock, insertionPoint);
 
     // Create the actual IfOp with result types and both blocks.
-    const bool hasElseBlock = !op.GetRegions()[1].operations.empty();
+    const bool hasElseBlock = !op.GetRegions()[1].GetOperations().empty();
     auto converted = builder.create<mlir::scf::IfOp>(loc, resultTypes, condition, hasElseBlock);
 
     auto& thenBlock = *converted.thenBlock();
@@ -398,7 +398,7 @@ mlir::Operation* ConvertIfOp(Converter& converter, Operation op, mlir::ValueRang
         auto& elseBlock = *converted.elseBlock();
         elseBlock.clear();
         builder.setInsertionPointToEnd(&elseBlock);
-        for (const auto& op : op.GetRegions()[1].operations) {
+        for (const auto& op : op.GetRegions()[1].GetOperations()) {
             converter(op);
         }
     }
@@ -424,7 +424,7 @@ mlir::Operation* ConvertForOp(Converter& converter, Operation op, mlir::ValueRan
     converter.MapEntryBlock(op.GetRegions().front(), body);
 
     builder.setInsertionPointToEnd(&body);
-    for (const auto& op : op.GetRegions().front().operations) {
+    for (const auto& op : op.GetRegions().front().GetOperations()) {
         converter(op);
     }
 
