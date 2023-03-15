@@ -1,6 +1,8 @@
 #include "FileCheck.hpp"
 
 #include <AST/ConvertASTToIR.hpp>
+#include <DAG/ConvertOps.hpp>
+#include <DAG/Operation.hpp>
 #include <Diagnostics/Exception.hpp>
 #include <Diagnostics/Formatting.hpp>
 #include <Diagnostics/Handlers.hpp>
@@ -18,10 +20,10 @@
 #include <fstream>
 
 
-static std::string PrintOp(mlir::ModuleOp moduleOp) {
+static std::string PrintOp(mlir::Operation* op) {
     std::string s;
     llvm::raw_string_ostream ss(s);
-    moduleOp.print(ss);
+    op->print(ss);
     return s;
 }
 
@@ -113,6 +115,14 @@ bool CheckText(std::string_view input, std::string_view pattern) {
 bool CheckAST(ast::Module& moduleNode, std::string_view pattern) {
     static mlir::MLIRContext context;
     auto ir = ConvertASTToIR(context, moduleNode);
+    const auto str = PrintOp(ir);
+    return CheckText(str, pattern);
+}
+
+
+bool CheckDAG(dag::Operation moduleNode, std::string_view pattern) {
+    static mlir::MLIRContext context;
+    auto ir = dag::ConvertOperation(context, moduleNode);
     const auto str = PrintOp(ir);
     return CheckText(str, pattern);
 }

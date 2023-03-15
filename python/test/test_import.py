@@ -5,3 +5,7 @@ def test_bindings_exist():
     function = stencilir.Function("main", [], [], [], True, None)
     module = stencilir.Module([function], [stencil], None)
     assert module
+
+def test_dag_exists():
+    module = stencilir.ops.ModuleOp()
+    assert module

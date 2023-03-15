@@ -13,7 +13,7 @@ target_sources(TestIntegration
         Test_Optimization.cpp
 )
 
-target_link_libraries(TestIntegration AST Compiler Execution)
+target_link_libraries(TestIntegration AST Compiler Execution DAG)
 
 find_package(Catch2)
 target_link_libraries(TestIntegration Catch2::Catch2)

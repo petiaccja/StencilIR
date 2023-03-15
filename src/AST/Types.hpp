@@ -6,7 +6,7 @@
 #include <memory>
 #include <ostream>
 #include <sstream>
-#include <variant>
+#include <vector>
 
 
 namespace ast {
@@ -132,6 +132,62 @@ public:
 };
 
 
+class FunctionType : public Type {
+public:
+    FunctionType(std::vector<std::shared_ptr<Type>> parameters,
+                 std::vector<std::shared_ptr<Type>> results)
+        : parameters(std::move(parameters)), results(std::move(results)) {}
+
+    bool EqualTo(const Type& other) const override {
+        if (auto otherFunction = dynamic_cast<const FunctionType*>(&other)) {
+            if (parameters.size() != otherFunction->parameters.size()) {
+                return false;
+            }
+            for (auto [itl, itr] = std::tuple{ parameters.begin(), otherFunction->parameters.begin() };
+                 itl != parameters.end();
+                 ++itl, ++itr) {
+                if (!(*itl)->EqualTo(**itr)) {
+                    return false;
+                }
+            }
+            if (results.size() != otherFunction->results.size()) {
+                return false;
+            }
+            for (auto [itl, itr] = std::tuple{ results.begin(), otherFunction->results.begin() };
+                 itl != results.end();
+                 ++itl, ++itr) {
+                if (!(*itl)->EqualTo(**itr)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    std::ostream& Print(std::ostream& os) const override {
+        os << "(";
+        for (auto p : parameters) {
+            os << p << (p != parameters.back() ? ", " : "");
+        }
+        os << ") -> ";
+        for (auto p : results) {
+            os << p << (p != results.back() ? ", " : "");
+        }
+        return os;
+    }
+
+    static auto Get(std::vector<std::shared_ptr<Type>> parameters,
+                    std::vector<std::shared_ptr<Type>> results) {
+        return std::make_shared<FunctionType>(std::move(parameters), std::move(results));
+    }
+
+public:
+    std::vector<std::shared_ptr<Type>> parameters;
+    std::vector<std::shared_ptr<Type>> results;
+};
+
+
 using TypePtr = std::shared_ptr<Type>;
 
 
@@ -176,6 +232,22 @@ decltype(auto) VisitType(const Type& type, Visitor&& visitor) {
     ss << "type \"" << type << "\"cannot be translated to a simple C++ type";
     throw std::invalid_argument(ss.str());
 }
+
+
+inline const auto Float32 = FloatType::Get(32);
+inline const auto Float64 = FloatType::Get(64);
+
+inline const auto Int8 = IntegerType::Get(8, true);
+inline const auto Int16 = IntegerType::Get(16, true);
+inline const auto Int32 = IntegerType::Get(32, true);
+inline const auto Int64 = IntegerType::Get(64, true);
+
+inline const auto Uint8 = IntegerType::Get(8, false);
+inline const auto Uint16 = IntegerType::Get(16, false);
+inline const auto Uint32 = IntegerType::Get(32, false);
+inline const auto Uint64 = IntegerType::Get(64, false);
+
+inline const auto Bool = IntegerType::Get(1, true);
 
 
 } // namespace ast

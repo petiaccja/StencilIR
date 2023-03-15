@@ -77,6 +77,10 @@ jobs:
           llvm-profdata merge -sparse default.profraw -o coverage.profdata
           llvm-cov show ./bin/TestAST -instr-profile=coverage.profdata >> ${{runner.workspace}}/build/coverage.txt
 
+          ./bin/TestDAG --reporter junit --out ${{runner.workspace}}/build/dag_tests.xml
+          llvm-profdata merge -sparse default.profraw -o coverage.profdata
+          llvm-cov show ./bin/TestDAG -instr-profile=coverage.profdata >> ${{runner.workspace}}/build/coverage.txt
+
           ./bin/TestPasses --reporter junit --out ${{runner.workspace}}/build/passes_tests.xml
           llvm-profdata merge -sparse default.profraw -o coverage.profdata
           llvm-cov show ./bin/TestPasses -instr-profile=coverage.profdata >> ${{runner.workspace}}/build/coverage.txt
