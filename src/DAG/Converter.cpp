@@ -56,7 +56,14 @@ mlir::Operation* Converter::operator()(Operation operation) {
     const auto convertedOp = converterFun(*this, operation, convertedOperands);
     m_builder.setInsertionPointAfter(convertedOp);
     if (convertedOp->getNumResults() != operation.GetResults().size()) {
-        throw std::invalid_argument("invalid conversion: result count mismatch");
+        mlir::Diagnostic diag(ConvertLocation(m_builder, operation.GetLocation()), mlir::DiagnosticSeverity::Error);
+        diag << "result count mismatch";
+        diag.attachNote() << "source op has " << operation.GetResults().size() << " results, "
+                          << "converted op has " << convertedOp->getResults().size() << " results";
+        diag.attachNote() << "current operation's RTTI type is " << operation.Type().name();
+        std::vector<mlir::Diagnostic> diags;
+        diags.push_back(std::move(diag));
+        throw CompilationError(diags);
     }
 
     auto resultIt = operation.GetResults().begin();
