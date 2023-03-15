@@ -44,7 +44,7 @@ public:
     CompiledModule(std::shared_ptr<ast::Module> ast, CompileOptions options);
     CompiledModule(dag::ModuleOp ast, CompileOptions options);
 
-    void Compile();
+    void Compile(bool recordStages = false);
     pybind11::object Invoke(std::string function, pybind11::args args);
     std::vector<StageResult> GetStageResults() const;
 

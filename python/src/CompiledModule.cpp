@@ -75,7 +75,7 @@ std::vector<StageResult> CompiledModule::GetStageResults() const {
 }
 
 
-void CompiledModule::Compile() {
+void CompiledModule::Compile(bool recordStages) {
     auto pipeline = [&] {
         switch (m_options.targetArch) {
             case eTargetArch::X86: return TargetCPUPipeline(m_context, m_options.optimizationOptions);
@@ -95,7 +95,7 @@ void CompiledModule::Compile() {
     };
     const auto mlirIr = std::visit(convertIr, m_ir);
     Compiler compiler(std::move(pipeline));
-    auto llvmIr = compiler.Run(mlirIr, m_stageResults);
+    auto llvmIr = recordStages ? compiler.Run(mlirIr, m_stageResults) : compiler.Run(mlirIr);
 
     m_runner = std::make_unique<Runner>(llvmIr, optLevel);
 }
