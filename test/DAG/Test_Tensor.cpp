@@ -1,5 +1,6 @@
-#include <DAG/Ops.hpp>
 #include <TestTools/FileCheck.hpp>
+
+#include <DAG/Ops.hpp>
 
 #include <catch2/catch.hpp>
 

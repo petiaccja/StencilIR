@@ -60,7 +60,8 @@ auto FlattenArg(const StridedMemRefType<T, N>& v) {
 
 template <class... Args>
 void Runner::Invoke(std::string_view name, Args&&... args) const
-    requires((... && !std::ranges::range<Args>)) {
+    requires((... && !std::ranges::range<Args>))
+{
     auto flattenedArgs = std::tuple_cat(impl::FlattenArg(std::forward<Args>(args))...);
     auto opaqueArgs = std::apply([](auto&&... args) { return std::array{ static_cast<void*>(&args)... }; }, flattenedArgs);
     Invoke(name, opaqueArgs);

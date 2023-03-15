@@ -30,7 +30,7 @@ public:
 
     template <class ConcreteOp>
     void RegisterOp(ConverterFunction converterFunction) {
-        m_converterFunctions.insert({typeid(ConcreteOp), std::move(converterFunction)});
+        m_converterFunctions.insert({ typeid(ConcreteOp), std::move(converterFunction) });
     }
 
 private:

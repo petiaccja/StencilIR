@@ -1,8 +1,7 @@
 #pragma once
 
-#include <DAG/Operation.hpp>
-
 #include <AST/Nodes.hpp>
+#include <DAG/Operation.hpp>
 
 #include <mlir/IR/BuiltinOps.h>
 #include <mlir/Pass/Pass.h>

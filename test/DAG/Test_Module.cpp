@@ -1,5 +1,6 @@
-#include <DAG/Ops.hpp>
 #include <TestTools/FileCheck.hpp>
+
+#include <DAG/Ops.hpp>
 
 #include <catch2/catch.hpp>
 
@@ -63,9 +64,9 @@ TEST_CASE("Apply", "[DAG]") {
 
 
     auto func = mod.Create<dag::FuncOp>("fn",
-                                           ast::FunctionType::Get(
-                                               { ast::Float32, ast::FieldType::Get(ast::Float32, 2) },
-                                               { ast::FieldType::Get(ast::Float32, 2) }));
+                                        ast::FunctionType::Get(
+                                            { ast::Float32, ast::FieldType::Get(ast::Float32, 2) },
+                                            { ast::FieldType::Get(ast::Float32, 2) }));
     auto apply = func.Create<dag::ApplyOp>(stencil,
                                            std::vector{ func.GetRegionArg(0) },
                                            std::vector{ func.GetRegionArg(1) },
