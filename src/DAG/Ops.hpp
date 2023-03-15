@@ -174,12 +174,15 @@ struct ReturnOp : Operation {
 
 
 struct CallOp : Operation {
-    CallOp(FuncOp func, std::vector<Value> args, std::optional<dag::Location> loc = {})
+    CallOp(FuncOp callee, std::vector<Value> args, std::optional<dag::Location> loc = {})
+        : CallOp(std::string{ callee.GetName() }, callee.GetFunctionType()->results.size(), std::move(args), std::move(loc)) {}
+
+    CallOp(std::string callee, size_t numResults, std::vector<Value> args, std::optional<dag::Location> loc = {})
         : Operation(typeid(decltype(*this)),
                     args,
-                    func.GetFunctionType()->results.size(),
+                    numResults,
                     {},
-                    CallAttr{ std::string(func.GetName()) },
+                    CallAttr{ callee },
                     loc) {}
 
     std::string GetCallee() const { return std::any_cast<const CallAttr&>(GetAttributes()).name; }
@@ -195,11 +198,26 @@ struct ApplyOp : Operation {
             std::vector<Value> offsets,
             std::vector<int64_t> staticOffsets,
             std::optional<dag::Location> loc = {})
+        : ApplyOp(std::string(stencil.GetName()),
+                  stencil.GetFunctionType()->results.size(),
+                  std::move(inputs),
+                  std::move(outputs),
+                  std::move(offsets),
+                  std::move(staticOffsets),
+                  std::move(loc)) {}
+
+    ApplyOp(std::string stencil,
+            size_t numResults,
+            std::vector<Value> inputs,
+            std::vector<Value> outputs,
+            std::vector<Value> offsets,
+            std::vector<int64_t> staticOffsets,
+            std::optional<dag::Location> loc = {})
         : Operation(typeid(decltype(*this)),
                     ConcatVectors(inputs, outputs, offsets),
-                    stencil.GetFunctionType()->results.size(),
+                    numResults,
                     {},
-                    ApplyAttr{ std::string{ stencil.GetName() }, inputs.size(), outputs.size(), offsets.size(), staticOffsets },
+                    ApplyAttr{ stencil, inputs.size(), outputs.size(), offsets.size(), staticOffsets },
                     loc) {}
 
     std::string GetStencil() const { return std::any_cast<const ApplyAttr&>(GetAttributes()).name; }

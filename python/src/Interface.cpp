@@ -106,12 +106,16 @@ void SubmoduleIR(pybind11::module_& main) {
     py::class_<CallOp, std::shared_ptr<CallOp>>(ops, "CallOp", operation)
         .def(py::init<FuncOp, std::vector<Value>, std::optional<dag::Location>>(),
              py::arg("callee"), py::arg("args"), py::arg("location"))
+        .def(py::init<std::string, size_t, std::vector<Value>, std::optional<dag::Location>>(),
+             py::arg("callee"), py::arg("num_results"), py::arg("args"), py::arg("location"))
         .def("get_callee", &CallOp::GetCallee)
         .def("get_num_results", &CallOp::GetNumResults)
         .def("get_args", &CallOp::GetArgs);
     py::class_<ApplyOp, std::shared_ptr<ApplyOp>>(ops, "ApplyOp", operation)
         .def(py::init<StencilOp, std::vector<Value>, std::vector<Value>, std::vector<Value>, std::vector<int64_t>, std::optional<dag::Location>>(),
              py::arg("stencil"), py::arg("inputs"), py::arg("outputs"), py::arg("offsets"), py::arg("static_offsets"), py::arg("location"))
+        .def(py::init<std::string, size_t, std::vector<Value>, std::vector<Value>, std::vector<Value>, std::vector<int64_t>, std::optional<dag::Location>>(),
+             py::arg("stencil"), py::arg("num_results"), py::arg("inputs"), py::arg("outputs"), py::arg("offsets"), py::arg("static_offsets"), py::arg("location"))
         .def("get_stencil", &ApplyOp::GetStencil)
         .def("get_num_results", &ApplyOp::GetNumResults)
         .def("get_inputs", &ApplyOp::GetInputs)
@@ -128,20 +132,14 @@ void SubmoduleIR(pybind11::module_& main) {
         .def("get_result", &CastOp::GetResult);
     py::class_<ConstantOp, std::shared_ptr<ConstantOp>>(ops, "ConstantOp", operation)
         .def(py::init([](py::object value, ast::TypePtr type, std::optional<dag::Location> loc) {
-                 try {
+                 if (py::isinstance(value, py::bool_().get_type())) {
                      return ConstantOp(py::cast<bool>(value), type, loc);
                  }
-                 catch (...) {
-                 }
-                 try {
+                 else if (py::isinstance(value, py::float_().get_type())) {
                      return ConstantOp(py::cast<double>(value), type, loc);
                  }
-                 catch (...) {
-                 }
-                 try {
+                 else if (py::isinstance(value, py::int_().get_type())) {
                      return ConstantOp(py::cast<int64_t>(value), type, loc);
-                 }
-                 catch (...) {
                  }
                  throw std::invalid_argument("type of constant value is not understood");
              }),
