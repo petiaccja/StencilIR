@@ -114,8 +114,8 @@ void SubmoduleIR(pybind11::module_& main) {
     py::class_<ApplyOp, std::shared_ptr<ApplyOp>>(ops, "ApplyOp", operation)
         .def(py::init<StencilOp, std::vector<Value>, std::vector<Value>, std::vector<Value>, std::vector<int64_t>, std::optional<dag::Location>>(),
              py::arg("stencil"), py::arg("inputs"), py::arg("outputs"), py::arg("offsets"), py::arg("static_offsets"), py::arg("location"))
-        .def(py::init<std::string, size_t, std::vector<Value>, std::vector<Value>, std::vector<Value>, std::vector<int64_t>, std::optional<dag::Location>>(),
-             py::arg("stencil"), py::arg("num_results"), py::arg("inputs"), py::arg("outputs"), py::arg("offsets"), py::arg("static_offsets"), py::arg("location"))
+        .def(py::init<std::string, std::vector<Value>, std::vector<Value>, std::vector<Value>, std::vector<int64_t>, std::optional<dag::Location>>(),
+             py::arg("stencil"), py::arg("inputs"), py::arg("outputs"), py::arg("offsets"), py::arg("static_offsets"), py::arg("location"))
         .def("get_stencil", &ApplyOp::GetStencil)
         .def("get_num_results", &ApplyOp::GetNumResults)
         .def("get_inputs", &ApplyOp::GetInputs)
