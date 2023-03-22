@@ -199,7 +199,6 @@ struct ApplyOp : Operation {
             std::vector<int64_t> staticOffsets,
             std::optional<dag::Location> loc = {})
         : ApplyOp(std::string(stencil.GetName()),
-                  stencil.GetFunctionType()->results.size(),
                   std::move(inputs),
                   std::move(outputs),
                   std::move(offsets),
@@ -207,7 +206,6 @@ struct ApplyOp : Operation {
                   std::move(loc)) {}
 
     ApplyOp(std::string stencil,
-            size_t numResults,
             std::vector<Value> inputs,
             std::vector<Value> outputs,
             std::vector<Value> offsets,
@@ -215,7 +213,7 @@ struct ApplyOp : Operation {
             std::optional<dag::Location> loc = {})
         : Operation(typeid(decltype(*this)),
                     ConcatVectors(inputs, outputs, offsets),
-                    numResults,
+                    outputs.size(),
                     {},
                     ApplyAttr{ stencil, inputs.size(), outputs.size(), offsets.size(), staticOffsets },
                     loc) {}

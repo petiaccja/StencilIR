@@ -47,6 +47,7 @@ Stage CreateGlobalOptimizationStage(mlir::MLIRContext& context,
     if (optimizationOptions.inlineFunctions) {
         stage.passes->addPass(mlir::createInlinerPass());
     }
+    stage.passes->addPass(createReduceDimOpsPass());
     if (optimizationOptions.eliminateAllocBuffers) {
         stage.passes->addPass(mlir::bufferization::createAllocTensorEliminationPass());
     }
@@ -56,7 +57,7 @@ Stage CreateGlobalOptimizationStage(mlir::MLIRContext& context,
     if (optimizationOptions.fuseApplyOps) {
         stage.passes->addPass(createFuseApplyOpsPass());
     }
-
+    stage.passes->addPass(createEliminateUnusedAllocTensorsPass());
     stage.passes->addPass(mlir::createCSEPass());
 
     return stage;
