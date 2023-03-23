@@ -12,7 +12,7 @@ ast::TypePtr GetTypeFromFormat(std::string_view format) {
 
     const auto pybindType = [&]() -> ast::TypePtr {
         switch (format[0]) {
-            case '?': return std::make_shared<ast::IntegerType>(1, false);
+            case '?': return std::make_shared<ast::IntegerType>(1, true);
             case 'b': return std::make_shared<ast::IntegerType>(8, true);
             case 'B': return std::make_shared<ast::IntegerType>(8, false);
             case 'h': return std::make_shared<ast::IntegerType>(16, true);
@@ -276,7 +276,8 @@ void Argument::Write(const ast::FieldType& type, pybind11::object value, std::by
     auto layout = GetLayout();
     assert(layout);
 
-    const auto elementSize = m_runner->GetDataLayout().getTypeSizeInBits(ConvertType(*type.elementType, m_runner->GetContext())) / 8;
+    const auto llvmType = ConvertType(*type.elementType, m_runner->GetContext());
+    const auto elementSize = m_runner->GetDataLayout().getTypeAllocSize(llvmType);
 
     const auto buffer = value.cast<pybind11::buffer>();
     const auto bufferInfo = buffer.request(true);
