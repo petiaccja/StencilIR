@@ -18,7 +18,6 @@ TEST_CASE("Arithmetic cast", "[DAG]") {
         const auto pattern = R"(
             // CHECK: func @fn(%[[ARG:.*]]: f32) -> f64
             // CHECK-NEXT: %[[OUT:.*]] = arith.extf %[[ARG]] : f32 to f64
-            // CHECK-NEXT: return %[[OUT]]
         )";
 
         REQUIRE(CheckDAG(mod, pattern));

@@ -115,18 +115,12 @@ mlir::Operation* ConvertCallOp(Converter& converter, Operation op, mlir::ValueRa
     auto& builder = converter.Builder();
     const auto loc = ConvertLocation(builder, op.GetLocation());
     const auto& attr = std::any_cast<CallAttr>(op.GetAttributes());
-
-    const auto parentOp = builder.getBlock()->getParentOp();
-    const auto calleeAttr = builder.getStringAttr(attr.name);
-    const auto calleeOp = mlir::SymbolTable::lookupNearestSymbolFrom(parentOp, calleeAttr);
-    if (!calleeOp) {
-        throw UndefinedSymbolError{ loc, attr.name };
-    }
-    const auto calleeFuncOp = mlir::dyn_cast<mlir::func::FuncOp>(calleeOp);
-    if (!calleeFuncOp) {
-        throw UndefinedSymbolError{ loc, attr.name };
-    }
-    return { builder.create<mlir::func::CallOp>(loc, calleeFuncOp, operands) };
+    const auto callee = mlir::StringRef{ attr.name };
+    mlir::SmallVector<mlir::Type> results;
+    std::transform(attr.results.begin(), attr.results.end(), std::back_inserter(results), [&builder](const auto& type) {
+        return ConvertType(builder, *type);
+    });
+    return { builder.create<mlir::func::CallOp>(loc, callee, results, operands) };
 }
 
 
@@ -161,67 +155,21 @@ mlir::Operation* ConvertCastOp(Converter& converter, Operation op, mlir::ValueRa
     const auto loc = ConvertLocation(builder, op.GetLocation());
     const auto& attr = std::any_cast<const ast::TypePtr&>(op.GetAttributes());
 
-    mlir::Value expr = operands[0];
+    mlir::Value value = operands[0];
     mlir::Type type = ConvertType(builder, *attr);
-
-    auto makeEmptyOp = [&]() {
-        auto noop = builder.create<mlir::scf::ExecuteRegionOp>(loc, mlir::TypeRange{ type });
-        auto& block = noop.getRegion().emplaceBlock();
-        builder.setInsertionPointToEnd(&block);
-        builder.create<mlir::scf::YieldOp>(loc, mlir::ValueRange{ expr });
-        return noop;
-    };
-
-    if (expr.getType() == type) {
-        return makeEmptyOp();
+    auto cast = Cast(value, type, builder, loc);
+    if (!cast) {
+        std::vector<mlir::Diagnostic> diags;
+        auto& diag = diags.emplace_back(loc, mlir::DiagnosticSeverity::Error);
+        diag << "cannot convert value from `" << value.getType() << "` to `" << type << "`";
+        throw CompilationError(diags);
     }
 
-    auto ftype = type.dyn_cast<mlir::FloatType>();
-    auto fexpr = expr.getType().dyn_cast<mlir::FloatType>();
-    auto itype = type.dyn_cast<mlir::IntegerType>();
-    auto iexpr = expr.getType().dyn_cast<mlir::IntegerType>();
-
-    if (type.isa<mlir::IndexType>() || expr.getType().isa<mlir::IndexType>()) {
-        if (iexpr) {
-            mlir::Type signlessType = builder.getIntegerType(iexpr.getWidth());
-            mlir::Value signlessExpr = builder.create<mlir::arith::BitcastOp>(loc, signlessType, expr);
-            return { builder.create<mlir::arith::IndexCastOp>(loc, type, signlessExpr) };
-        }
-        return { builder.create<mlir::arith::IndexCastOp>(loc, type, expr) };
-    }
-    if (ftype && fexpr) {
-        if (ftype.getWidth() > fexpr.getWidth()) {
-            return { builder.create<mlir::arith::ExtFOp>(loc, type, expr) };
-        }
-        else if (ftype.getWidth() < fexpr.getWidth()) {
-            return { builder.create<mlir::arith::TruncFOp>(loc, type, expr) };
-        }
-        else {
-            return makeEmptyOp();
-        }
-    }
-    if (itype && iexpr) {
-        bool isSigned = !(itype.isUnsigned() && iexpr.isUnsigned());
-        if (ftype.getWidth() > fexpr.getWidth()) {
-            return isSigned ? builder.create<mlir::arith::ExtSIOp>(loc, type, expr)
-                            : builder.create<mlir::arith::ExtUIOp>(loc, type, expr);
-        }
-        else if (ftype.getWidth() < fexpr.getWidth()) {
-            return { builder.create<mlir::arith::TruncIOp>(loc, type, expr) };
-        }
-        else {
-            return makeEmptyOp();
-        }
-    }
-    if (itype && fexpr) {
-        return itype.isUnsigned() ? builder.create<mlir::arith::FPToUIOp>(loc, type, expr)
-                                  : builder.create<mlir::arith::FPToSIOp>(loc, type, expr);
-    }
-    if (ftype && iexpr) {
-        return iexpr.isUnsigned() ? builder.create<mlir::arith::UIToFPOp>(loc, type, expr)
-                                  : builder.create<mlir::arith::SIToFPOp>(loc, type, expr);
-    }
-    throw std::invalid_argument("No conversion implemented between given types.");
+    auto wrapper = builder.create<mlir::scf::ExecuteRegionOp>(loc, type);
+    auto& block = wrapper->getRegion(0).emplaceBlock();
+    builder.setInsertionPointToEnd(&block);
+    builder.create<mlir::scf::YieldOp>(loc, mlir::ValueRange{ cast.value() });
+    return wrapper;
 }
 
 
@@ -255,7 +203,7 @@ mlir::Operation* ConvertArithmeticOp(Converter& converter, Operation op, mlir::V
     const auto loc = ConvertLocation(builder, op.GetLocation());
     const auto& attr = std::any_cast<const eArithmeticFunction&>(op.GetAttributes());
 
-    auto [lhs, rhs] = PromoteToCommonType(builder, loc, operands[0], operands[1]);
+    auto [lhs, rhs] = std::tuple{ operands[0], operands[1] };
     bool isFloat = lhs.getType().isa<mlir::FloatType>();
     bool isUnsigned = lhs.getType().isUnsignedInteger();
 
@@ -299,7 +247,7 @@ mlir::Operation* ConvertComparisonOp(Converter& converter, Operation op, mlir::V
     const auto loc = ConvertLocation(builder, op.GetLocation());
     const auto& attr = std::any_cast<const eComparisonFunction&>(op.GetAttributes());
 
-    auto [lhs, rhs] = PromoteToCommonType(builder, loc, operands[0], operands[1]);
+    auto [lhs, rhs] = std::tuple{ operands[0], operands[1] };
     bool isFloat = lhs.getType().isa<mlir::FloatType>();
     bool isUnsigned = lhs.getType().isUnsignedInteger();
     switch (attr) {
@@ -333,7 +281,7 @@ mlir::Operation* ConvertMinOp(Converter& converter, Operation op, mlir::ValueRan
     auto& builder = converter.Builder();
     const auto loc = ConvertLocation(builder, op.GetLocation());
 
-    auto [lhs, rhs] = PromoteToCommonType(builder, loc, operands[0], operands[1]);
+    auto [lhs, rhs] = std::tuple{ operands[0], operands[1] };
     bool isFloat = lhs.getType().isa<mlir::FloatType>();
     bool isUnsigned = lhs.getType().isUnsignedInteger();
 
@@ -346,7 +294,7 @@ mlir::Operation* ConvertMaxOp(Converter& converter, Operation op, mlir::ValueRan
     auto& builder = converter.Builder();
     const auto loc = ConvertLocation(builder, op.GetLocation());
 
-    auto [lhs, rhs] = PromoteToCommonType(builder, loc, operands[0], operands[1]);
+    auto [lhs, rhs] = std::tuple{ operands[0], operands[1] };
     bool isFloat = lhs.getType().isa<mlir::FloatType>();
     bool isUnsigned = lhs.getType().isUnsignedInteger();
 

@@ -52,9 +52,12 @@ struct StencilAttr {
     bool isPublic;
 };
 
+
 struct CallAttr {
     std::string name;
+    std::vector<ast::TypePtr> results;
 };
+
 
 struct ApplyAttr {
     std::string name;
@@ -175,14 +178,14 @@ struct ReturnOp : Operation {
 
 struct CallOp : Operation {
     CallOp(FuncOp callee, std::vector<Value> args, std::optional<dag::Location> loc = {})
-        : CallOp(std::string{ callee.GetName() }, callee.GetFunctionType()->results.size(), std::move(args), std::move(loc)) {}
+        : CallOp(std::string{ callee.GetName() }, callee.GetFunctionType()->results, std::move(args), std::move(loc)) {}
 
-    CallOp(std::string callee, size_t numResults, std::vector<Value> args, std::optional<dag::Location> loc = {})
+    CallOp(std::string callee, std::vector<ast::TypePtr> results, std::vector<Value> args, std::optional<dag::Location> loc = {})
         : Operation(typeid(decltype(*this)),
                     args,
-                    numResults,
+                    results.size(),
                     {},
-                    CallAttr{ callee },
+                    CallAttr{ callee, results },
                     loc) {}
 
     std::string GetCallee() const { return std::any_cast<const CallAttr&>(GetAttributes()).name; }
@@ -339,7 +342,7 @@ struct ForOp : SingleRegion {
                        loc) {
         GetBody().GetArgs().push_back(Value(*this, 0)); // Loop index
         for (size_t index = 0; index < init.size(); ++index) { // Loop carried vars
-            GetBody().GetArgs().push_back(Value(*this, 1 + index++));
+            GetBody().GetArgs().push_back(Value(*this, 1 + index));
         }
     }
 

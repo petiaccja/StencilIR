@@ -106,8 +106,8 @@ void SubmoduleIR(pybind11::module_& main) {
     py::class_<CallOp, std::shared_ptr<CallOp>>(ops, "CallOp", operation)
         .def(py::init<FuncOp, std::vector<Value>, std::optional<dag::Location>>(),
              py::arg("callee"), py::arg("args"), py::arg("location"))
-        .def(py::init<std::string, size_t, std::vector<Value>, std::optional<dag::Location>>(),
-             py::arg("callee"), py::arg("num_results"), py::arg("args"), py::arg("location"))
+        .def(py::init<std::string, std::vector<ast::TypePtr>, std::vector<Value>, std::optional<dag::Location>>(),
+             py::arg("callee"), py::arg("results"), py::arg("args"), py::arg("location"))
         .def("get_callee", &CallOp::GetCallee)
         .def("get_num_results", &CallOp::GetNumResults)
         .def("get_args", &CallOp::GetArgs);
