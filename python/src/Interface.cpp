@@ -532,10 +532,10 @@ PYBIND11_MODULE(stencilir, m) {
 
     pybind11::class_<OptimizationOptions>(m, "OptimizationOptions")
         .def(pybind11::init<bool, bool, bool, bool>(),
-             pybind11::arg("eliminate_alloc_buffers") = false,
              pybind11::arg("inline_functions") = false,
              pybind11::arg("fuse_extract_slice_ops") = false,
-             pybind11::arg("fuse_apply_ops") = false)
+             pybind11::arg("fuse_apply_ops") = false,
+             pybind11::arg("eliminate_alloc_buffers") = false)
         .def_readwrite("eliminate_alloc_buffers", &OptimizationOptions::eliminateAllocBuffers)
         .def_readwrite("inline_functions", &OptimizationOptions::inlineFunctions)
         .def_readwrite("fuse_extract_slice_ops", &OptimizationOptions::fuseExtractSliceOps)
