@@ -517,7 +517,7 @@ struct SimplifyJumpChain : public mlir::OpRewritePattern<JumpOp> {
                 auto [myIt, defIt] = std::tuple{ myRange.begin(), definingRange.begin() };
                 for (; myIt != myRange.end() && defIt != definingRange.end(); ++myIt, ++defIt) {
                     auto type = (*myIt).getType();
-                    auto value = (*myIt).getInt() + (*myIt).getInt();
+                    auto value = (*myIt).getInt() + (*defIt).getInt();
                     auto sum = mlir::IntegerAttr::get(type, value);
                     offsetSum.push_back(mlir::cast<mlir::Attribute>(sum));
                 }
