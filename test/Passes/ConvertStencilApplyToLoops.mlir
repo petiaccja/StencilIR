@@ -7,7 +7,7 @@ stencil.stencil @test_stencil() -> f32 attributes {num_dimensions = 1 : index} {
 // CHECK: func.func @lower_apply_1d
 func.func @lower_apply_1d(%out: memref<?xf32>) {
     // CHECK: %[[UB:.*]] = memref.dim
-    // CHECK: scf.for %[[IV:.*]] = %{{.*}} to %[[UB]] step %{{.*}} {
+    // CHECK: scf.parallel (%[[IV:.*]]) = (%{{.*}}) to (%[[UB]]) step (%{{.*}}) {
     // CHECK: %[[RESULT:.*]] = stencil.invoke @test_stencil
     stencil.apply @test_stencil() outs(%out) offsets [0] : (memref<?xf32>) -> ()
     return
