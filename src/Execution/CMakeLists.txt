@@ -24,6 +24,8 @@ target_include_directories(Execution SYSTEM PUBLIC ${MLIR_INCLUDE_DIRS})
 target_link_directories(Execution PUBLIC ${LLVM_BUILD_LIBRARY_DIR})
 target_compile_definitions(Execution PUBLIC ${LLVM_DEFINITIONS})
 
+target_link_libraries(Execution Diagnostics)
+
 target_link_libraries(Execution
     MLIRIR
     MLIRParser

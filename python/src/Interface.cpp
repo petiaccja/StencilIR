@@ -15,7 +15,6 @@ auto as_list(Range&& range) {
         list.append(v);
     }
     return list;
-    // return std::vector{ std::begin(range), std::end(range) };
 }
 
 
@@ -255,7 +254,12 @@ PYBIND11_MODULE(stencilir, m) {
         .def(pybind11::init<dag::ModuleOp, CompileOptions>(), pybind11::arg("ir"), pybind11::arg("options"))
         .def("compile", &CompiledModule::Compile, pybind11::arg("record_stages") = false)
         .def("invoke", &CompiledModule::Invoke)
-        .def("get_stage_results", &CompiledModule::GetStageResults);
+        .def("get_stage_results", &CompiledModule::GetStageResults)
+        .def("get_llvm_ir", &CompiledModule::GetLLVMIR)
+        .def("get_object_file", [](const CompiledModule& self) {
+            const auto buffer = self.GetObjectFile();
+            return pybind11::bytearray(buffer.data(), buffer.size());
+        });
 
     //----------------------------------
     // AST nodes

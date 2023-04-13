@@ -25,13 +25,13 @@ public:
 
     llvm::LLVMContext& GetContext() const;
     const llvm::DataLayout& GetDataLayout() const;
-    std::string_view LLVMIR() const { return m_printedLLVMIR; }
+    std::string GetLLVMIR() const;
+    std::vector<char> GetObjectFile() const;
 
 private:
     std::unique_ptr<mlir::ExecutionEngine> m_engine;
-    std::unique_ptr<llvm::LLVMContext> m_layoutContext;
-    std::unique_ptr<llvm::Module> m_layoutModule;
-    std::string m_printedLLVMIR;
+    std::unique_ptr<llvm::LLVMContext> m_llvmContext;
+    std::unique_ptr<llvm::Module> m_llvmModule;
 };
 
 
