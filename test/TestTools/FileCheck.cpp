@@ -1,12 +1,12 @@
 #include "FileCheck.hpp"
 
-#include <IR/ConvertOps.hpp>
-#include <IR/Operation.hpp>
 #include <Diagnostics/Exception.hpp>
 #include <Diagnostics/Formatting.hpp>
 #include <Diagnostics/Handlers.hpp>
 #include <Dialect/Stencil/IR/StencilOps.hpp>
 #include <Dialect/Stencil/Transforms/BufferizableOpInterfaceImpl.hpp>
+#include <IR/ConvertOps.hpp>
+#include <IR/Operation.hpp>
 
 #include <llvm/FileCheck/FileCheck.h>
 #include <llvm/Support/InitLLVM.h>
@@ -17,6 +17,9 @@
 #include <mlir/Pass/PassManager.h>
 
 #include <fstream>
+
+
+using namespace sir;
 
 
 static std::string PrintOp(mlir::Operation* op) {
@@ -111,9 +114,9 @@ bool CheckText(std::string_view input, std::string_view pattern) {
 }
 
 
-bool CheckDAG(dag::Operation moduleNode, std::string_view pattern) {
+bool CheckDAG(Operation moduleNode, std::string_view pattern) {
     static mlir::MLIRContext context;
-    auto ir = dag::ConvertOperation(context, moduleNode);
+    auto ir = ConvertOperation(context, moduleNode);
     const auto str = PrintOp(ir);
     return CheckText(str, pattern);
 }

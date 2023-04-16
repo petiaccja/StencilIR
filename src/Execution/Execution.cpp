@@ -14,6 +14,8 @@
 #include <mlir/Target/LLVMIR/Export.h>
 
 
+namespace sir {
+
 Runner::Runner(mlir::ModuleOp& llvmIr, int optLevel) {
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmPrinter();
@@ -141,3 +143,6 @@ std::vector<char> Runner::GetObjectFile() const {
 
     return { buffer.begin(), buffer.end() };
 }
+
+
+} // namespace sir

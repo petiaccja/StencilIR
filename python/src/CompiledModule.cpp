@@ -9,7 +9,10 @@
 #include <span>
 
 
-CompiledModule::CompiledModule(dag::ModuleOp ir, CompileOptions options)
+namespace sir {
+
+
+CompiledModule::CompiledModule(ops::ModuleOp ir, CompileOptions options)
     : m_ir(ir), m_options(options), m_functions(ExtractFunctions(ir)) {
 }
 
@@ -77,7 +80,7 @@ void CompiledModule::Compile(bool recordStages) {
     }();
     const int optLevel = static_cast<int>(m_options.optimizationLevel);
 
-    const auto mlirIr = mlir::dyn_cast<mlir::ModuleOp>(dag::ConvertOperation(m_context, m_ir));
+    const auto mlirIr = mlir::dyn_cast<mlir::ModuleOp>(ConvertOperation(m_context, m_ir));
     Compiler compiler(std::move(pipeline));
     auto llvmIr = recordStages ? compiler.Run(mlirIr, m_stageResults) : compiler.Run(mlirIr);
 
@@ -95,13 +98,16 @@ std::vector<char> CompiledModule::GetObjectFile() const {
 }
 
 
-auto CompiledModule::ExtractFunctions(dag::ModuleOp ir) -> std::unordered_map<std::string, FunctionType> {
+auto CompiledModule::ExtractFunctions(ops::ModuleOp ir) -> std::unordered_map<std::string, FunctionType> {
     std::unordered_map<std::string, FunctionType> functions;
     for (const auto& op : ir.GetBody().GetOperations()) {
-        if (op.Type() == typeid(dag::FuncOp)) {
-            const auto& attr = std::any_cast<const dag::FuncAttr&>(op.GetAttributes());
+        if (op.Type() == typeid(ops::FuncOp)) {
+            const auto& attr = std::any_cast<const ops::FuncAttr&>(op.GetAttributes());
             functions.emplace(attr.name, FunctionType{ attr.signature->parameters, attr.signature->results });
         }
     }
     return functions;
 }
+
+
+} // namespace sir

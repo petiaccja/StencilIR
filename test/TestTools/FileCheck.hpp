@@ -10,6 +10,9 @@
 #include <string_view>
 
 
+using namespace sir;
+
+
 struct Pass {
     explicit Pass(std::unique_ptr<mlir::Pass> pass) : pass(std::move(pass)) {}
     Pass(Pass&&) = default;
@@ -32,7 +35,7 @@ struct NestedPass : public Pass {
 
 bool CheckText(std::string_view input, std::string_view pattern);
 bool CheckFile(const std::filesystem::path& file, std::vector<std::unique_ptr<Pass>>&& passes);
-bool CheckDAG(dag::Operation moduleNode, std::string_view pattern);
+bool CheckDAG(Operation moduleNode, std::string_view pattern);
 template <class... Passes>
 auto CheckFile(const std::filesystem::path& file, Passes... passes) {
     std::vector<std::unique_ptr<Pass>> passVec;

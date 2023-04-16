@@ -6,6 +6,9 @@
 #include "StencilToStandard/StencilToStandard.hpp"
 
 
+namespace sir {
+
+
 inline auto createStencilApplyToLoopsPass() {
     return std::make_unique<StencilApplyToLoopsPass>();
 }
@@ -20,4 +23,7 @@ inline auto createStencilToFuncPass() {
 
 inline auto createStencilPrintToLLVMPass() {
     return std::make_unique<StencilPrintToLLVMPass>();
+}
+
+
 }

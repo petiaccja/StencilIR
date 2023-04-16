@@ -20,6 +20,8 @@
 #include <mlir/Transforms/DialectConversion.h>
 
 
+namespace sir {
+
 using namespace mlir;
 
 class PrintOpLowering : public ConversionPattern {
@@ -116,3 +118,5 @@ void StencilPrintToLLVMPass::runOnOperation() {
         signalPassFailure();
     }
 }
+
+} // namespace sir

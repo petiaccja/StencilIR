@@ -7,6 +7,8 @@
 #include <vector>
 
 
+namespace sir {
+
 //------------------------------------------------------------------------------
 // Base class
 //------------------------------------------------------------------------------
@@ -74,3 +76,6 @@ class ArgumentCountError : public SyntaxError {
 public:
     ArgumentCountError(mlir::Location location, int expected, int provided);
 };
+
+
+} // namespace sir

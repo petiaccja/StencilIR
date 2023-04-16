@@ -9,6 +9,8 @@
 #include <mlir/Transforms/Passes.h>
 
 
+namespace sir {
+
 using mlir::MLIRContext;
 
 
@@ -87,3 +89,6 @@ void ReduceDimOpsPass::runOnOperation() {
         signalPassFailure();
     }
 }
+
+
+} // namespace sir

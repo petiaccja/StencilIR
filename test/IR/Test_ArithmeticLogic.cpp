@@ -5,15 +5,18 @@
 #include <catch2/catch.hpp>
 
 
+using namespace sir;
+
+
 TEST_CASE("Arithmetic cast", "[DAG]") {
     const auto funcType = ast::FunctionType::Get({ ast::FloatType::Get(32) }, { ast::FloatType::Get(64) });
 
-    auto mod = dag::ModuleOp();
-    auto func = mod.Create<dag::FuncOp>("fn", funcType);
+    auto mod = ops::ModuleOp();
+    auto func = mod.Create<ops::FuncOp>("fn", funcType);
 
     SECTION("Cast") {
-        auto cast = func.Create<dag::CastOp>(func.GetRegionArg(0), ast::FloatType::Get(64));
-        func.Create<dag::ReturnOp>(std::vector{ cast.GetResult() });
+        auto cast = func.Create<ops::CastOp>(func.GetRegionArg(0), ast::FloatType::Get(64));
+        func.Create<ops::ReturnOp>(std::vector{ cast.GetResult() });
 
         const auto pattern = R"(
             // CHECK: func @fn(%[[ARG:.*]]: f32) -> f64
@@ -28,12 +31,12 @@ TEST_CASE("Arithmetic cast", "[DAG]") {
 TEST_CASE("Arithmetic constant", "[DAG]") {
     const auto funcType = ast::FunctionType::Get({}, { ast::FloatType::Get(32) });
 
-    auto mod = dag::ModuleOp();
-    auto func = mod.Create<dag::FuncOp>("fn", funcType);
+    auto mod = ops::ModuleOp();
+    auto func = mod.Create<ops::FuncOp>("fn", funcType);
 
     SECTION("Constant") {
-        auto constant = func.Create<dag::ConstantOp>(1.0f, ast::FloatType::Get(32));
-        func.Create<dag::ReturnOp>(std::vector{ constant.GetResult() });
+        auto constant = func.Create<ops::ConstantOp>(1.0f, ast::FloatType::Get(32));
+        func.Create<ops::ReturnOp>(std::vector{ constant.GetResult() });
 
         const auto pattern = R"(
             // CHECK: func @fn() -> f32
@@ -49,12 +52,12 @@ TEST_CASE("Arithmetic constant", "[DAG]") {
 TEST_CASE("Arithmetic binary", "[DAG]") {
     const auto funcType = ast::FunctionType::Get({ ast::FloatType::Get(32), ast::FloatType::Get(32) }, { ast::FloatType::Get(32) });
 
-    auto mod = dag::ModuleOp();
-    auto func = mod.Create<dag::FuncOp>("fn", funcType);
+    auto mod = ops::ModuleOp();
+    auto func = mod.Create<ops::FuncOp>("fn", funcType);
 
     SECTION("Add") {
-        auto add = func.Create<dag::ArithmeticOp>(func.GetRegionArg(0), func.GetRegionArg(1), dag::eArithmeticFunction::ADD);
-        func.Create<dag::ReturnOp>(std::vector{ add.GetResult() });
+        auto add = func.Create<ops::ArithmeticOp>(func.GetRegionArg(0), func.GetRegionArg(1), ops::eArithmeticFunction::ADD);
+        func.Create<ops::ReturnOp>(std::vector{ add.GetResult() });
 
         const auto pattern = R"(
             // CHECK: func @fn(%[[LHS:.*]]: f32, %[[RHS:.*]]: f32) -> f32
@@ -65,8 +68,8 @@ TEST_CASE("Arithmetic binary", "[DAG]") {
         REQUIRE(CheckDAG(mod, pattern));
     }
     SECTION("Min") {
-        auto min = func.Create<dag::MinOp>(func.GetRegionArg(0), func.GetRegionArg(1));
-        func.Create<dag::ReturnOp>(std::vector{ min.GetResult() });
+        auto min = func.Create<ops::MinOp>(func.GetRegionArg(0), func.GetRegionArg(1));
+        func.Create<ops::ReturnOp>(std::vector{ min.GetResult() });
 
         const auto pattern = R"(
             // CHECK: func @fn(%[[LHS:.*]]: f32, %[[RHS:.*]]: f32) -> f32
@@ -77,8 +80,8 @@ TEST_CASE("Arithmetic binary", "[DAG]") {
         REQUIRE(CheckDAG(mod, pattern));
     }
     SECTION("Max") {
-        auto max = func.Create<dag::MaxOp>(func.GetRegionArg(0), func.GetRegionArg(1));
-        func.Create<dag::ReturnOp>(std::vector{ max.GetResult() });
+        auto max = func.Create<ops::MaxOp>(func.GetRegionArg(0), func.GetRegionArg(1));
+        func.Create<ops::ReturnOp>(std::vector{ max.GetResult() });
 
         const auto pattern = R"(
             // CHECK: func @fn(%[[LHS:.*]]: f32, %[[RHS:.*]]: f32) -> f32
@@ -94,12 +97,12 @@ TEST_CASE("Arithmetic binary", "[DAG]") {
 TEST_CASE("Logic binary", "[DAG]") {
     const auto funcType = ast::FunctionType::Get({ ast::FloatType::Get(32), ast::FloatType::Get(32) }, { ast::IntegerType::Get(1, true) });
 
-    auto mod = dag::ModuleOp();
-    auto func = mod.Create<dag::FuncOp>("fn", funcType);
+    auto mod = ops::ModuleOp();
+    auto func = mod.Create<ops::FuncOp>("fn", funcType);
 
     SECTION("Less") {
-        auto lt = func.Create<dag::ComparisonOp>(func.GetRegionArg(0), func.GetRegionArg(1), dag::eComparisonFunction::LT);
-        func.Create<dag::ReturnOp>(std::vector{ lt.GetResult() });
+        auto lt = func.Create<ops::ComparisonOp>(func.GetRegionArg(0), func.GetRegionArg(1), ops::eComparisonFunction::LT);
+        func.Create<ops::ReturnOp>(std::vector{ lt.GetResult() });
 
         const auto pattern = R"(
             // CHECK: func @fn(%[[LHS:.*]]: f32, %[[RHS:.*]]: f32) -> i1

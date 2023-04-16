@@ -1,7 +1,7 @@
 #include "Operation.hpp"
 
 
-namespace dag {
+namespace sir {
 
 
 
@@ -43,7 +43,7 @@ Operation::Operation(std::type_index type,
                      size_t numResults,
                      std::vector<Region> regions,
                      std::any attributes,
-                     std::optional<dag::Location> loc)
+                     std::optional<Location> loc)
     : impl(std::make_shared<OperationImpl>(OperationImpl{ type,
                                                           {},
                                                           {},
@@ -66,4 +66,4 @@ const std::any& Operation::GetAttributes() const { return impl->attributes; }
 const std::optional<Location>& Operation::GetLocation() const { return impl->loc; }
 
 
-} // namespace dag
+} // namespace sir

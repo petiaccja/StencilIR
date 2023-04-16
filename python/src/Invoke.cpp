@@ -3,6 +3,8 @@
 #include <optional>
 
 
+namespace sir {
+
 //------------------------------------------------------------------------------
 // Utilities
 //------------------------------------------------------------------------------
@@ -368,3 +370,6 @@ void ArgumentPack::Write(pybind11::object value, std::byte* address) const {
 const llvm::StructLayout* ArgumentPack::GetLayout() const {
     return m_runner->GetDataLayout().getStructLayout(m_llvmType);
 }
+
+
+} // namespace sir

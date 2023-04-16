@@ -1,6 +1,7 @@
 #include "DynamicLinking.hpp"
 
 
+
 #if defined(__gnu_linux__)
 
     #include <dlfcn.h>
@@ -8,7 +9,7 @@
     #include <regex>
 
 
-std::optional<std::filesystem::path> GetModulePath(std::string_view moduleNameRegex) {
+std::optional<std::filesystem::path> sir::GetModulePath(std::string_view moduleNameRegex) {
     dl_find_object result;
     if (_dl_find_object((void*)&GetModulePath, &result) != 0) {
         return {};
@@ -35,7 +36,7 @@ std::optional<std::filesystem::path> GetModulePath(std::string_view moduleNameRe
     #include <Psapi.h>
     #include <regex>
 
-std::optional<std::filesystem::path> GetModulePath(std::string_view moduleNameRegex) {
+std::optional<std::filesystem::path> sir::GetModulePath(std::string_view moduleNameRegex) {
     auto hProcess = GetCurrentProcess();
 
     std::vector<HMODULE> modules(1024);

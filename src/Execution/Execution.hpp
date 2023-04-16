@@ -13,6 +13,9 @@
 #include <tuple>
 
 
+namespace sir {
+
+
 class Runner {
 public:
     Runner(mlir::ModuleOp& llvmIr, int optLevel = 0);
@@ -36,25 +39,25 @@ private:
 
 
 namespace impl {
-auto FlattenArg(const auto& v) {
-    return std::tuple{ v };
-}
+    auto FlattenArg(const auto& v) {
+        return std::tuple{ v };
+    }
 
-template <class T, int... Dims>
-auto FlattenArg(const StridedMemRefType<T, sizeof...(Dims)>& v, std::integer_sequence<int, Dims...>) {
-    return std::tuple{
-        v.basePtr,
-        v.data,
-        v.offset,
-        v.sizes[Dims]...,
-        v.strides[Dims]...,
-    };
-}
+    template <class T, int... Dims>
+    auto FlattenArg(const StridedMemRefType<T, sizeof...(Dims)>& v, std::integer_sequence<int, Dims...>) {
+        return std::tuple{
+            v.basePtr,
+            v.data,
+            v.offset,
+            v.sizes[Dims]...,
+            v.strides[Dims]...,
+        };
+    }
 
-template <class T, int N>
-auto FlattenArg(const StridedMemRefType<T, N>& v) {
-    return FlattenArg(v, std::make_integer_sequence<int, N>{});
-}
+    template <class T, int N>
+    auto FlattenArg(const StridedMemRefType<T, N>& v) {
+        return FlattenArg(v, std::make_integer_sequence<int, N>{});
+    }
 } // namespace impl
 
 
@@ -66,3 +69,6 @@ void Runner::Invoke(std::string_view name, Args&&... args) const
     auto opaqueArgs = std::apply([](auto&&... args) { return std::array{ static_cast<void*>(&args)... }; }, flattenedArgs);
     Invoke(name, opaqueArgs);
 }
+
+
+} // namespace sir

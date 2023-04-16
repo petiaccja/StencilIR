@@ -14,6 +14,9 @@
 #include <catch2/catch.hpp>
 
 
+using namespace sir;
+
+
 static std::string TestFile(std::string_view name) {
     return (std::filesystem::path(FILE_CHECK_DIR) / name).string();
 }

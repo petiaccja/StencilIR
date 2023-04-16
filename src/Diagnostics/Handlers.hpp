@@ -3,6 +3,9 @@
 #include <mlir/IR/Diagnostics.h>
 
 
+namespace sir {
+
+
 class ScopedDiagnosticCollector {
 public:
     ScopedDiagnosticCollector(mlir::MLIRContext& context);
@@ -15,3 +18,6 @@ private:
     mlir::ScopedDiagnosticHandler m_handler;
     std::vector<mlir::Diagnostic> m_diagnostics;
 };
+
+
+} // namespace sir

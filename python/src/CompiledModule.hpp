@@ -4,13 +4,16 @@
 #include <pybind11/stl.h>
 
 #include <Compiler/Pipelines.hpp>
-#include <IR/Ops.hpp>
 #include <Execution/Execution.hpp>
+#include <IR/Ops.hpp>
 
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+
+namespace sir {
 
 
 enum class eTargetArch {
@@ -40,7 +43,7 @@ class CompiledModule {
     };
 
 public:
-    CompiledModule(dag::ModuleOp ast, CompileOptions options);
+    CompiledModule(ops::ModuleOp ast, CompileOptions options);
 
     void Compile(bool recordStages = false);
     pybind11::object Invoke(std::string function, pybind11::args args);
@@ -49,13 +52,16 @@ public:
     std::vector<char> GetObjectFile() const;
 
 private:
-    static auto ExtractFunctions(dag::ModuleOp ir) -> std::unordered_map<std::string, FunctionType>;
+    static auto ExtractFunctions(ops::ModuleOp ir) -> std::unordered_map<std::string, FunctionType>;
 
 private:
     mlir::MLIRContext m_context;
     std::unique_ptr<Runner> m_runner;
-    dag::ModuleOp m_ir;
+    ops::ModuleOp m_ir;
     CompileOptions m_options;
     std::unordered_map<std::string, FunctionType> m_functions;
     std::vector<StageResult> m_stageResults;
 };
+
+
+} // namespace sir

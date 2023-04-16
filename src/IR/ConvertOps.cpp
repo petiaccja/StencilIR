@@ -19,7 +19,7 @@
 #include <mlir/InitAllDialects.h>
 
 
-namespace dag {
+namespace sir {
 
 
 static mlir::Location ConvertLocation(mlir::OpBuilder& builder, const std::optional<Location>& location) {
@@ -53,7 +53,7 @@ mlir::Operation* ConvertModuleOp(Converter& converter, Operation op, mlir::Value
 mlir::Operation* ConvertFuncOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
     const auto loc = ConvertLocation(builder, op.GetLocation());
-    const auto& attr = std::any_cast<const FuncAttr&>(op.GetAttributes());
+    const auto& attr = std::any_cast<const ops::FuncAttr&>(op.GetAttributes());
 
     auto functionType = ConvertType(builder, *attr.signature).dyn_cast<mlir::FunctionType>();
 
@@ -74,7 +74,7 @@ mlir::Operation* ConvertFuncOp(Converter& converter, Operation op, mlir::ValueRa
 mlir::Operation* ConvertStencilOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
     const auto loc = ConvertLocation(builder, op.GetLocation());
-    const auto& attr = std::any_cast<const StencilAttr&>(op.GetAttributes());
+    const auto& attr = std::any_cast<const ops::StencilAttr&>(op.GetAttributes());
 
     auto functionType = ConvertType(builder, *attr.signature).dyn_cast<mlir::FunctionType>();
 
@@ -114,7 +114,7 @@ mlir::Operation* ConvertReturnOp(Converter& converter, Operation op, mlir::Value
 mlir::Operation* ConvertCallOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
     const auto loc = ConvertLocation(builder, op.GetLocation());
-    const auto& attr = std::any_cast<CallAttr>(op.GetAttributes());
+    const auto& attr = std::any_cast<ops::CallAttr>(op.GetAttributes());
     const auto callee = mlir::StringRef{ attr.name };
     mlir::SmallVector<mlir::Type> results;
     std::transform(attr.results.begin(), attr.results.end(), std::back_inserter(results), [&builder](const auto& type) {
@@ -127,7 +127,7 @@ mlir::Operation* ConvertCallOp(Converter& converter, Operation op, mlir::ValueRa
 mlir::Operation* ConvertApplyOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
     const auto loc = ConvertLocation(builder, op.GetLocation());
-    const auto& attr = std::any_cast<const ApplyAttr&>(op.GetAttributes());
+    const auto& attr = std::any_cast<const ops::ApplyAttr&>(op.GetAttributes());
 
     const auto callee = mlir::StringRef(attr.name);
     auto inputs = operands.slice(0, attr.numInputs);
@@ -176,7 +176,7 @@ mlir::Operation* ConvertCastOp(Converter& converter, Operation op, mlir::ValueRa
 mlir::Operation* ConvertConstantOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
     const auto loc = ConvertLocation(builder, op.GetLocation());
-    const auto& attr = std::any_cast<const ConstantAttr&>(op.GetAttributes());
+    const auto& attr = std::any_cast<const ops::ConstantAttr&>(op.GetAttributes());
 
     const auto type = ConvertType(builder, *attr.type);
 
@@ -201,39 +201,39 @@ mlir::Operation* ConvertConstantOp(Converter& converter, Operation op, mlir::Val
 mlir::Operation* ConvertArithmeticOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
     const auto loc = ConvertLocation(builder, op.GetLocation());
-    const auto& attr = std::any_cast<const eArithmeticFunction&>(op.GetAttributes());
+    const auto& attr = std::any_cast<const ops::eArithmeticFunction&>(op.GetAttributes());
 
     auto [lhs, rhs] = std::tuple{ operands[0], operands[1] };
     bool isFloat = lhs.getType().isa<mlir::FloatType>();
     bool isUnsigned = lhs.getType().isUnsignedInteger();
 
     switch (attr) {
-        case eArithmeticFunction::ADD:
+        case ops::eArithmeticFunction::ADD:
             return isFloat ? builder.create<mlir::arith::AddFOp>(loc, lhs, rhs)
                            : builder.create<mlir::arith::AddIOp>(loc, lhs, rhs);
-        case eArithmeticFunction::SUB:
+        case ops::eArithmeticFunction::SUB:
             return isFloat ? builder.create<mlir::arith::SubFOp>(loc, lhs, rhs)
                            : builder.create<mlir::arith::SubIOp>(loc, lhs, rhs);
-        case eArithmeticFunction::MUL:
+        case ops::eArithmeticFunction::MUL:
             return isFloat ? builder.create<mlir::arith::MulFOp>(loc, lhs, rhs)
                            : builder.create<mlir::arith::MulIOp>(loc, lhs, rhs);
-        case eArithmeticFunction::DIV:
+        case ops::eArithmeticFunction::DIV:
             return isFloat      ? builder.create<mlir::arith::DivFOp>(loc, lhs, rhs)
                    : isUnsigned ? builder.create<mlir::arith::DivUIOp>(loc, lhs, rhs)
                                 : builder.create<mlir::arith::DivSIOp>(loc, lhs, rhs);
-        case eArithmeticFunction::MOD:
+        case ops::eArithmeticFunction::MOD:
             return isFloat      ? builder.create<mlir::arith::RemFOp>(loc, lhs, rhs)
                    : isUnsigned ? builder.create<mlir::arith::RemUIOp>(loc, lhs, rhs)
                                 : builder.create<mlir::arith::RemSIOp>(loc, lhs, rhs);
-        case eArithmeticFunction::BIT_AND:
+        case ops::eArithmeticFunction::BIT_AND:
             return builder.create<mlir::arith::AndIOp>(loc, lhs, rhs);
-        case eArithmeticFunction::BIT_OR:
+        case ops::eArithmeticFunction::BIT_OR:
             return builder.create<mlir::arith::OrIOp>(loc, lhs, rhs);
-        case eArithmeticFunction::BIT_XOR:
+        case ops::eArithmeticFunction::BIT_XOR:
             return builder.create<mlir::arith::XOrIOp>(loc, lhs, rhs);
-        case eArithmeticFunction::BIT_SHL:
+        case ops::eArithmeticFunction::BIT_SHL:
             return builder.create<mlir::arith::ShLIOp>(loc, lhs, rhs);
-        case eArithmeticFunction::BIT_SHR:
+        case ops::eArithmeticFunction::BIT_SHR:
             return isUnsigned ? builder.create<mlir::arith::ShRUIOp>(loc, lhs, rhs)
                               : builder.create<mlir::arith::ShRSIOp>(loc, lhs, rhs);
     }
@@ -245,31 +245,31 @@ mlir::Operation* ConvertArithmeticOp(Converter& converter, Operation op, mlir::V
 mlir::Operation* ConvertComparisonOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
     const auto loc = ConvertLocation(builder, op.GetLocation());
-    const auto& attr = std::any_cast<const eComparisonFunction&>(op.GetAttributes());
+    const auto& attr = std::any_cast<const ops::eComparisonFunction&>(op.GetAttributes());
 
     auto [lhs, rhs] = std::tuple{ operands[0], operands[1] };
     bool isFloat = lhs.getType().isa<mlir::FloatType>();
     bool isUnsigned = lhs.getType().isUnsignedInteger();
     switch (attr) {
-        case eComparisonFunction::EQ:
+        case ops::eComparisonFunction::EQ:
             return isFloat ? builder.create<mlir::arith::CmpFOp>(loc, mlir::arith::CmpFPredicate::OEQ, lhs, rhs)
                            : builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::eq, lhs, rhs);
-        case eComparisonFunction::NEQ:
+        case ops::eComparisonFunction::NEQ:
             return isFloat ? builder.create<mlir::arith::CmpFOp>(loc, mlir::arith::CmpFPredicate::ONE, lhs, rhs)
                            : builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::ne, lhs, rhs);
-        case eComparisonFunction::GT:
+        case ops::eComparisonFunction::GT:
             return isFloat      ? builder.create<mlir::arith::CmpFOp>(loc, mlir::arith::CmpFPredicate::OGT, lhs, rhs)
                    : isUnsigned ? builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::ugt, lhs, rhs)
                                 : builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::sgt, lhs, rhs);
-        case eComparisonFunction::LT:
+        case ops::eComparisonFunction::LT:
             return isFloat      ? builder.create<mlir::arith::CmpFOp>(loc, mlir::arith::CmpFPredicate::OLT, lhs, rhs)
                    : isUnsigned ? builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::ult, lhs, rhs)
                                 : builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::slt, lhs, rhs);
-        case eComparisonFunction::GTE:
+        case ops::eComparisonFunction::GTE:
             return isFloat      ? builder.create<mlir::arith::CmpFOp>(loc, mlir::arith::CmpFPredicate::OGE, lhs, rhs)
                    : isUnsigned ? builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::uge, lhs, rhs)
                                 : builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::sge, lhs, rhs);
-        case eComparisonFunction::LTE:
+        case ops::eComparisonFunction::LTE:
             return isFloat      ? builder.create<mlir::arith::CmpFOp>(loc, mlir::arith::CmpFPredicate::OLE, lhs, rhs)
                    : isUnsigned ? builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::ule, lhs, rhs)
                                 : builder.create<mlir::arith::CmpIOp>(loc, mlir::arith::CmpIPredicate::sle, lhs, rhs);
@@ -549,40 +549,40 @@ mlir::Operation* ConvertOperation(mlir::MLIRContext& context, Operation op) {
     Converter converter{ context };
 
     // Module ops
-    converter.RegisterOp<ModuleOp>(&ConvertModuleOp);
-    converter.RegisterOp<FuncOp>(&ConvertFuncOp);
-    converter.RegisterOp<StencilOp>(&ConvertStencilOp);
-    converter.RegisterOp<ReturnOp>(&ConvertReturnOp);
-    converter.RegisterOp<CallOp>(&ConvertCallOp);
-    converter.RegisterOp<ApplyOp>(&ConvertApplyOp);
+    converter.RegisterOp<ops::ModuleOp>(&ConvertModuleOp);
+    converter.RegisterOp<ops::FuncOp>(&ConvertFuncOp);
+    converter.RegisterOp<ops::StencilOp>(&ConvertStencilOp);
+    converter.RegisterOp<ops::ReturnOp>(&ConvertReturnOp);
+    converter.RegisterOp<ops::CallOp>(&ConvertCallOp);
+    converter.RegisterOp<ops::ApplyOp>(&ConvertApplyOp);
 
     // ALU ops
-    converter.RegisterOp<CastOp>(&ConvertCastOp);
-    converter.RegisterOp<ConstantOp>(&ConvertConstantOp);
-    converter.RegisterOp<ArithmeticOp>(&ConvertArithmeticOp);
-    converter.RegisterOp<ComparisonOp>(&ConvertComparisonOp);
-    converter.RegisterOp<MinOp>(&ConvertMinOp);
-    converter.RegisterOp<MaxOp>(&ConvertMaxOp);
+    converter.RegisterOp<ops::CastOp>(&ConvertCastOp);
+    converter.RegisterOp<ops::ConstantOp>(&ConvertConstantOp);
+    converter.RegisterOp<ops::ArithmeticOp>(&ConvertArithmeticOp);
+    converter.RegisterOp<ops::ComparisonOp>(&ConvertComparisonOp);
+    converter.RegisterOp<ops::MinOp>(&ConvertMinOp);
+    converter.RegisterOp<ops::MaxOp>(&ConvertMaxOp);
 
     // Control flow ops
-    converter.RegisterOp<IfOp>(&ConvertIfOp);
-    converter.RegisterOp<ForOp>(&ConvertForOp);
-    converter.RegisterOp<YieldOp>(&ConvertYieldOp);
+    converter.RegisterOp<ops::IfOp>(&ConvertIfOp);
+    converter.RegisterOp<ops::ForOp>(&ConvertForOp);
+    converter.RegisterOp<ops::YieldOp>(&ConvertYieldOp);
 
     // Tensor ops
-    converter.RegisterOp<DimOp>(&ConvertDimOp);
-    converter.RegisterOp<AllocTensorOp>(&ConvertAllocTensorOp);
-    converter.RegisterOp<ExtractSliceOp>(&ConvertExtractSliceOp);
-    converter.RegisterOp<InsertSliceOp>(&ConvertInsertSliceOp);
+    converter.RegisterOp<ops::DimOp>(&ConvertDimOp);
+    converter.RegisterOp<ops::AllocTensorOp>(&ConvertAllocTensorOp);
+    converter.RegisterOp<ops::ExtractSliceOp>(&ConvertExtractSliceOp);
+    converter.RegisterOp<ops::InsertSliceOp>(&ConvertInsertSliceOp);
 
     // Index ops
-    converter.RegisterOp<IndexOp>(&ConvertIndexOp);
-    converter.RegisterOp<JumpOp>(&ConvertJumpOp);
-    converter.RegisterOp<ProjectOp>(&ConvertProjectOp);
-    converter.RegisterOp<ExtractOp>(&ConvertExtractOp);
-    converter.RegisterOp<ExtendOp>(&ConvertExtendOp);
-    converter.RegisterOp<ExchangeOp>(&ConvertExchangeOp);
-    converter.RegisterOp<SampleOp>(&ConvertSampleOp);
+    converter.RegisterOp<ops::IndexOp>(&ConvertIndexOp);
+    converter.RegisterOp<ops::JumpOp>(&ConvertJumpOp);
+    converter.RegisterOp<ops::ProjectOp>(&ConvertProjectOp);
+    converter.RegisterOp<ops::ExtractOp>(&ConvertExtractOp);
+    converter.RegisterOp<ops::ExtendOp>(&ConvertExtendOp);
+    converter.RegisterOp<ops::ExchangeOp>(&ConvertExchangeOp);
+    converter.RegisterOp<ops::SampleOp>(&ConvertSampleOp);
 
 
     auto converted = converter(op);
@@ -597,4 +597,4 @@ mlir::Operation* ConvertOperation(mlir::MLIRContext& context, Operation op) {
 }
 
 
-} // namespace dag
+} // namespace sir

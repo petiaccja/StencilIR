@@ -13,7 +13,7 @@
 #include <vector>
 
 
-namespace dag {
+namespace sir {
 
 
 struct Location {
@@ -130,4 +130,4 @@ private:
 };
 
 
-} // namespace dag
+} // namespace sir

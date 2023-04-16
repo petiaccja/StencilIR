@@ -13,60 +13,62 @@
 
 #include <catch2/catch.hpp>
 
+using namespace sir;
 
-static dag::ModuleOp CreateAST() {
-    auto moduleOp = dag::ModuleOp{};
 
-    auto snSubstract = moduleOp.Create<dag::StencilOp>(
+static ops::ModuleOp CreateAST() {
+    auto moduleOp = ops::ModuleOp{};
+
+    auto snSubstract = moduleOp.Create<ops::StencilOp>(
         "subtract",
         ast::FunctionType::Get({ ast::FieldType::Get(ast::Float32, 1),
                                  ast::FieldType::Get(ast::Float32, 1) },
                                { ast::Float32 }),
         1);
-    auto idx = snSubstract.Create<dag::IndexOp>().GetResult();
-    auto lSample = snSubstract.Create<dag::SampleOp>(snSubstract.GetRegionArg(0), idx).GetResult();
-    auto rSample = snSubstract.Create<dag::SampleOp>(snSubstract.GetRegionArg(1), idx).GetResult();
-    auto sum = snSubstract.Create<dag::ArithmeticOp>(lSample, rSample, dag::eArithmeticFunction::SUB)
+    auto idx = snSubstract.Create<ops::IndexOp>().GetResult();
+    auto lSample = snSubstract.Create<ops::SampleOp>(snSubstract.GetRegionArg(0), idx).GetResult();
+    auto rSample = snSubstract.Create<ops::SampleOp>(snSubstract.GetRegionArg(1), idx).GetResult();
+    auto sum = snSubstract.Create<ops::ArithmeticOp>(lSample, rSample, ops::eArithmeticFunction::SUB)
                    .GetResult();
-    snSubstract.Create<dag::ReturnOp>(std::vector{ sum });
+    snSubstract.Create<ops::ReturnOp>(std::vector{ sum });
 
 
-    auto fnMain = moduleOp.Create<dag::FuncOp>(
+    auto fnMain = moduleOp.Create<ops::FuncOp>(
         "main",
         ast::FunctionType::Get({ ast::FieldType::Get(ast::Float32, 1), ast::FieldType::Get(ast::Float32, 1) }, {}));
 
 
     auto input = fnMain.GetRegionArg(0);
     auto output = fnMain.GetRegionArg(1);
-    auto czero = fnMain.Create<dag::ConstantOp>(0, ast::IndexType::Get()).GetResult();
-    auto cone = fnMain.Create<dag::ConstantOp>(1, ast::IndexType::Get()).GetResult();
-    auto size = fnMain.Create<dag::DimOp>(input, czero).GetResult();
-    auto dsize = fnMain.Create<dag::ArithmeticOp>(size, cone, dag::eArithmeticFunction::SUB).GetResult();
-    auto ddsize = fnMain.Create<dag::ArithmeticOp>(dsize, cone, dag::eArithmeticFunction::SUB).GetResult();
+    auto czero = fnMain.Create<ops::ConstantOp>(0, ast::IndexType::Get()).GetResult();
+    auto cone = fnMain.Create<ops::ConstantOp>(1, ast::IndexType::Get()).GetResult();
+    auto size = fnMain.Create<ops::DimOp>(input, czero).GetResult();
+    auto dsize = fnMain.Create<ops::ArithmeticOp>(size, cone, ops::eArithmeticFunction::SUB).GetResult();
+    auto ddsize = fnMain.Create<ops::ArithmeticOp>(dsize, cone, ops::eArithmeticFunction::SUB).GetResult();
 
 
-    auto left = fnMain.Create<dag::ExtractSliceOp>(input, std::vector{ czero }, std::vector{ dsize }, std::vector{ cone }).GetResult();
-    auto right = fnMain.Create<dag::ExtractSliceOp>(input, std::vector{ cone }, std::vector{ dsize }, std::vector{ cone }).GetResult();
-    auto tmp1 = fnMain.Create<dag::AllocTensorOp>(ast::Float32, std::vector{ dsize }).GetResult();
+    auto left = fnMain.Create<ops::ExtractSliceOp>(input, std::vector{ czero }, std::vector{ dsize }, std::vector{ cone }).GetResult();
+    auto right = fnMain.Create<ops::ExtractSliceOp>(input, std::vector{ cone }, std::vector{ dsize }, std::vector{ cone }).GetResult();
+    auto tmp1 = fnMain.Create<ops::AllocTensorOp>(ast::Float32, std::vector{ dsize }).GetResult();
 
-    auto d = fnMain.Create<dag::ApplyOp>("subtract",
+    auto d = fnMain.Create<ops::ApplyOp>("subtract",
                                          std::vector{ left, right },
                                          std::vector{ tmp1 },
-                                         std::vector<dag::Value>{},
+                                         std::vector<Value>{},
                                          std::vector<int64_t>{ 0, 0 })
                  .GetResults()[0];
 
-    auto dleft = fnMain.Create<dag::ExtractSliceOp>(d, std::vector{ czero }, std::vector{ ddsize }, std::vector{ cone }).GetResult();
-    auto dright = fnMain.Create<dag::ExtractSliceOp>(d, std::vector{ cone }, std::vector{ ddsize }, std::vector{ cone }).GetResult();
+    auto dleft = fnMain.Create<ops::ExtractSliceOp>(d, std::vector{ czero }, std::vector{ ddsize }, std::vector{ cone }).GetResult();
+    auto dright = fnMain.Create<ops::ExtractSliceOp>(d, std::vector{ cone }, std::vector{ ddsize }, std::vector{ cone }).GetResult();
 
-    auto dd = fnMain.Create<dag::ApplyOp>("subtract",
+    auto dd = fnMain.Create<ops::ApplyOp>("subtract",
                                           std::vector{ dleft, dright },
                                           std::vector{ output },
-                                          std::vector<dag::Value>{},
+                                          std::vector<Value>{},
                                           std::vector<int64_t>{ 0, 0 })
                   .GetResults()[0];
 
-    fnMain.Create<dag::ReturnOp>(std::vector<dag::Value>{});
+    fnMain.Create<ops::ReturnOp>(std::vector<Value>{});
 
     return moduleOp;
 }

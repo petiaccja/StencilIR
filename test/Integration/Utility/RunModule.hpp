@@ -8,24 +8,27 @@
 
 
 template <class... Args>
-std::vector<StageResult> RunModule(const dag::ModuleOp& mod, std::string_view function, bool optimize, Args&&... args) {
+std::vector<sir::StageResult> RunModule(const sir::ops::ModuleOp& mod,
+                                        std::string_view function,
+                                        bool optimize,
+                                        Args&&... args) {
     mlir::MLIRContext context;
-    mlir::ModuleOp ir = mlir::dyn_cast<mlir::ModuleOp>(dag::ConvertOperation(context, mod));
+    mlir::ModuleOp ir = mlir::dyn_cast<mlir::ModuleOp>(ConvertOperation(context, mod));
 
-    const auto optimizationOptions = !optimize ? OptimizationOptions{} : OptimizationOptions{
+    const auto optimizationOptions = !optimize ? sir::OptimizationOptions{} : sir::OptimizationOptions{
         .inlineFunctions = true,
         .fuseExtractSliceOps = true,
         .fuseApplyOps = true,
         .eliminateAllocBuffers = true,
     };
 
-    Compiler compiler{ TargetCPUPipeline(context, optimizationOptions) };
-    std::vector<StageResult> stageResults;
+    sir::Compiler compiler{ TargetCPUPipeline(context, optimizationOptions) };
+    std::vector<sir::StageResult> stageResults;
 
     mlir::ModuleOp compiled = compiler.Run(ir, stageResults);
 
     constexpr int optLevel = 3;
-    Runner jitRunner{ compiled, optLevel };
+    sir::Runner jitRunner{ compiled, optLevel };
     jitRunner.Invoke(function, std::forward<Args>(args)...);
 
     return stageResults;
