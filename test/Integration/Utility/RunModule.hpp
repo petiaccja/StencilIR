@@ -1,16 +1,16 @@
 #pragma once
 
 
-#include <AST/ConvertASTToIR.hpp>
-#include <AST/Nodes.hpp>
 #include <Compiler/Pipelines.hpp>
 #include <Execution/Execution.hpp>
+#include <IR/ConvertOps.hpp>
+#include <IR/Ops.hpp>
 
 
 template <class... Args>
-std::vector<StageResult> RunAST(const ast::Module& ast, std::string_view function, bool optimize, Args&&... args) {
+std::vector<StageResult> RunModule(const dag::ModuleOp& mod, std::string_view function, bool optimize, Args&&... args) {
     mlir::MLIRContext context;
-    mlir::ModuleOp ir = ConvertASTToIR(context, ast);
+    mlir::ModuleOp ir = mlir::dyn_cast<mlir::ModuleOp>(dag::ConvertOperation(context, mod));
 
     const auto optimizationOptions = !optimize ? OptimizationOptions{} : OptimizationOptions{
         .inlineFunctions = true,

@@ -3,13 +3,11 @@ add_executable(TestIntegration)
 target_sources(TestIntegration
     PRIVATE
         main.cpp
-        Utility/RunAST.hpp
+        Utility/RunModule.hpp
 )
 
 target_sources(TestIntegration
     PRIVATE
-        Test_Structured.cpp
-        Test_Unstructured.cpp
         Test_Optimization.cpp
         Test_ObjectFile.cpp
 )
