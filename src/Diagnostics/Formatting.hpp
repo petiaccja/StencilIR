@@ -22,4 +22,4 @@ std::string FormatDiagnostic(const mlir::Diagnostic& diag);
 std::string FormatModule(mlir::ModuleOp& moduleOp);
 
 
-}
+} // namespace sir

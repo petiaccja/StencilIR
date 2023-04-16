@@ -475,4 +475,4 @@ struct SampleOp : Operation {
 };
 
 
-} // namespace sir
+} // namespace sir::ops

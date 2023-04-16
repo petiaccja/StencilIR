@@ -26,4 +26,4 @@ inline auto createStencilPrintToLLVMPass() {
 }
 
 
-}
+} // namespace sir

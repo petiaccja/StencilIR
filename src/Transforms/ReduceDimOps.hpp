@@ -12,4 +12,4 @@ class ReduceDimOpsPass : public mlir::PassWrapper<ReduceDimOpsPass, mlir::Operat
 };
 
 
-}
+} // namespace sir
