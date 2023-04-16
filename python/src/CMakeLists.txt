@@ -10,4 +10,4 @@ target_sources(stencilir
         Invoke.cpp
         Invoke.hpp)
 
-target_link_libraries(stencilir PUBLIC AST DAG Compiler Execution Diagnostics)
+target_link_libraries(stencilir PUBLIC AST IR Compiler Execution Diagnostics)

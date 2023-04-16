@@ -1,7 +1,7 @@
 #include <AST/Types.hpp>
 #include <Compiler/Pipelines.hpp>
-#include <DAG/ConvertOps.hpp>
-#include <DAG/Ops.hpp>
+#include <IR/ConvertOps.hpp>
+#include <IR/Ops.hpp>
 #include <Execution/Execution.hpp>
 
 #include <filesystem>

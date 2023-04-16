@@ -18,7 +18,7 @@ target_sources(TestTools
 target_include_directories(TestTools INTERFACE "${CMAKE_CURRENT_LIST_DIR}/..")
 
 target_link_libraries(TestTools LLVMFileCheck LLVMSupport)
-target_link_libraries(TestTools AST DAG)
+target_link_libraries(TestTools AST IR)
 
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 target_link_libraries(TestTools ${dialect_libs})

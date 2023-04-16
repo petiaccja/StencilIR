@@ -1,7 +1,7 @@
 #pragma once
 
 #include <AST/Nodes.hpp>
-#include <DAG/Operation.hpp>
+#include <IR/Operation.hpp>
 
 #include <mlir/IR/BuiltinOps.h>
 #include <mlir/Pass/Pass.h>

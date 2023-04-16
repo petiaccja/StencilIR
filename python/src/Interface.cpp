@@ -4,7 +4,7 @@
 #include <pybind11/stl.h>
 
 #include <AST/Nodes.hpp>
-#include <DAG/Ops.hpp>
+#include <IR/Ops.hpp>
 #include <Diagnostics/Exception.hpp>
 
 

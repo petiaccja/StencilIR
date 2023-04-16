@@ -3,7 +3,7 @@
 #include "Invoke.hpp"
 
 #include <AST/ConvertASTToIR.hpp>
-#include <DAG/ConvertOps.hpp>
+#include <IR/ConvertOps.hpp>
 
 #include <memory_resource>
 #include <new>

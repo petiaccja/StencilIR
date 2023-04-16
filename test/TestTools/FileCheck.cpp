@@ -1,8 +1,8 @@
 #include "FileCheck.hpp"
 
 #include <AST/ConvertASTToIR.hpp>
-#include <DAG/ConvertOps.hpp>
-#include <DAG/Operation.hpp>
+#include <IR/ConvertOps.hpp>
+#include <IR/Operation.hpp>
 #include <Diagnostics/Exception.hpp>
 #include <Diagnostics/Formatting.hpp>
 #include <Diagnostics/Handlers.hpp>

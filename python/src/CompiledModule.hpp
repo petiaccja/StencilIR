@@ -5,7 +5,7 @@
 
 #include <AST/Nodes.hpp>
 #include <Compiler/Pipelines.hpp>
-#include <DAG/Ops.hpp>
+#include <IR/Ops.hpp>
 #include <Execution/Execution.hpp>
 
 #include <memory>
