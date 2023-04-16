@@ -14,9 +14,9 @@ std::vector<StageResult> RunAST(const ast::Module& ast, std::string_view functio
 
     const auto optimizationOptions = !optimize ? OptimizationOptions{} : OptimizationOptions{
         .inlineFunctions = true,
-        .eliminateAllocBuffers = true,
-        .fuseApplyOps = true,
         .fuseExtractSliceOps = true,
+        .fuseApplyOps = true,
+        .eliminateAllocBuffers = true,
     };
 
     Compiler compiler{ TargetCPUPipeline(context, optimizationOptions) };

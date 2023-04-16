@@ -44,13 +44,20 @@ Stage CreateGlobalOptimizationStage(mlir::MLIRContext& context,
                                     const OptimizationOptions& optimizationOptions) {
     Stage stage{ "global_opt", context };
 
-    if (optimizationOptions.inlineFunctions) {
-        stage.passes->addPass(mlir::createInlinerPass());
+    llvm::StringMap<mlir::OpPassManager> inlinerPipelines;
+    if (optimizationOptions.eliminateAllocBuffers) {
+        mlir::OpPassManager inlinerFuncPm;
+        inlinerFuncPm.addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createAllocTensorEliminationPass());
+        inlinerPipelines.insert_or_assign("func.func", std::move(inlinerFuncPm));
     }
-    stage.passes->addPass(createReduceDimOpsPass());
+
+    if (optimizationOptions.inlineFunctions) {
+        stage.passes->addPass(mlir::createInlinerPass(std::move(inlinerPipelines)));
+    }
     if (optimizationOptions.eliminateAllocBuffers) {
         stage.passes->addPass(mlir::bufferization::createAllocTensorEliminationPass());
     }
+    stage.passes->addPass(createReduceDimOpsPass());
     if (optimizationOptions.fuseExtractSliceOps) {
         stage.passes->addPass(createFuseExtractSliceOpsPass());
     }

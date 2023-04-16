@@ -106,7 +106,7 @@ struct ApplyOpLoweringBase : public OpRewritePattern<stencil::ApplyOp> {
 };
 
 
-struct ApplyOpLoweringSCF : ApplyOpLoweringBase {
+struct ApplyOpLoweringParallel : ApplyOpLoweringBase {
     using ApplyOpLoweringBase::ApplyOpLoweringBase;
 
     LogicalResult matchAndRewrite(stencil::ApplyOp op, PatternRewriter& rewriter) const override final {
@@ -117,7 +117,7 @@ struct ApplyOpLoweringSCF : ApplyOpLoweringBase {
         const auto lbValues = std::vector<Value>(numDims, rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0)));
         const std::vector<Value> steps(numDims, rewriter.create<arith::ConstantIndexOp>(loc, 1));
 
-        scf::buildLoopNest(rewriter, loc, lbValues, ubValues, steps, [&op](OpBuilder& builder, Location loc, ValueRange loopVars) {
+        rewriter.create<mlir::scf::ParallelOp>(loc, lbValues, ubValues, steps, [&op](OpBuilder& builder, Location loc, ValueRange loopVars) {
             CreateLoopBody(op, builder, loc, loopVars);
         });
         rewriter.eraseOp(op);
@@ -149,7 +149,7 @@ void StencilApplyToLoopsPass::runOnOperation() {
     target.addIllegalOp<stencil::ApplyOp>();
 
     RewritePatternSet patterns(&getContext());
-    patterns.add<ApplyOpLoweringSCF>(&getContext());
+    patterns.add<ApplyOpLoweringParallel>(&getContext());
 
     if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {
         signalPassFailure();

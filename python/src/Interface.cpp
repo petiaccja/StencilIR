@@ -15,7 +15,6 @@ auto as_list(Range&& range) {
         list.append(v);
     }
     return list;
-    // return std::vector{ std::begin(range), std::end(range) };
 }
 
 
@@ -106,8 +105,8 @@ void SubmoduleIR(pybind11::module_& main) {
     py::class_<CallOp, std::shared_ptr<CallOp>>(ops, "CallOp", operation)
         .def(py::init<FuncOp, std::vector<Value>, std::optional<dag::Location>>(),
              py::arg("callee"), py::arg("args"), py::arg("location"))
-        .def(py::init<std::string, size_t, std::vector<Value>, std::optional<dag::Location>>(),
-             py::arg("callee"), py::arg("num_results"), py::arg("args"), py::arg("location"))
+        .def(py::init<std::string, std::vector<ast::TypePtr>, std::vector<Value>, std::optional<dag::Location>>(),
+             py::arg("callee"), py::arg("results"), py::arg("args"), py::arg("location"))
         .def("get_callee", &CallOp::GetCallee)
         .def("get_num_results", &CallOp::GetNumResults)
         .def("get_args", &CallOp::GetArgs);
@@ -255,7 +254,12 @@ PYBIND11_MODULE(stencilir, m) {
         .def(pybind11::init<dag::ModuleOp, CompileOptions>(), pybind11::arg("ir"), pybind11::arg("options"))
         .def("compile", &CompiledModule::Compile, pybind11::arg("record_stages") = false)
         .def("invoke", &CompiledModule::Invoke)
-        .def("get_stage_results", &CompiledModule::GetStageResults);
+        .def("get_stage_results", &CompiledModule::GetStageResults)
+        .def("get_llvm_ir", &CompiledModule::GetLLVMIR)
+        .def("get_object_file", [](const CompiledModule& self) {
+            const auto buffer = self.GetObjectFile();
+            return pybind11::bytearray(buffer.data(), buffer.size());
+        });
 
     //----------------------------------
     // AST nodes
@@ -532,10 +536,10 @@ PYBIND11_MODULE(stencilir, m) {
 
     pybind11::class_<OptimizationOptions>(m, "OptimizationOptions")
         .def(pybind11::init<bool, bool, bool, bool>(),
-             pybind11::arg("eliminate_alloc_buffers") = false,
              pybind11::arg("inline_functions") = false,
              pybind11::arg("fuse_extract_slice_ops") = false,
-             pybind11::arg("fuse_apply_ops") = false)
+             pybind11::arg("fuse_apply_ops") = false,
+             pybind11::arg("eliminate_alloc_buffers") = false)
         .def_readwrite("eliminate_alloc_buffers", &OptimizationOptions::eliminateAllocBuffers)
         .def_readwrite("inline_functions", &OptimizationOptions::inlineFunctions)
         .def_readwrite("fuse_extract_slice_ops", &OptimizationOptions::fuseExtractSliceOps)

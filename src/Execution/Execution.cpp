@@ -2,6 +2,10 @@
 
 #include "DynamicLinking.hpp"
 
+#include <Diagnostics/Exception.hpp>
+
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/MC/TargetRegistry.h>
 #include <llvm/Support/TargetSelect.h>
 #include <mlir/ExecutionEngine/CRunnerUtils.h>
 #include <mlir/ExecutionEngine/ExecutionEngine.h>
@@ -67,13 +71,9 @@ Runner::Runner(mlir::ModuleOp& llvmIr, int optLevel) {
     if (auto err = optPipeline(llvmModule.get())) {
         throw std::runtime_error("failed to optimize LLVM IR");
     }
-    std::string printedLLVMIR;
-    llvm::raw_string_ostream ss{ printedLLVMIR };
-    ss << *llvmModule;
 
-    m_layoutContext = std::move(llvmContext);
-    m_layoutModule = std::move(llvmModule);
-    m_printedLLVMIR = std::move(printedLLVMIR);
+    m_llvmContext = std::move(llvmContext);
+    m_llvmModule = std::move(llvmModule);
 }
 
 
@@ -93,9 +93,51 @@ void Runner::Invoke(std::string_view name, std::span<void*> args) const {
 }
 
 llvm::LLVMContext& Runner::GetContext() const {
-    return m_layoutModule->getContext();
+    return m_llvmModule->getContext();
 }
 
 const llvm::DataLayout& Runner::GetDataLayout() const {
-    return m_layoutModule->getDataLayout();
+    return m_llvmModule->getDataLayout();
+}
+
+std::string Runner::GetLLVMIR() const {
+    std::string printedLLVMIR;
+    llvm::raw_string_ostream ss{ printedLLVMIR };
+    ss << *m_llvmModule;
+    return ss.str();
+}
+
+std::vector<char> Runner::GetObjectFile() const {
+    auto targetTriple = m_llvmModule->getTargetTriple();
+
+    std::string errorMsg;
+    auto target = llvm::TargetRegistry::lookupTarget(targetTriple, errorMsg);
+
+    // Print an error and exit if we couldn't find the requested target.
+    // This generally occurs if we've forgotten to initialise the
+    // TargetRegistry or we have a bogus target triple.
+    if (!target) {
+        throw Exception(errorMsg);
+    }
+
+    auto cpu = "generic";
+    auto features = "";
+
+    llvm::TargetOptions opt;
+    auto relocModel = llvm::Optional<llvm::Reloc::Model>();
+    auto targetMachine = target->createTargetMachine(targetTriple, cpu, features, opt, relocModel);
+
+    llvm::SmallVector<char, 128> buffer;
+    llvm::raw_svector_ostream os(buffer);
+
+    llvm::legacy::PassManager pass;
+    auto FileType = llvm::CGFT_ObjectFile;
+
+    if (targetMachine->addPassesToEmitFile(pass, os, nullptr, FileType)) {
+        throw Exception("TargetMachine can't emit a file of this type");
+    }
+
+    pass.run(*m_llvmModule);
+
+    return { buffer.begin(), buffer.end() };
 }

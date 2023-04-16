@@ -183,13 +183,6 @@ auto FusePrecedingApplyOp(stencil::ApplyOp precedingOp,
     const auto precedingStencil = mlir::SymbolTable::lookupNearestSymbolFrom<stencil::StencilOp>(precedingOp, precedingOp.getCalleeAttr());
     const auto targetStencil = mlir::SymbolTable::lookupNearestSymbolFrom<stencil::StencilOp>(targetOp, targetOp.getCalleeAttr());
 
-    auto maybeFusedStencil = FusePrecedingStencilOp(precedingStencil, targetStencil, resultsToParams, rewriter);
-    if (failed(maybeFusedStencil)) {
-        return failure();
-    }
-    auto fusedStencil = maybeFusedStencil.value();
-
-    // Create fused apply op
     mlir::SmallVector<mlir::Value, 16> inputs;
     std::copy(targetOp.getInputs().begin(), targetOp.getInputs().end(), std::back_inserter(inputs));
     std::copy(precedingOp.getInputs().begin(), precedingOp.getInputs().end(), std::back_inserter(inputs));
@@ -203,6 +196,13 @@ auto FusePrecedingApplyOp(stencil::ApplyOp precedingOp,
     for (auto inputIdx : inputsToRemove) {
         inputs.erase(inputs.begin() + inputIdx);
     }
+
+    // Create fused apply op
+    auto maybeFusedStencil = FusePrecedingStencilOp(precedingStencil, targetStencil, resultsToParams, rewriter);
+    if (failed(maybeFusedStencil)) {
+        return failure();
+    }
+    auto fusedStencil = maybeFusedStencil.value();
 
     rewriter.setInsertionPointAfter(targetOp);
     auto fusedApplyOp = rewriter.create<stencil::ApplyOp>(targetOp->getLoc(),
@@ -272,6 +272,9 @@ auto FusePrecedingApplies(stencil::ApplyOp targetOp, mlir::PatternRewriter& rewr
             return !IsOperandFusable(targetOp, mapping.second);
         });
         mappedResults.erase(last, mappedResults.end());
+        if (mappedResults.empty()) {
+            continue;
+        }
 
         const auto precedingStencil = mlir::SymbolTable::lookupNearestSymbolFrom<stencil::StencilOp>(precedingOp, precedingOp.getCalleeAttr());
         const auto targetStencil = mlir::SymbolTable::lookupNearestSymbolFrom<stencil::StencilOp>(targetOp, targetOp.getCalleeAttr());
@@ -311,7 +314,7 @@ public:
         const auto& [fusedOp, precedingOps] = maybeFusedOp.value();
 
         if (fusedOp == applyOp) {
-            return success(); // Yeah, this is normal, return success.
+            return failure(); // Return failure to signal nothing changed.
         }
 
         rewriter.replaceOp(applyOp, fusedOp->getResults());
@@ -337,6 +340,7 @@ void FuseApplyOpsPass::runOnOperation() {
     // Use TopDownTraversal for compile time reasons
     GreedyRewriteConfig grc;
     grc.useTopDownTraversal = true;
+    grc.maxIterations = 20;
     (void)applyPatternsAndFoldGreedily(op->getRegions(), std::move(patterns), grc);
 
     mlir::PassManager pm{ &getContext() };

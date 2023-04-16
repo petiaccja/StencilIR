@@ -47,6 +47,8 @@ public:
     void Compile(bool recordStages = false);
     pybind11::object Invoke(std::string function, pybind11::args args);
     std::vector<StageResult> GetStageResults() const;
+    std::string GetLLVMIR() const;
+    std::vector<char> GetObjectFile() const;
 
 private:
     static auto ExtractFunctions(std::shared_ptr<ast::Module> ast) -> std::unordered_map<std::string, FunctionType>;

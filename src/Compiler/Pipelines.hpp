@@ -5,9 +5,9 @@
 
 struct OptimizationOptions {
     bool inlineFunctions = false;
-    bool eliminateAllocBuffers = false;
-    bool fuseApplyOps = false;
     bool fuseExtractSliceOps = false;
+    bool fuseApplyOps = false;
+    bool eliminateAllocBuffers = false;
 };
 
 std::vector<Stage> TargetCPUPipeline(mlir::MLIRContext& context,

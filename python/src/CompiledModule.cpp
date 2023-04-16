@@ -101,6 +101,16 @@ void CompiledModule::Compile(bool recordStages) {
 }
 
 
+std::string CompiledModule::GetLLVMIR() const {
+    return m_runner->GetLLVMIR();
+}
+
+
+std::vector<char> CompiledModule::GetObjectFile() const {
+    return m_runner->GetObjectFile();
+}
+
+
 auto CompiledModule::ExtractFunctions(std::shared_ptr<ast::Module> ast) -> std::unordered_map<std::string, FunctionType> {
     std::unordered_map<std::string, FunctionType> functions;
     for (const auto& function : ast->functions) {
