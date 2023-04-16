@@ -13,8 +13,8 @@
 TEST_CASE("Object file", "[Program]") {
     using namespace dag;
 
-    auto module = ModuleOp{};
-    auto stencilir_add = module.Create<FuncOp>("stencilir_add",
+    auto moduleOp = ModuleOp{};
+    auto stencilir_add = moduleOp.Create<FuncOp>("stencilir_add",
                                                ast::FunctionType::Get({ ast::Int32, ast::Int32 },
                                                                       { ast::Int32 }),
                                                true);
@@ -25,7 +25,7 @@ TEST_CASE("Object file", "[Program]") {
     stencilir_add.Create<ReturnOp>(std::vector{ result });
 
     mlir::MLIRContext context;
-    auto convertedModule = mlir::dyn_cast<mlir::ModuleOp>(ConvertOperation(context, module));
+    auto convertedModule = mlir::dyn_cast<mlir::ModuleOp>(ConvertOperation(context, moduleOp));
     Compiler compiler{ TargetCPUPipeline(context) };
     auto compiledModule = compiler.Run(convertedModule);
 
