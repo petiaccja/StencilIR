@@ -1,7 +1,7 @@
 #pragma once
 
 
-#include <AST/Types.hpp>
+#include <IR/Types.hpp>
 
 #include <algorithm>
 #include <any>

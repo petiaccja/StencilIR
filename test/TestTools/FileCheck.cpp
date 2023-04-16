@@ -1,6 +1,5 @@
 #include "FileCheck.hpp"
 
-#include <AST/ConvertASTToIR.hpp>
 #include <IR/ConvertOps.hpp>
 #include <IR/Operation.hpp>
 #include <Diagnostics/Exception.hpp>
@@ -109,14 +108,6 @@ bool CheckText(std::string_view input, std::string_view pattern) {
         throw Exception(message.str());
     }
     return success;
-}
-
-
-bool CheckAST(ast::Module& moduleNode, std::string_view pattern) {
-    static mlir::MLIRContext context;
-    auto ir = ConvertASTToIR(context, moduleNode);
-    const auto str = PrintOp(ir);
-    return CheckText(str, pattern);
 }
 
 

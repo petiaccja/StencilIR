@@ -249,7 +249,6 @@ PYBIND11_MODULE(stencilir, m) {
     SubmoduleIR(m);
 
     pybind11::class_<CompiledModule>(m, "CompiledModule")
-        .def(pybind11::init<std::shared_ptr<ast::Module>, CompileOptions>(), pybind11::arg("ast"), pybind11::arg("options"))
         .def(pybind11::init<dag::ModuleOp, CompileOptions>(), pybind11::arg("ir"), pybind11::arg("options"))
         .def("compile", &CompiledModule::Compile, pybind11::arg("record_stages") = false)
         .def("invoke", &CompiledModule::Invoke)

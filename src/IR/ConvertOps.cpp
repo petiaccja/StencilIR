@@ -1,9 +1,9 @@
 #include "ConvertOps.hpp"
 
+#include "ConvertUtils.hpp"
 #include "Converter.hpp"
 #include "Ops.hpp"
 
-#include <AST/Utility.hpp>
 #include <Diagnostics/Exception.hpp>
 #include <Diagnostics/Handlers.hpp>
 #include <Dialect/Stencil/IR/StencilOps.hpp>

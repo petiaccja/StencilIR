@@ -12,7 +12,7 @@ target_sources(TestIntegration
         Test_ObjectFile.cpp
 )
 
-target_link_libraries(TestIntegration AST Compiler Execution IR)
+target_link_libraries(TestIntegration IR Compiler Execution)
 
 find_package(Catch2)
 target_link_libraries(TestIntegration Catch2::Catch2)

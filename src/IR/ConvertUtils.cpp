@@ -1,6 +1,4 @@
-#include "Utility.hpp"
-
-#include "Nodes.hpp"
+#include "ConvertUtils.hpp"
 
 #include <Diagnostics/Exception.hpp>
 
@@ -14,14 +12,6 @@
 #include <string>
 
 
-
-mlir::Location ConvertLocation(mlir::OpBuilder& builder, const std::optional<ast::Location>& location) {
-    if (location) {
-        auto fileattr = builder.getStringAttr(location->file);
-        return mlir::FileLineColLoc::get(fileattr, location->line, location->col);
-    }
-    return builder.getUnknownLoc();
-}
 
 std::string FormatType(mlir::Type type) {
     std::string s;

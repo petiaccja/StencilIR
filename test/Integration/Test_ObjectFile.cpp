@@ -1,4 +1,4 @@
-#include <AST/Types.hpp>
+#include <IR/Types.hpp>
 #include <Compiler/Pipelines.hpp>
 #include <IR/ConvertOps.hpp>
 #include <IR/Ops.hpp>

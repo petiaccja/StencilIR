@@ -2,18 +2,11 @@
 
 #include "Invoke.hpp"
 
-#include <AST/ConvertASTToIR.hpp>
 #include <IR/ConvertOps.hpp>
 
 #include <memory_resource>
 #include <new>
 #include <span>
-
-
-
-CompiledModule::CompiledModule(std::shared_ptr<ast::Module> ast, CompileOptions options)
-    : m_ir(ast), m_options(options), m_functions(ExtractFunctions(ast)) {
-}
 
 
 CompiledModule::CompiledModule(dag::ModuleOp ir, CompileOptions options)
@@ -84,16 +77,7 @@ void CompiledModule::Compile(bool recordStages) {
     }();
     const int optLevel = static_cast<int>(m_options.optimizationLevel);
 
-    auto convertIr = [this](const auto& ir) -> mlir::ModuleOp {
-        if constexpr (std::is_convertible_v<decltype(ir), std::shared_ptr<ast::Module>>) {
-            return ConvertASTToIR(m_context, *ir);
-        }
-        else if constexpr (std::is_convertible_v<decltype(ir), dag::ModuleOp>) {
-            return mlir::dyn_cast<mlir::ModuleOp>(dag::ConvertOperation(m_context, ir));
-        }
-        std::terminate();
-    };
-    const auto mlirIr = std::visit(convertIr, m_ir);
+    const auto mlirIr = mlir::dyn_cast<mlir::ModuleOp>(dag::ConvertOperation(m_context, m_ir));
     Compiler compiler(std::move(pipeline));
     auto llvmIr = recordStages ? compiler.Run(mlirIr, m_stageResults) : compiler.Run(mlirIr);
 
@@ -108,19 +92,6 @@ std::string CompiledModule::GetLLVMIR() const {
 
 std::vector<char> CompiledModule::GetObjectFile() const {
     return m_runner->GetObjectFile();
-}
-
-
-auto CompiledModule::ExtractFunctions(std::shared_ptr<ast::Module> ast) -> std::unordered_map<std::string, FunctionType> {
-    std::unordered_map<std::string, FunctionType> functions;
-    for (const auto& function : ast->functions) {
-        std::vector<ast::TypePtr> parameters;
-        for (auto& parameter : function->parameters) {
-            parameters.push_back(parameter.type);
-        }
-        functions.emplace(function->name, FunctionType{ parameters, function->results });
-    }
-    return functions;
 }
 
 

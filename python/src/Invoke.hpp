@@ -2,7 +2,7 @@
 
 #include <pybind11/pybind11.h>
 
-#include <AST/Types.hpp>
+#include <IR/Types.hpp>
 #include <Diagnostics/Exception.hpp>
 #include <Execution/Execution.hpp>
 

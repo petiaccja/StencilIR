@@ -3,7 +3,6 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include <AST/Nodes.hpp>
 #include <Compiler/Pipelines.hpp>
 #include <IR/Ops.hpp>
 #include <Execution/Execution.hpp>
@@ -41,7 +40,6 @@ class CompiledModule {
     };
 
 public:
-    CompiledModule(std::shared_ptr<ast::Module> ast, CompileOptions options);
     CompiledModule(dag::ModuleOp ast, CompileOptions options);
 
     void Compile(bool recordStages = false);
@@ -51,13 +49,12 @@ public:
     std::vector<char> GetObjectFile() const;
 
 private:
-    static auto ExtractFunctions(std::shared_ptr<ast::Module> ast) -> std::unordered_map<std::string, FunctionType>;
     static auto ExtractFunctions(dag::ModuleOp ir) -> std::unordered_map<std::string, FunctionType>;
 
 private:
     mlir::MLIRContext m_context;
     std::unique_ptr<Runner> m_runner;
-    std::variant<dag::ModuleOp, std::shared_ptr<ast::Module>> m_ir;
+    dag::ModuleOp m_ir;
     CompileOptions m_options;
     std::unordered_map<std::string, FunctionType> m_functions;
     std::vector<StageResult> m_stageResults;
