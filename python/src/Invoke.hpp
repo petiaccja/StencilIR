@@ -2,9 +2,9 @@
 
 #include <pybind11/pybind11.h>
 
-#include <AST/Types.hpp>
 #include <Diagnostics/Exception.hpp>
 #include <Execution/Execution.hpp>
+#include <IR/Types.hpp>
 
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Type.h>
@@ -15,6 +15,7 @@
 #include <vector>
 
 
+namespace sir {
 ast::TypePtr GetTypeFromFormat(std::string_view format);
 
 
@@ -138,3 +139,5 @@ void ArgumentPack::GetOpaquePointers(std::byte* address, Iter out) const {
         m_items[i].GetOpaquePointers(startingAddress + offset, out);
     }
 }
+
+} // namespace sir

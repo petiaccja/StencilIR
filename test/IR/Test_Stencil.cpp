@@ -1,15 +1,17 @@
 #include <TestTools/FileCheck.hpp>
 
-#include <DAG/Ops.hpp>
+#include <IR/Ops.hpp>
 
 #include <catch2/catch.hpp>
 
+using namespace sir;
+
 
 TEST_CASE("Index", "[DAG]") {
-    auto mod = dag::ModuleOp();
-    auto stencil = mod.Create<dag::StencilOp>("sn", ast::FunctionType::Get({}, {}), 2);
-    stencil.Create<dag::IndexOp>();
-    stencil.Create<dag::ReturnOp>(std::vector<dag::Value>{});
+    auto mod = ops::ModuleOp();
+    auto stencil = mod.Create<ops::StencilOp>("sn", ast::FunctionType::Get({}, {}), 2);
+    stencil.Create<ops::IndexOp>();
+    stencil.Create<ops::ReturnOp>(std::vector<Value>{});
 
     const auto pattern = R"(
         // CHECK: stencil.stencil @sn()
@@ -22,11 +24,11 @@ TEST_CASE("Index", "[DAG]") {
 
 
 TEST_CASE("Jump", "[DAG]") {
-    auto mod = dag::ModuleOp();
-    auto stencil = mod.Create<dag::StencilOp>("sn", ast::FunctionType::Get({}, {}), 2);
-    auto idx = stencil.Create<dag::IndexOp>();
-    stencil.Create<dag::JumpOp>(idx.GetResult(), std::vector<int64_t>{ 2, 3 });
-    stencil.Create<dag::ReturnOp>(std::vector<dag::Value>{});
+    auto mod = ops::ModuleOp();
+    auto stencil = mod.Create<ops::StencilOp>("sn", ast::FunctionType::Get({}, {}), 2);
+    auto idx = stencil.Create<ops::IndexOp>();
+    stencil.Create<ops::JumpOp>(idx.GetResult(), std::vector<int64_t>{ 2, 3 });
+    stencil.Create<ops::ReturnOp>(std::vector<Value>{});
 
     const auto pattern = R"(
         // CHECK: stencil.stencil @sn()
@@ -40,11 +42,11 @@ TEST_CASE("Jump", "[DAG]") {
 
 
 TEST_CASE("Project", "[DAG]") {
-    auto mod = dag::ModuleOp();
-    auto stencil = mod.Create<dag::StencilOp>("sn", ast::FunctionType::Get({}, {}), 2);
-    auto idx = stencil.Create<dag::IndexOp>();
-    stencil.Create<dag::ProjectOp>(idx.GetResult(), std::vector<int64_t>{ 2, 3 });
-    stencil.Create<dag::ReturnOp>(std::vector<dag::Value>{});
+    auto mod = ops::ModuleOp();
+    auto stencil = mod.Create<ops::StencilOp>("sn", ast::FunctionType::Get({}, {}), 2);
+    auto idx = stencil.Create<ops::IndexOp>();
+    stencil.Create<ops::ProjectOp>(idx.GetResult(), std::vector<int64_t>{ 2, 3 });
+    stencil.Create<ops::ReturnOp>(std::vector<Value>{});
 
     const auto pattern = R"(
         // CHECK: stencil.stencil @sn()
@@ -58,11 +60,11 @@ TEST_CASE("Project", "[DAG]") {
 
 
 TEST_CASE("Extract", "[DAG]") {
-    auto mod = dag::ModuleOp();
-    auto stencil = mod.Create<dag::StencilOp>("sn", ast::FunctionType::Get({}, {}), 2);
-    auto idx = stencil.Create<dag::IndexOp>();
-    stencil.Create<dag::ExtractOp>(idx.GetResult(), 1);
-    stencil.Create<dag::ReturnOp>(std::vector<dag::Value>{});
+    auto mod = ops::ModuleOp();
+    auto stencil = mod.Create<ops::StencilOp>("sn", ast::FunctionType::Get({}, {}), 2);
+    auto idx = stencil.Create<ops::IndexOp>();
+    stencil.Create<ops::ExtractOp>(idx.GetResult(), 1);
+    stencil.Create<ops::ReturnOp>(std::vector<Value>{});
 
     const auto pattern = R"(
         // CHECK: stencil.stencil @sn()
@@ -76,11 +78,11 @@ TEST_CASE("Extract", "[DAG]") {
 
 
 TEST_CASE("Extend", "[DAG]") {
-    auto mod = dag::ModuleOp();
-    auto stencil = mod.Create<dag::StencilOp>("sn", ast::FunctionType::Get({ ast::IndexType::Get() }, {}), 2);
-    auto idx = stencil.Create<dag::IndexOp>();
-    stencil.Create<dag::ExtendOp>(idx.GetResult(), 1, stencil.GetRegionArg(0));
-    stencil.Create<dag::ReturnOp>(std::vector<dag::Value>{});
+    auto mod = ops::ModuleOp();
+    auto stencil = mod.Create<ops::StencilOp>("sn", ast::FunctionType::Get({ ast::IndexType::Get() }, {}), 2);
+    auto idx = stencil.Create<ops::IndexOp>();
+    stencil.Create<ops::ExtendOp>(idx.GetResult(), 1, stencil.GetRegionArg(0));
+    stencil.Create<ops::ReturnOp>(std::vector<Value>{});
 
     const auto pattern = R"(
         // CHECK: stencil.stencil @sn(%[[VALUE:.*]]: index)
@@ -94,11 +96,11 @@ TEST_CASE("Extend", "[DAG]") {
 
 
 TEST_CASE("Exchange", "[DAG]") {
-    auto mod = dag::ModuleOp();
-    auto stencil = mod.Create<dag::StencilOp>("sn", ast::FunctionType::Get({ ast::IndexType::Get() }, {}), 2);
-    auto idx = stencil.Create<dag::IndexOp>();
-    stencil.Create<dag::ExchangeOp>(idx.GetResult(), 1, stencil.GetRegionArg(0));
-    stencil.Create<dag::ReturnOp>(std::vector<dag::Value>{});
+    auto mod = ops::ModuleOp();
+    auto stencil = mod.Create<ops::StencilOp>("sn", ast::FunctionType::Get({ ast::IndexType::Get() }, {}), 2);
+    auto idx = stencil.Create<ops::IndexOp>();
+    stencil.Create<ops::ExchangeOp>(idx.GetResult(), 1, stencil.GetRegionArg(0));
+    stencil.Create<ops::ReturnOp>(std::vector<Value>{});
 
     const auto pattern = R"(
         // CHECK: stencil.stencil @sn(%[[VALUE:.*]]: index)
@@ -112,11 +114,11 @@ TEST_CASE("Exchange", "[DAG]") {
 
 
 TEST_CASE("Sample", "[DAG]") {
-    auto mod = dag::ModuleOp();
-    auto stencil = mod.Create<dag::StencilOp>("sn", ast::FunctionType::Get({ ast::FieldType::Get(ast::Float32, 2) }, {}), 2);
-    auto idx = stencil.Create<dag::IndexOp>();
-    stencil.Create<dag::SampleOp>(stencil.GetRegionArg(0), idx.GetResult());
-    stencil.Create<dag::ReturnOp>(std::vector<dag::Value>{});
+    auto mod = ops::ModuleOp();
+    auto stencil = mod.Create<ops::StencilOp>("sn", ast::FunctionType::Get({ ast::FieldType::Get(ast::Float32, 2) }, {}), 2);
+    auto idx = stencil.Create<ops::IndexOp>();
+    stencil.Create<ops::SampleOp>(stencil.GetRegionArg(0), idx.GetResult());
+    stencil.Create<ops::ReturnOp>(std::vector<Value>{});
 
     const auto pattern = R"(
         // CHECK: stencil.stencil @sn(%[[FIELD:.*]]: tensor<?x?xf32>)

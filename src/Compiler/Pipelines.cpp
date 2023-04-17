@@ -17,6 +17,9 @@
 #include <mlir/Transforms/Passes.h>
 
 
+namespace sir {
+
+
 Stage CreateBufferizationStage(mlir::MLIRContext& context) {
     Stage stage{ "bufferization", context };
 
@@ -113,3 +116,6 @@ std::vector<Stage> TargetCPUPipeline(mlir::MLIRContext& context,
                        std::move(llvm) };
     return { std::move_iterator(stages.begin()), std::move_iterator(stages.end()) };
 }
+
+
+} // namespace sir

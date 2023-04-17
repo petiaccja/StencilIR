@@ -1,9 +1,8 @@
-#include "Utility/RunAST.hpp"
+#include "Utility/RunModule.hpp"
 
-#include <AST/Building.hpp>
-#include <AST/ConvertASTToIR.hpp>
 #include <Compiler/Pipelines.hpp>
 #include <Execution/Execution.hpp>
+#include <IR/Ops.hpp>
 
 #include <filesystem>
 #include <fstream>
@@ -14,56 +13,64 @@
 
 #include <catch2/catch.hpp>
 
-
-static std::shared_ptr<ast::Module> CreateAST() {
-    // Stencils
-    auto subtract = ast::stencil("subtract",
-                                 { { "a", ast::FieldType::Get(ast::FloatType::Get(32), 1) },
-                                   { "b", ast::FieldType::Get(ast::FloatType::Get(32), 1) } },
-                                 { ast::FloatType::Get(32) },
-                                 { ast::return_({ ast::sub(
-                                     ast::sample(ast::symref("a"), ast::index()),
-                                     ast::sample(ast::symref("b"), ast::index())) }) },
-                                 1);
-
-    // Main function logic
-    auto input = ast::symref("input");
-    auto output = ast::symref("output");
-
-    auto czero = ast::constant(0, ast::IndexType::Get());
-    auto cone = ast::constant(1, ast::IndexType::Get());
-    auto size = ast::dim(input, ast::constant(0, ast::IndexType::Get()));
-    auto dsize = ast::sub(size, ast::constant(1, ast::IndexType::Get()));
-    auto ddsize = ast::sub(dsize, ast::constant(1, ast::IndexType::Get()));
-
-    auto left = ast::extract_slice(input, { czero }, { dsize }, { cone });
-    auto right = ast::extract_slice(input, { cone }, { dsize }, { cone });
-
-    auto tmp1 = ast::alloc_tensor(ast::FloatType::Get(32), { dsize });
-    auto d = ast::apply(subtract->name,
-                        { right, left },
-                        { tmp1 },
-                        std::vector<int64_t>{ 0, 0 });
-    auto [dass, dvar] = std::tuple{ ast::assign({ "dvar" }, d), ast::symref("dvar") };
-
-    auto dleft = ast::extract_slice(dvar, { czero }, { ddsize }, { cone });
-    auto dright = ast::extract_slice(dvar, { cone }, { ddsize }, { cone });
-    auto dd = ast::apply(subtract->name,
-                         { dright, dleft },
-                         { output },
-                         std::vector<int64_t>{ 0, 0 });
-
-    auto main = ast::function("main",
-                              {
-                                  { "input", ast::FieldType::Get(ast::FloatType::Get(32), 1) },
-                                  { "output", ast::FieldType::Get(ast::FloatType::Get(32), 1) },
-                              },
-                              {},
-                              { dass, dd, ast::return_() });
+using namespace sir;
 
 
-    return ast::module_({ main },
-                        { subtract });
+static ops::ModuleOp CreateAST() {
+    auto moduleOp = ops::ModuleOp{};
+
+    auto snSubstract = moduleOp.Create<ops::StencilOp>(
+        "subtract",
+        ast::FunctionType::Get({ ast::FieldType::Get(ast::Float32, 1),
+                                 ast::FieldType::Get(ast::Float32, 1) },
+                               { ast::Float32 }),
+        1);
+    auto idx = snSubstract.Create<ops::IndexOp>().GetResult();
+    auto lSample = snSubstract.Create<ops::SampleOp>(snSubstract.GetRegionArg(0), idx).GetResult();
+    auto rSample = snSubstract.Create<ops::SampleOp>(snSubstract.GetRegionArg(1), idx).GetResult();
+    auto sum = snSubstract.Create<ops::ArithmeticOp>(lSample, rSample, ops::eArithmeticFunction::SUB)
+                   .GetResult();
+    snSubstract.Create<ops::ReturnOp>(std::vector{ sum });
+
+
+    auto fnMain = moduleOp.Create<ops::FuncOp>(
+        "main",
+        ast::FunctionType::Get({ ast::FieldType::Get(ast::Float32, 1), ast::FieldType::Get(ast::Float32, 1) }, {}));
+
+
+    auto input = fnMain.GetRegionArg(0);
+    auto output = fnMain.GetRegionArg(1);
+    auto czero = fnMain.Create<ops::ConstantOp>(0, ast::IndexType::Get()).GetResult();
+    auto cone = fnMain.Create<ops::ConstantOp>(1, ast::IndexType::Get()).GetResult();
+    auto size = fnMain.Create<ops::DimOp>(input, czero).GetResult();
+    auto dsize = fnMain.Create<ops::ArithmeticOp>(size, cone, ops::eArithmeticFunction::SUB).GetResult();
+    auto ddsize = fnMain.Create<ops::ArithmeticOp>(dsize, cone, ops::eArithmeticFunction::SUB).GetResult();
+
+
+    auto left = fnMain.Create<ops::ExtractSliceOp>(input, std::vector{ czero }, std::vector{ dsize }, std::vector{ cone }).GetResult();
+    auto right = fnMain.Create<ops::ExtractSliceOp>(input, std::vector{ cone }, std::vector{ dsize }, std::vector{ cone }).GetResult();
+    auto tmp1 = fnMain.Create<ops::AllocTensorOp>(ast::Float32, std::vector{ dsize }).GetResult();
+
+    auto d = fnMain.Create<ops::ApplyOp>("subtract",
+                                         std::vector{ left, right },
+                                         std::vector{ tmp1 },
+                                         std::vector<Value>{},
+                                         std::vector<int64_t>{ 0, 0 })
+                 .GetResults()[0];
+
+    auto dleft = fnMain.Create<ops::ExtractSliceOp>(d, std::vector{ czero }, std::vector{ ddsize }, std::vector{ cone }).GetResult();
+    auto dright = fnMain.Create<ops::ExtractSliceOp>(d, std::vector{ cone }, std::vector{ ddsize }, std::vector{ cone }).GetResult();
+
+    auto dd = fnMain.Create<ops::ApplyOp>("subtract",
+                                          std::vector{ dleft, dright },
+                                          std::vector{ output },
+                                          std::vector<Value>{},
+                                          std::vector<int64_t>{ 0, 0 })
+                  .GetResults()[0];
+
+    fnMain.Create<ops::ReturnOp>(std::vector<Value>{});
+
+    return moduleOp;
 }
 
 TEST_CASE("Optimization", "[Program]") {
@@ -80,7 +87,7 @@ TEST_CASE("Optimization", "[Program]") {
     }
 
     const auto program = CreateAST();
-    const auto stages = RunAST(*program, "main", true, input, output);
+    const auto stages = RunModule(program, "main", true, input, output);
 
     const std::array<float, outputSize> expectedBuffer = {
         0.6f, 1.2f, 1.8f, 2.4f, 3.0f, 3.6f, 4.2f

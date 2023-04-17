@@ -4,6 +4,7 @@
 
 #include <sstream>
 
+namespace sir {
 
 static std::string FormatDiagVector(const std::vector<mlir::Diagnostic>& diagnostics) {
     std::stringstream ss;
@@ -64,3 +65,6 @@ ArgumentCountError::ArgumentCountError(mlir::Location location, int expected, in
                                   FormatSeverity(mlir::DiagnosticSeverity::Error),
                                   message.str());
       }()) {}
+
+
+} // namespace sir

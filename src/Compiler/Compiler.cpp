@@ -4,6 +4,8 @@
 #include <Diagnostics/Handlers.hpp>
 
 
+namespace sir {
+
 mlir::ModuleOp Compiler::Run(mlir::ModuleOp moduleOp) const {
     std::vector<StageResult> stageResults;
     return Run(moduleOp, stageResults, false);
@@ -50,3 +52,6 @@ mlir::ModuleOp Compiler::Run(mlir::ModuleOp moduleOp, std::vector<StageResult>& 
 
     return moduleOp;
 }
+
+
+} // namespace sir

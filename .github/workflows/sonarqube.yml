@@ -73,13 +73,9 @@ jobs:
         working-directory: ${{runner.workspace}}/build
         shell: bash
         run: |
-          ./bin/TestAST --reporter junit --out ${{runner.workspace}}/build/ast_tests.xml
+          ./bin/TestIR --reporter junit --out ${{runner.workspace}}/build/ir_tests.xml
           llvm-profdata merge -sparse default.profraw -o coverage.profdata
-          llvm-cov show ./bin/TestAST -instr-profile=coverage.profdata >> ${{runner.workspace}}/build/coverage.txt
-
-          ./bin/TestDAG --reporter junit --out ${{runner.workspace}}/build/dag_tests.xml
-          llvm-profdata merge -sparse default.profraw -o coverage.profdata
-          llvm-cov show ./bin/TestDAG -instr-profile=coverage.profdata >> ${{runner.workspace}}/build/coverage.txt
+          llvm-cov show ./bin/TestIR -instr-profile=coverage.profdata >> ${{runner.workspace}}/build/coverage.txt
 
           ./bin/TestPasses --reporter junit --out ${{runner.workspace}}/build/passes_tests.xml
           llvm-profdata merge -sparse default.profraw -o coverage.profdata

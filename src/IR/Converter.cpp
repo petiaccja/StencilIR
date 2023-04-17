@@ -9,8 +9,7 @@
 #include <ranges>
 
 
-namespace dag {
-
+namespace sir {
 
 
 static mlir::Location ConvertLocation(mlir::OpBuilder& builder, const std::optional<Location>& location) {
@@ -87,4 +86,4 @@ void Converter::MapEntryBlock(const Region& region, mlir::Block& block) {
 }
 
 
-} // namespace dag
+} // namespace sir

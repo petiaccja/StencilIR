@@ -3,6 +3,8 @@
 #include "Compiler.hpp"
 
 
+namespace sir {
+
 struct OptimizationOptions {
     bool inlineFunctions = false;
     bool fuseExtractSliceOps = false;
@@ -12,3 +14,5 @@ struct OptimizationOptions {
 
 std::vector<Stage> TargetCPUPipeline(mlir::MLIRContext& context,
                                      const OptimizationOptions& macroOptimizationOptions = {});
+
+} // namespace sir

@@ -1,17 +1,12 @@
 import stencilir as sir
+from stencilir import ops
 import numpy as np
 
 
 def test_returns_void():
-    function = sir.Function(
-        "main",
-        [],
-        [],
-        [sir.Return([], None)],
-        True,
-        None,
-    )
-    module = sir.Module([function], [], None)
+    module = ops.ModuleOp()
+    function = module.add(ops.FuncOp("main", sir.FunctionType([], []), True, None))
+    function.add(ops.ReturnOp([], None))
 
     compile_options = sir.CompileOptions(sir.TargetArch.X86, sir.OptimizationLevel.O0)
     compiled_module = sir.CompiledModule(module, compile_options)
@@ -21,15 +16,10 @@ def test_returns_void():
 
 
 def test_returns_single():
-    function = sir.Function(
-        "main",
-        [],
-        [sir.FloatType(64)],
-        [sir.Return([sir.Constant.floating(1.0, sir.FloatType(64), None)], None)],
-        True,
-        None,
-    )
-    module = sir.Module([function], [], None)
+    module = ops.ModuleOp()
+    function = module.add(ops.FuncOp("main", sir.FunctionType([], [sir.FloatType(64)]), True, None))
+    value = function.add(ops.ConstantOp(1.0, sir.FloatType(64), None)).get_result()
+    function.add(ops.ReturnOp([value], None))
 
     compile_options = sir.CompileOptions(sir.TargetArch.X86, sir.OptimizationLevel.O0)
     compiled_module = sir.CompiledModule(module, compile_options)
@@ -40,23 +30,11 @@ def test_returns_single():
 
 
 def test_returns_multiple():
-    function = sir.Function(
-        "main",
-        [],
-        [sir.FloatType(64), sir.FloatType(64)],
-        [
-            sir.Return(
-                [
-                    sir.Constant.floating(1.0, sir.FloatType(64), None),
-                    sir.Constant.floating(2.0, sir.FloatType(64), None),
-                ],
-                None,
-            )
-        ],
-        True,
-        None,
-    )
-    module = sir.Module([function], [], None)
+    module = ops.ModuleOp()
+    function = module.add(ops.FuncOp("main", sir.FunctionType([], [sir.FloatType(64), sir.FloatType(64)]), True, None))
+    v1 = function.add(ops.ConstantOp(1.0, sir.FloatType(64), None)).get_result()
+    v2 = function.add(ops.ConstantOp(2.0, sir.FloatType(64), None)).get_result()
+    function.add(ops.ReturnOp([v1, v2], None))
 
     compile_options = sir.CompileOptions(sir.TargetArch.X86, sir.OptimizationLevel.O0)
     compiled_module = sir.CompiledModule(module, compile_options)
@@ -68,15 +46,10 @@ def test_returns_multiple():
 
 
 def test_scalar_passthrough():
-    function = sir.Function(
-        "main",
-        [sir.Parameter("value", sir.FloatType(64))],
-        [sir.FloatType(64)],
-        [sir.Return([sir.SymbolRef("value", None)], None)],
-        True,
-        None,
-    )
-    module = sir.Module([function], [], None)
+    module = ops.ModuleOp()
+    function = module.add(ops.FuncOp("main", sir.FunctionType([sir.FloatType(64)], [sir.FloatType(64)]), True, None))
+    value = function.get_region_arg(0)
+    function.add(ops.ReturnOp([value], None))
 
     compile_options = sir.CompileOptions(sir.TargetArch.X86, sir.OptimizationLevel.O0)
     compiled_module = sir.CompiledModule(module, compile_options)
@@ -87,15 +60,12 @@ def test_scalar_passthrough():
 
 
 def test_field_passthrough():
-    function = sir.Function(
-        "main",
-        [sir.Parameter("value", sir.FieldType(sir.FloatType(64), 2))],
-        [sir.FieldType(sir.FloatType(64), 2)],
-        [sir.Return([sir.SymbolRef("value", None)], None)],
-        True,
-        None,
-    )
-    module = sir.Module([function], [], None)
+    field_t = sir.FieldType(sir.FloatType(64), 2)
+
+    module = ops.ModuleOp()
+    function = module.add(ops.FuncOp("main", sir.FunctionType([field_t], [field_t]), True, None))
+    value = function.get_region_arg(0)
+    function.add(ops.ReturnOp([value], None))
 
     compile_options = sir.CompileOptions(sir.TargetArch.X86, sir.OptimizationLevel.O0)
     compiled_module = sir.CompiledModule(module, compile_options)
@@ -107,21 +77,14 @@ def test_field_passthrough():
 
 
 def test_mixed_passthrough():
-    function = sir.Function(
-        "main",
-        [
-            sir.Parameter("v1", sir.FieldType(sir.FloatType(64), 2)),
-            sir.Parameter("v2", sir.FloatType(64)),
-        ],
-        [
-            sir.FieldType(sir.FloatType(64), 2),
-            sir.FloatType(64),
-        ],
-        [sir.Return([sir.SymbolRef("v1", None), sir.SymbolRef("v2", None)], None)],
-        True,
-        None,
-    )
-    module = sir.Module([function], [], None)
+    scalar_t = sir.FloatType(64)
+    field_t = sir.FieldType(sir.FloatType(64), 2)
+
+    module = ops.ModuleOp()
+    function = module.add(ops.FuncOp("main", sir.FunctionType([field_t, scalar_t], [field_t, scalar_t]), True, None))
+    field_v = function.get_region_arg(0)
+    scalar_v = function.get_region_arg(1)
+    function.add(ops.ReturnOp([field_v, scalar_v], None))
 
     compile_options = sir.CompileOptions(sir.TargetArch.X86, sir.OptimizationLevel.O3)
     compiled_module = sir.CompiledModule(module, compile_options)
@@ -130,15 +93,3 @@ def test_mixed_passthrough():
     v1r, v2r = compiled_module.invoke("main", v1, v2)
     assert np.allclose(v1, v1r)
     assert v2 == v2r
-
-
-def test_dag():
-    module = sir.ops.ModuleOp()
-    func = module.add(sir.ops.FuncOp("main", sir.FunctionType([], []), True, None))
-    func.add(sir.ops.ReturnOp([], None))
-
-    compile_options = sir.CompileOptions(sir.TargetArch.X86, sir.OptimizationLevel.O0)
-    compiled_module = sir.CompiledModule(module, compile_options)
-    compiled_module.compile()
-    result = compiled_module.invoke("main")
-    assert result is None

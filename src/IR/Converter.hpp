@@ -10,7 +10,7 @@
 #include <unordered_map>
 
 
-namespace dag {
+namespace sir {
 
 
 class Converter;
@@ -40,4 +40,4 @@ private:
 };
 
 
-} // namespace dag
+} // namespace sir

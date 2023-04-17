@@ -3,7 +3,7 @@
 #include "Operation.hpp"
 
 
-namespace dag {
+namespace sir::ops {
 
 
 //------------------------------------------------------------------------------
@@ -83,7 +83,7 @@ struct SingleRegion : Operation {
                  std::vector<Value> operands,
                  size_t numResults,
                  std::any attributes,
-                 std::optional<dag::Location> loc = {})
+                 std::optional<sir::Location> loc = {})
         : Operation(type, operands, numResults, { Region{} }, attributes, loc) {}
 
     Region& GetBody() { return GetRegions().front(); }
@@ -118,7 +118,7 @@ auto ConcatVectors(const Vector& head, const Vectors&... rest) {
 //------------------------------------------------------------------------------
 
 struct ModuleOp : SingleRegion {
-    ModuleOp(std::optional<dag::Location> loc = {})
+    ModuleOp(std::optional<sir::Location> loc = {})
         : SingleRegion(typeid(decltype(*this)), {}, 0, {}, loc) {}
 };
 
@@ -127,7 +127,7 @@ struct FuncOp : SingleRegion {
     FuncOp(std::string name,
            std::shared_ptr<ast::FunctionType> signature,
            bool isPublic = true,
-           std::optional<dag::Location> loc = {})
+           std::optional<sir::Location> loc = {})
         : SingleRegion(typeid(decltype(*this)), {}, 0, FuncAttr{ name, signature, isPublic }, loc) {
         size_t index = 0;
         for (auto type : signature->parameters) {
@@ -150,7 +150,7 @@ struct StencilOp : SingleRegion {
               std::shared_ptr<ast::FunctionType> signature,
               int numDims,
               bool isPublic = true,
-              std::optional<dag::Location> loc = {})
+              std::optional<sir::Location> loc = {})
         : SingleRegion(typeid(decltype(*this)), {}, 0, StencilAttr{ name, signature, numDims, isPublic }, loc) {
         size_t index = 0;
         for (auto type : signature->parameters) {
@@ -169,7 +169,7 @@ struct StencilOp : SingleRegion {
 
 
 struct ReturnOp : Operation {
-    ReturnOp(std::vector<Value> values, std::optional<dag::Location> loc = {})
+    ReturnOp(std::vector<Value> values, std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)), values, 0, {}, {}, loc) {}
 
     auto GetValues() const { return GetOperands(); }
@@ -177,10 +177,10 @@ struct ReturnOp : Operation {
 
 
 struct CallOp : Operation {
-    CallOp(FuncOp callee, std::vector<Value> args, std::optional<dag::Location> loc = {})
+    CallOp(FuncOp callee, std::vector<Value> args, std::optional<sir::Location> loc = {})
         : CallOp(std::string{ callee.GetName() }, callee.GetFunctionType()->results, std::move(args), std::move(loc)) {}
 
-    CallOp(std::string callee, std::vector<ast::TypePtr> results, std::vector<Value> args, std::optional<dag::Location> loc = {})
+    CallOp(std::string callee, std::vector<ast::TypePtr> results, std::vector<Value> args, std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)),
                     args,
                     results.size(),
@@ -200,7 +200,7 @@ struct ApplyOp : Operation {
             std::vector<Value> outputs,
             std::vector<Value> offsets,
             std::vector<int64_t> staticOffsets,
-            std::optional<dag::Location> loc = {})
+            std::optional<sir::Location> loc = {})
         : ApplyOp(std::string(stencil.GetName()),
                   std::move(inputs),
                   std::move(outputs),
@@ -213,7 +213,7 @@ struct ApplyOp : Operation {
             std::vector<Value> outputs,
             std::vector<Value> offsets,
             std::vector<int64_t> staticOffsets,
-            std::optional<dag::Location> loc = {})
+            std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)),
                     ConcatVectors(inputs, outputs, offsets),
                     outputs.size(),
@@ -241,7 +241,7 @@ struct InvokeOp;
 //------------------------------------------------------------------------------
 
 struct CastOp : Operation {
-    CastOp(Value input, ast::TypePtr type, std::optional<dag::Location> loc = {})
+    CastOp(Value input, ast::TypePtr type, std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)), { input }, 1, {}, type, loc) {}
     Value GetInput() const { return GetOperands()[0].GetSource(); }
     ast::TypePtr GetType() const { return std::any_cast<ast::TypePtr>(GetAttributes()); }
@@ -251,9 +251,9 @@ struct CastOp : Operation {
 
 struct ConstantOp : Operation {
     template <class T>
-    explicit ConstantOp(T value, std::optional<dag::Location> loc = {})
+    explicit ConstantOp(T value, std::optional<sir::Location> loc = {})
         : ConstantOp(std::move(value), ast::InferType<std::decay_t<T>>(), std::move(loc)) {}
-    explicit ConstantOp(auto value, ast::TypePtr type, std::optional<dag::Location> loc = {})
+    explicit ConstantOp(auto value, ast::TypePtr type, std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)), {}, 1, {}, ConstantAttr{ type, WrapValue(value, type) }, loc) {}
 
     auto GetValue() const { return std::any_cast<const ConstantAttr&>(GetAttributes()).value; }
@@ -278,7 +278,7 @@ private:
 };
 
 struct ArithmeticOp : Operation {
-    ArithmeticOp(Value lhs, Value rhs, eArithmeticFunction function, std::optional<dag::Location> loc = {})
+    ArithmeticOp(Value lhs, Value rhs, eArithmeticFunction function, std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)), { lhs, rhs }, 1, {}, function, loc) {}
     Value GetLeft() const { return GetOperands()[0].GetSource(); }
     Value GetRight() const { return GetOperands()[1].GetSource(); }
@@ -288,7 +288,7 @@ struct ArithmeticOp : Operation {
 
 
 struct ComparisonOp : Operation {
-    ComparisonOp(Value lhs, Value rhs, eComparisonFunction function, std::optional<dag::Location> loc = {})
+    ComparisonOp(Value lhs, Value rhs, eComparisonFunction function, std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)), { lhs, rhs }, 1, {}, function, loc) {}
     Value GetLeft() const { return GetOperands()[0].GetSource(); }
     Value GetRight() const { return GetOperands()[1].GetSource(); }
@@ -298,7 +298,7 @@ struct ComparisonOp : Operation {
 
 
 struct MinOp : Operation {
-    MinOp(Value lhs, Value rhs, std::optional<dag::Location> loc = {})
+    MinOp(Value lhs, Value rhs, std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)), { lhs, rhs }, 1, {}, {}, loc) {}
     Value GetLeft() const { return GetOperands()[0].GetSource(); }
     Value GetRight() const { return GetOperands()[1].GetSource(); }
@@ -307,7 +307,7 @@ struct MinOp : Operation {
 
 
 struct MaxOp : Operation {
-    MaxOp(Value lhs, Value rhs, std::optional<dag::Location> loc = {})
+    MaxOp(Value lhs, Value rhs, std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)), { lhs, rhs }, 1, {}, {}, loc) {}
     Value GetLeft() const { return GetOperands()[0].GetSource(); }
     Value GetRight() const { return GetOperands()[1].GetSource(); }
@@ -320,7 +320,7 @@ struct MaxOp : Operation {
 //------------------------------------------------------------------------------
 
 struct IfOp : Operation {
-    IfOp(Value cond, size_t numResults, std::optional<dag::Location> loc = {})
+    IfOp(Value cond, size_t numResults, std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)), { cond }, numResults, { Region(), Region() }, {}, loc) {}
 
     Value GetCondition() const { return GetOperands()[0].GetSource(); }
@@ -334,7 +334,7 @@ struct IfOp : Operation {
 
 
 struct ForOp : SingleRegion {
-    ForOp(Value start, Value stop, Value step, std::vector<Value> init, std::optional<dag::Location> loc = {})
+    ForOp(Value start, Value stop, Value step, std::vector<Value> init, std::optional<sir::Location> loc = {})
         : SingleRegion(typeid(decltype(*this)),
                        ConcatVectors(std::vector{ start, stop, step }, init),
                        init.size(),
@@ -353,7 +353,7 @@ struct ForOp : SingleRegion {
 
 
 struct YieldOp : Operation {
-    YieldOp(std::vector<Value> values, std::optional<dag::Location> loc = {})
+    YieldOp(std::vector<Value> values, std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)), values, 0, {}, {}, loc) {}
 
     auto GetValues() { return GetOperands(); }
@@ -365,7 +365,7 @@ struct YieldOp : Operation {
 //------------------------------------------------------------------------------
 
 struct DimOp : Operation {
-    DimOp(Value source, Value index, std::optional<dag::Location> loc = {})
+    DimOp(Value source, Value index, std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)), { source, index }, 1, {}, {}, loc) {}
 
     auto GetResult() const { return GetResults()[0]; }
@@ -373,7 +373,7 @@ struct DimOp : Operation {
 
 
 struct AllocTensorOp : Operation {
-    AllocTensorOp(ast::TypePtr elementType, std::vector<Value> sizes, std::optional<dag::Location> loc = {})
+    AllocTensorOp(ast::TypePtr elementType, std::vector<Value> sizes, std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)), sizes, 1, {}, elementType, loc) {}
 
     auto GetResult() const { return GetResults()[0]; }
@@ -385,7 +385,7 @@ struct ExtractSliceOp : Operation {
                    std::vector<Value> offsets,
                    std::vector<Value> sizes,
                    std::vector<Value> strides,
-                   std::optional<dag::Location> loc = {})
+                   std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)),
                     ConcatVectors(std::vector<Value>{ source }, offsets, sizes, strides),
                     1,
@@ -403,7 +403,7 @@ struct InsertSliceOp : Operation {
                   std::vector<Value> offsets,
                   std::vector<Value> sizes,
                   std::vector<Value> strides,
-                  std::optional<dag::Location> loc = {})
+                  std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)),
                     ConcatVectors(std::vector<Value>{ source, dest }, offsets, sizes, strides),
                     1,
@@ -420,7 +420,7 @@ struct InsertSliceOp : Operation {
 //------------------------------------------------------------------------------
 
 struct IndexOp : Operation {
-    IndexOp(std::optional<dag::Location> loc = {})
+    IndexOp(std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)), {}, 1, {}, {}, loc) {}
 
     auto GetResult() const { return GetResults()[0]; }
@@ -428,7 +428,7 @@ struct IndexOp : Operation {
 
 
 struct JumpOp : Operation {
-    JumpOp(Value index, std::vector<int64_t> offsets, std::optional<dag::Location> loc = {})
+    JumpOp(Value index, std::vector<int64_t> offsets, std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)), { index }, 1, {}, offsets, loc) {}
 
     auto GetResult() const { return GetResults()[0]; }
@@ -436,7 +436,7 @@ struct JumpOp : Operation {
 
 
 struct ProjectOp : Operation {
-    ProjectOp(Value index, std::vector<int64_t> positions, std::optional<dag::Location> loc = {})
+    ProjectOp(Value index, std::vector<int64_t> positions, std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)), { index }, 1, {}, positions, loc) {}
 
     auto GetResult() const { return GetResults()[0]; }
@@ -444,7 +444,7 @@ struct ProjectOp : Operation {
 
 
 struct ExtendOp : Operation {
-    ExtendOp(Value index, int64_t position, Value value, std::optional<dag::Location> loc = {})
+    ExtendOp(Value index, int64_t position, Value value, std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)), { index, value }, 1, {}, position, loc) {}
 
     auto GetResult() const { return GetResults()[0]; }
@@ -452,7 +452,7 @@ struct ExtendOp : Operation {
 
 
 struct ExchangeOp : Operation {
-    ExchangeOp(Value index, int64_t position, Value value, std::optional<dag::Location> loc = {})
+    ExchangeOp(Value index, int64_t position, Value value, std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)), { index, value }, 1, {}, position, loc) {}
 
     auto GetResult() const { return GetResults()[0]; }
@@ -460,7 +460,7 @@ struct ExchangeOp : Operation {
 
 
 struct ExtractOp : Operation {
-    ExtractOp(Value index, int64_t position, std::optional<dag::Location> loc = {})
+    ExtractOp(Value index, int64_t position, std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)), { index }, 1, {}, position, loc) {}
 
     auto GetResult() const { return GetResults()[0]; }
@@ -468,11 +468,11 @@ struct ExtractOp : Operation {
 
 
 struct SampleOp : Operation {
-    SampleOp(Value tensor, Value index, std::optional<dag::Location> loc = {})
+    SampleOp(Value tensor, Value index, std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)), { tensor, index }, 1, {}, {}, loc) {}
 
     auto GetResult() const { return GetResults()[0]; }
 };
 
 
-} // namespace dag
+} // namespace sir::ops

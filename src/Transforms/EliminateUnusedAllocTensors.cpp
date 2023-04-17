@@ -8,8 +8,9 @@
 #include <mlir/Transforms/Passes.h>
 
 
-using mlir::MLIRContext;
+namespace sir {
 
+using mlir::MLIRContext;
 
 
 class EliminatePattern : public mlir::OpRewritePattern<mlir::bufferization::AllocTensorOp> {
@@ -44,3 +45,6 @@ void EliminateUnusedAllocTensorsPass::runOnOperation() {
     grc.useTopDownTraversal = true;
     (void)applyPatternsAndFoldGreedily(op->getRegions(), std::move(patterns), grc);
 }
+
+
+} // namespace sir

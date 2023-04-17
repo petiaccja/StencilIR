@@ -92,8 +92,7 @@ jobs:
     - name: Test
       working-directory: ${{runner.workspace}}/build
       run: |
-        ./bin/TestAST
-        ./bin/TestDAG
+        ./bin/TestIR
         ./bin/TestPasses
         ./bin/TestIntegration
         pytest ${{github.workspace}}/python/test

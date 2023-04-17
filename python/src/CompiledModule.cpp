@@ -2,21 +2,17 @@
 
 #include "Invoke.hpp"
 
-#include <AST/ConvertASTToIR.hpp>
-#include <DAG/ConvertOps.hpp>
+#include <IR/ConvertOps.hpp>
 
 #include <memory_resource>
 #include <new>
 #include <span>
 
 
-
-CompiledModule::CompiledModule(std::shared_ptr<ast::Module> ast, CompileOptions options)
-    : m_ir(ast), m_options(options), m_functions(ExtractFunctions(ast)) {
-}
+namespace sir {
 
 
-CompiledModule::CompiledModule(dag::ModuleOp ir, CompileOptions options)
+CompiledModule::CompiledModule(ops::ModuleOp ir, CompileOptions options)
     : m_ir(ir), m_options(options), m_functions(ExtractFunctions(ir)) {
 }
 
@@ -84,16 +80,7 @@ void CompiledModule::Compile(bool recordStages) {
     }();
     const int optLevel = static_cast<int>(m_options.optimizationLevel);
 
-    auto convertIr = [this](const auto& ir) -> mlir::ModuleOp {
-        if constexpr (std::is_convertible_v<decltype(ir), std::shared_ptr<ast::Module>>) {
-            return ConvertASTToIR(m_context, *ir);
-        }
-        else if constexpr (std::is_convertible_v<decltype(ir), dag::ModuleOp>) {
-            return mlir::dyn_cast<mlir::ModuleOp>(dag::ConvertOperation(m_context, ir));
-        }
-        std::terminate();
-    };
-    const auto mlirIr = std::visit(convertIr, m_ir);
+    const auto mlirIr = mlir::dyn_cast<mlir::ModuleOp>(ConvertOperation(m_context, m_ir));
     Compiler compiler(std::move(pipeline));
     auto llvmIr = recordStages ? compiler.Run(mlirIr, m_stageResults) : compiler.Run(mlirIr);
 
@@ -111,26 +98,16 @@ std::vector<char> CompiledModule::GetObjectFile() const {
 }
 
 
-auto CompiledModule::ExtractFunctions(std::shared_ptr<ast::Module> ast) -> std::unordered_map<std::string, FunctionType> {
-    std::unordered_map<std::string, FunctionType> functions;
-    for (const auto& function : ast->functions) {
-        std::vector<ast::TypePtr> parameters;
-        for (auto& parameter : function->parameters) {
-            parameters.push_back(parameter.type);
-        }
-        functions.emplace(function->name, FunctionType{ parameters, function->results });
-    }
-    return functions;
-}
-
-
-auto CompiledModule::ExtractFunctions(dag::ModuleOp ir) -> std::unordered_map<std::string, FunctionType> {
+auto CompiledModule::ExtractFunctions(ops::ModuleOp ir) -> std::unordered_map<std::string, FunctionType> {
     std::unordered_map<std::string, FunctionType> functions;
     for (const auto& op : ir.GetBody().GetOperations()) {
-        if (op.Type() == typeid(dag::FuncOp)) {
-            const auto& attr = std::any_cast<const dag::FuncAttr&>(op.GetAttributes());
+        if (op.Type() == typeid(ops::FuncOp)) {
+            const auto& attr = std::any_cast<const ops::FuncAttr&>(op.GetAttributes());
             functions.emplace(attr.name, FunctionType{ attr.signature->parameters, attr.signature->results });
         }
     }
     return functions;
 }
+
+
+} // namespace sir

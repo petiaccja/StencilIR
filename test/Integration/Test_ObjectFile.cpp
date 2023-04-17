@@ -1,28 +1,28 @@
-#include <AST/Types.hpp>
 #include <Compiler/Pipelines.hpp>
-#include <DAG/ConvertOps.hpp>
-#include <DAG/Ops.hpp>
 #include <Execution/Execution.hpp>
+#include <IR/ConvertOps.hpp>
+#include <IR/Ops.hpp>
+#include <IR/Types.hpp>
 
 #include <filesystem>
 #include <fstream>
 
 #include <catch2/catch.hpp>
 
+using namespace sir;
+
 
 TEST_CASE("Object file", "[Program]") {
-    using namespace dag;
-
-    auto moduleOp = ModuleOp{};
-    auto stencilir_add = moduleOp.Create<FuncOp>("stencilir_add",
-                                               ast::FunctionType::Get({ ast::Int32, ast::Int32 },
-                                                                      { ast::Int32 }),
-                                               true);
-    auto result = stencilir_add.Create<ArithmeticOp>(stencilir_add.GetRegionArg(0),
-                                                     stencilir_add.GetRegionArg(1),
-                                                     eArithmeticFunction::ADD)
+    auto moduleOp = ops::ModuleOp{};
+    auto stencilir_add = moduleOp.Create<ops::FuncOp>("stencilir_add",
+                                                      ast::FunctionType::Get({ ast::Int32, ast::Int32 },
+                                                                             { ast::Int32 }),
+                                                      true);
+    auto result = stencilir_add.Create<ops::ArithmeticOp>(stencilir_add.GetRegionArg(0),
+                                                          stencilir_add.GetRegionArg(1),
+                                                          ops::eArithmeticFunction::ADD)
                       .GetResult();
-    stencilir_add.Create<ReturnOp>(std::vector{ result });
+    stencilir_add.Create<ops::ReturnOp>(std::vector{ result });
 
     mlir::MLIRContext context;
     auto convertedModule = mlir::dyn_cast<mlir::ModuleOp>(ConvertOperation(context, moduleOp));

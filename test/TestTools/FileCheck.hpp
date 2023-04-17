@@ -1,7 +1,6 @@
 #pragma once
 
-#include <AST/Nodes.hpp>
-#include <DAG/Operation.hpp>
+#include <IR/Operation.hpp>
 
 #include <mlir/IR/BuiltinOps.h>
 #include <mlir/Pass/Pass.h>
@@ -9,6 +8,9 @@
 
 #include <filesystem>
 #include <string_view>
+
+
+using namespace sir;
 
 
 struct Pass {
@@ -33,8 +35,7 @@ struct NestedPass : public Pass {
 
 bool CheckText(std::string_view input, std::string_view pattern);
 bool CheckFile(const std::filesystem::path& file, std::vector<std::unique_ptr<Pass>>&& passes);
-bool CheckAST(ast::Module& moduleNode, std::string_view pattern);
-bool CheckDAG(dag::Operation moduleNode, std::string_view pattern);
+bool CheckDAG(Operation moduleNode, std::string_view pattern);
 template <class... Passes>
 auto CheckFile(const std::filesystem::path& file, Passes... passes) {
     std::vector<std::unique_ptr<Pass>> passVec;

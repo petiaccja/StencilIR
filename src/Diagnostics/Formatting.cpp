@@ -4,6 +4,10 @@
 
 #include <sstream>
 
+
+namespace sir {
+
+
 using namespace std::string_literals;
 
 
@@ -84,3 +88,6 @@ std::string FormatModule(mlir::ModuleOp& moduleOp) {
     moduleOp.print(ss);
     return s;
 }
+
+
+} // namespace sir

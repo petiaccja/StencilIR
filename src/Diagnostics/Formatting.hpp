@@ -8,6 +8,8 @@
 #include <string>
 
 
+namespace sir {
+
 
 std::string IndentText(std::string_view input, int spaces);
 std::optional<std::string> FormatSeverity(mlir::DiagnosticSeverity severity);
@@ -18,3 +20,6 @@ std::string FormatDiagnostic(std::optional<std::string> location,
                              std::string message);
 std::string FormatDiagnostic(const mlir::Diagnostic& diag);
 std::string FormatModule(mlir::ModuleOp& moduleOp);
+
+
+} // namespace sir

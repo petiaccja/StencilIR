@@ -1,6 +1,9 @@
 #include "Handlers.hpp"
 
 
+namespace sir {
+
+
 ScopedDiagnosticCollector::ScopedDiagnosticCollector(mlir::MLIRContext& context)
     : m_handler(&context, [this](mlir::Diagnostic& diag) {
           m_diagnostics.push_back(std::move(diag));
@@ -10,3 +13,6 @@ ScopedDiagnosticCollector::ScopedDiagnosticCollector(mlir::MLIRContext& context)
 std::vector<mlir::Diagnostic> ScopedDiagnosticCollector::TakeDiagnostics() {
     return std::move(m_diagnostics);
 }
+
+
+} // namespace sir

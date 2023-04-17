@@ -25,6 +25,8 @@
 #include <vector>
 
 
+namespace sir {
+
 using namespace mlir;
 
 
@@ -146,3 +148,5 @@ void StencilToFuncPass::runOnOperation() {
         signalPassFailure();
     }
 }
+
+} // namespace sir

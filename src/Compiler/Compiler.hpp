@@ -8,6 +8,9 @@
 #include <string>
 
 
+namespace sir {
+
+
 struct Stage {
     Stage(std::string name, mlir::MLIRContext& context) : name(name),
                                                           passes(std::make_unique<mlir::PassManager>(&context)) {}
@@ -34,3 +37,6 @@ private:
 private:
     std::vector<Stage> m_stages;
 };
+
+
+} // namespace sir

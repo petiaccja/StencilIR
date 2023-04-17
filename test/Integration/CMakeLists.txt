@@ -3,18 +3,16 @@ add_executable(TestIntegration)
 target_sources(TestIntegration
     PRIVATE
         main.cpp
-        Utility/RunAST.hpp
+        Utility/RunModule.hpp
 )
 
 target_sources(TestIntegration
     PRIVATE
-        Test_Structured.cpp
-        Test_Unstructured.cpp
         Test_Optimization.cpp
         Test_ObjectFile.cpp
 )
 
-target_link_libraries(TestIntegration AST Compiler Execution DAG)
+target_link_libraries(TestIntegration IR Compiler Execution)
 
 find_package(Catch2)
 target_link_libraries(TestIntegration Catch2::Catch2)
