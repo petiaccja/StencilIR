@@ -58,12 +58,6 @@ void ReduceDimOpsPass::runOnOperation() {
     mlir::GreedyRewriteConfig grc;
     grc.useTopDownTraversal = true;
     (void)applyPatternsAndFoldGreedily(op->getRegions(), std::move(patterns), grc);
-
-    mlir::PassManager pm{ &getContext() };
-    pm.addPass(mlir::createCanonicalizerPass());
-    if (pm.run(op).failed()) {
-        signalPassFailure();
-    }
 }
 
 
