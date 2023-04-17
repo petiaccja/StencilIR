@@ -48,27 +48,52 @@ Stage CreateGlobalOptimizationStage(mlir::MLIRContext& context,
     Stage stage{ "global_opt", context };
 
     llvm::StringMap<mlir::OpPassManager> inlinerPipelines;
-    if (optimizationOptions.eliminateAllocBuffers) {
-        mlir::OpPassManager inlinerFuncPm;
-        inlinerFuncPm.addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createAllocTensorEliminationPass());
-        inlinerPipelines.insert_or_assign("func.func", std::move(inlinerFuncPm));
+    const bool inlineFn = optimizationOptions.inlineFunctions;
+    const bool fuseExtract = optimizationOptions.fuseExtractSliceOps;
+    const bool fuseApply = optimizationOptions.fuseApplyOps;
+    const bool elimAlloc = optimizationOptions.eliminateAllocBuffers;
+
+    // Optimization pipeline for inliner
+    mlir::OpPassManager inlinerFuncPm;
+    inlinerFuncPm.addNestedPass<mlir::func::FuncOp>(createReduceDimOpsPass());
+    inlinerFuncPm.addNestedPass<mlir::func::FuncOp>(mlir::createCanonicalizerPass());
+    inlinerFuncPm.addNestedPass<mlir::func::FuncOp>(mlir::createCSEPass());
+    elimAlloc ? inlinerFuncPm.addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createAllocTensorEliminationPass()) : void();
+    inlinerPipelines.insert_or_assign("func.func", std::move(inlinerFuncPm));
+
+    // General optimizer
+    inlineFn ? stage.passes->addPass(mlir::createInlinerPass(std::move(inlinerPipelines))) : void();
+
+    {
+        auto& funcPrePm = stage.passes->nest<mlir::func::FuncOp>();
+
+        funcPrePm.addPass(createReduceDimOpsPass());
+        funcPrePm.addPass(mlir::createCSEPass());
+
+        elimAlloc ? funcPrePm.addPass(mlir::bufferization::createAllocTensorEliminationPass()) : void();
+        funcPrePm.addPass(createReduceDimOpsPass());
+        funcPrePm.addPass(mlir::createCSEPass());
+        funcPrePm.addPass(createEliminateSlicingPass());
     }
 
-    if (optimizationOptions.inlineFunctions) {
-        stage.passes->addPass(mlir::createInlinerPass(std::move(inlinerPipelines)));
+    fuseExtract ? stage.passes->addPass(createFuseExtractSliceOpsPass()) : void();
+    fuseApply ? stage.passes->addPass(createFuseApplyOpsPass()) : void();
+
+    {
+        auto& funcPostPm = stage.passes->nest<mlir::func::FuncOp>();
+        funcPostPm.addPass(createEliminateUnusedAllocTensorsPass());
+        funcPostPm.addPass(mlir::createLoopInvariantCodeMotionPass());
+        funcPostPm.addPass(mlir::createControlFlowSinkPass());
+        funcPostPm.addPass(mlir::createCanonicalizerPass());
+        funcPostPm.addPass(mlir::createCSEPass());
     }
-    if (optimizationOptions.eliminateAllocBuffers) {
-        stage.passes->addPass(mlir::bufferization::createAllocTensorEliminationPass());
+    {
+        auto& stencilPostPm = stage.passes->nest<stencil::StencilOp>();
+        stencilPostPm.addPass(mlir::createLoopInvariantCodeMotionPass());
+        stencilPostPm.addPass(mlir::createControlFlowSinkPass());
+        stencilPostPm.addPass(mlir::createCanonicalizerPass());
+        stencilPostPm.addPass(mlir::createCSEPass());
     }
-    stage.passes->addPass(createReduceDimOpsPass());
-    if (optimizationOptions.fuseExtractSliceOps) {
-        stage.passes->addPass(createFuseExtractSliceOpsPass());
-    }
-    if (optimizationOptions.fuseApplyOps) {
-        stage.passes->addPass(createFuseApplyOpsPass());
-    }
-    stage.passes->addPass(createEliminateUnusedAllocTensorsPass());
-    stage.passes->addPass(mlir::createCSEPass());
 
     return stage;
 }

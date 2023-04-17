@@ -538,13 +538,12 @@ mlir::Operation* ConvertSampleOp(Converter& converter, Operation op, mlir::Value
 
 mlir::Operation* ConvertOperation(mlir::MLIRContext& context, Operation op) {
     mlir::registerAllDialects(context);
+    context.getOrLoadDialect<stencil::StencilDialect>();
     mlir::DialectRegistry registry;
-    registry.insert<stencil::StencilDialect>();
     mlir::bufferization::func_ext::registerBufferizableOpInterfaceExternalModels(registry);
     stencil::registerBufferizableOpInterfaceExternalModels(registry);
     context.appendDialectRegistry(registry);
     context.loadAllAvailableDialects();
-
 
     Converter converter{ context };
 

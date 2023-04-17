@@ -7,7 +7,7 @@
 
 namespace sir {
 
-class EliminateUnusedAllocTensorsPass : public mlir::PassWrapper<EliminateUnusedAllocTensorsPass, mlir::OperationPass<mlir::ModuleOp>> {
+class EliminateUnusedAllocTensorsPass : public mlir::PassWrapper<EliminateUnusedAllocTensorsPass, mlir::OperationPass<>> {
     void runOnOperation() override final;
 };
 

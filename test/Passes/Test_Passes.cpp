@@ -60,3 +60,8 @@ TEST_CASE("Deduplicate apply op inputs", "[StencilDialect]") {
 TEST_CASE("Reduce dim ops", "[Canonicalization]") {
     REQUIRE(CheckFile(TestFile("ReduceDimOps.mlir"), Pass(createReduceDimOpsPass())));
 }
+
+
+TEST_CASE("Eliminate slicing", "[Canonicalization]") {
+    REQUIRE(CheckFile(TestFile("EliminateSlicing.mlir"), Pass(createEliminateSlicingPass())));
+}
