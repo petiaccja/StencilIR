@@ -89,12 +89,12 @@ void SubmoduleIR(pybind11::module_& main) {
     py::class_<ModuleOp, std::shared_ptr<ModuleOp>>(ops, "ModuleOp", singleRegion)
         .def(py::init<>());
     py::class_<FuncOp, std::shared_ptr<FuncOp>>(ops, "FuncOp", singleRegion)
-        .def(py::init<std::string, std::shared_ptr<ast::FunctionType>, bool, std::optional<Location>>(),
+        .def(py::init<std::string, std::shared_ptr<FunctionType>, bool, std::optional<Location>>(),
              py::arg("name"), py::arg("type"), py::arg("is_public"), py::arg("location"))
         .def("get_name", &FuncOp::GetName)
         .def("get_function_type", &FuncOp::GetFunctionType);
     py::class_<StencilOp, std::shared_ptr<StencilOp>>(ops, "StencilOp", singleRegion)
-        .def(py::init<std::string, std::shared_ptr<ast::FunctionType>, int, bool, std::optional<Location>>(),
+        .def(py::init<std::string, std::shared_ptr<FunctionType>, int, bool, std::optional<Location>>(),
              py::arg("name"), py::arg("type"), py::arg("num_dims"), py::arg("is_public"), py::arg("location"))
         .def("get_name", &StencilOp::GetName)
         .def("get_function_type", &StencilOp::GetFunctionType);
@@ -105,7 +105,7 @@ void SubmoduleIR(pybind11::module_& main) {
     py::class_<CallOp, std::shared_ptr<CallOp>>(ops, "CallOp", operation)
         .def(py::init<FuncOp, std::vector<Value>, std::optional<Location>>(),
              py::arg("callee"), py::arg("args"), py::arg("location"))
-        .def(py::init<std::string, std::vector<ast::TypePtr>, std::vector<Value>, std::optional<Location>>(),
+        .def(py::init<std::string, std::vector<TypePtr>, std::vector<Value>, std::optional<Location>>(),
              py::arg("callee"), py::arg("results"), py::arg("args"), py::arg("location"))
         .def("get_callee", &CallOp::GetCallee)
         .def("get_num_results", &CallOp::GetNumResults)
@@ -124,13 +124,13 @@ void SubmoduleIR(pybind11::module_& main) {
 
     // Arithmetic-logic
     py::class_<CastOp, std::shared_ptr<CastOp>>(ops, "CastOp", operation)
-        .def(py::init<Value, ast::TypePtr, std::optional<Location>>(),
+        .def(py::init<Value, TypePtr, std::optional<Location>>(),
              py::arg("input"), py::arg("type"), py::arg("location"))
         .def("get_input", &CastOp::GetInput)
         .def("get_type", &CastOp::GetType)
         .def("get_result", &CastOp::GetResult);
     py::class_<ConstantOp, std::shared_ptr<ConstantOp>>(ops, "ConstantOp", operation)
-        .def(py::init([](py::object value, ast::TypePtr type, std::optional<Location> loc) {
+        .def(py::init([](py::object value, TypePtr type, std::optional<Location> loc) {
                  if (py::isinstance(value, py::bool_().get_type())) {
                      return ConstantOp(py::cast<bool>(value), type, loc);
                  }
@@ -197,7 +197,7 @@ void SubmoduleIR(pybind11::module_& main) {
              py::arg("source"), py::arg("index"), py::arg("location"))
         .def("get_result", &DimOp::GetResult);
     py::class_<AllocTensorOp, std::shared_ptr<AllocTensorOp>>(ops, "AllocTensorOp", operation)
-        .def(py::init<ast::TypePtr, std::vector<Value>, std::optional<Location>>(),
+        .def(py::init<TypePtr, std::vector<Value>, std::optional<Location>>(),
              py::arg("element_type"), py::arg("sizes"), py::arg("location"))
         .def("get_result", &AllocTensorOp::GetResult);
     py::class_<ExtractSliceOp, std::shared_ptr<ExtractSliceOp>>(ops, "ExtractSliceOp", operation)
@@ -239,9 +239,6 @@ void SubmoduleIR(pybind11::module_& main) {
              py::arg("source"), py::arg("index"), py::arg("location"))
         .def("get_result", &SampleOp::GetResult);
 }
-
-
-using namespace ast;
 
 
 PYBIND11_MODULE(stencilir, m) {

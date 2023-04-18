@@ -9,46 +9,46 @@ namespace sir {
 // Utilities
 //------------------------------------------------------------------------------
 
-ast::TypePtr GetTypeFromFormat(std::string_view format) {
+TypePtr GetTypeFromFormat(std::string_view format) {
     using namespace std::string_literals;
 
-    const auto pybindType = [&]() -> ast::TypePtr {
+    const auto pybindType = [&]() -> TypePtr {
         switch (format[0]) {
-            case '?': return std::make_shared<ast::IntegerType>(1, true);
-            case 'b': return std::make_shared<ast::IntegerType>(8, true);
-            case 'B': return std::make_shared<ast::IntegerType>(8, false);
-            case 'h': return std::make_shared<ast::IntegerType>(16, true);
-            case 'H': return std::make_shared<ast::IntegerType>(16, false);
-            case 'i': return std::make_shared<ast::IntegerType>(32, true);
-            case 'I': return std::make_shared<ast::IntegerType>(32, false);
-            case 'q': return std::make_shared<ast::IntegerType>(64, true);
-            case 'Q': return std::make_shared<ast::IntegerType>(64, false);
-            case 'f': return std::make_shared<ast::FloatType>(32);
-            case 'd': return std::make_shared<ast::FloatType>(64);
+            case '?': return std::make_shared<IntegerType>(1, true);
+            case 'b': return std::make_shared<IntegerType>(8, true);
+            case 'B': return std::make_shared<IntegerType>(8, false);
+            case 'h': return std::make_shared<IntegerType>(16, true);
+            case 'H': return std::make_shared<IntegerType>(16, false);
+            case 'i': return std::make_shared<IntegerType>(32, true);
+            case 'I': return std::make_shared<IntegerType>(32, false);
+            case 'q': return std::make_shared<IntegerType>(64, true);
+            case 'Q': return std::make_shared<IntegerType>(64, false);
+            case 'f': return std::make_shared<FloatType>(32);
+            case 'd': return std::make_shared<FloatType>(64);
             case 'g': return sizeof(double) == sizeof(long double)
-                                 ? std::make_shared<ast::FloatType>(64)
+                                 ? std::make_shared<FloatType>(64)
                                  : throw std::invalid_argument("long double is not supported");
         }
         return {};
     }();
 
-    const auto pythonType = [&]() -> ast::TypePtr {
+    const auto pythonType = [&]() -> TypePtr {
         switch (format[0]) {
-            case '?': return ast::InferType<bool>();
-            case 'b': return ast::InferType<signed char>();
-            case 'B': return ast::InferType<unsigned char>();
-            case 'h': return ast::InferType<short int>();
-            case 'H': return ast::InferType<unsigned short int>();
-            case 'i': return ast::InferType<int>();
-            case 'I': return ast::InferType<unsigned int>();
-            case 'l': return ast::InferType<long int>();
-            case 'k': return ast::InferType<unsigned long int>();
-            case 'L': return ast::InferType<long long>();
-            case 'K': return ast::InferType<unsigned long long>();
-            case 'n': return ast::InferType<Py_ssize_t>();
-            case 'f': return ast::InferType<float>();
-            case 'd': return ast::InferType<double>();
-            case 'p': return ast::InferType<int>();
+            case '?': return InferType<bool>();
+            case 'b': return InferType<signed char>();
+            case 'B': return InferType<unsigned char>();
+            case 'h': return InferType<short int>();
+            case 'H': return InferType<unsigned short int>();
+            case 'i': return InferType<int>();
+            case 'I': return InferType<unsigned int>();
+            case 'l': return InferType<long int>();
+            case 'k': return InferType<unsigned long int>();
+            case 'L': return InferType<long long>();
+            case 'K': return InferType<unsigned long long>();
+            case 'n': return InferType<Py_ssize_t>();
+            case 'f': return InferType<float>();
+            case 'd': return InferType<double>();
+            case 'p': return InferType<int>();
         }
         return {};
     }();
@@ -58,11 +58,11 @@ ast::TypePtr GetTypeFromFormat(std::string_view format) {
     // can also mean different things... Unless both match, we can't know
     // where the data came from.
     if (pybindType && pythonType) {
-        const auto pybindIntType = std::dynamic_pointer_cast<ast::IntegerType>(pybindType);
-        const auto pythonIntType = std::dynamic_pointer_cast<ast::IntegerType>(pybindType);
+        const auto pybindIntType = std::dynamic_pointer_cast<IntegerType>(pybindType);
+        const auto pythonIntType = std::dynamic_pointer_cast<IntegerType>(pybindType);
 
-        const auto pybindFloatType = std::dynamic_pointer_cast<ast::FloatType>(pybindType);
-        const auto pythonFloatType = std::dynamic_pointer_cast<ast::FloatType>(pybindType);
+        const auto pybindFloatType = std::dynamic_pointer_cast<FloatType>(pybindType);
+        const auto pythonFloatType = std::dynamic_pointer_cast<FloatType>(pybindType);
 
         if (pybindIntType && pythonIntType
             && pybindIntType->size == pythonIntType->size
@@ -91,24 +91,24 @@ ast::TypePtr GetTypeFromFormat(std::string_view format) {
 }
 
 
-static llvm::Type* ConvertType(const ast::Type& type, llvm::LLVMContext& context) {
-    if (auto integerType = dynamic_cast<const ast::IntegerType*>(&type)) {
+static llvm::Type* ConvertType(const Type& type, llvm::LLVMContext& context) {
+    if (auto integerType = dynamic_cast<const IntegerType*>(&type)) {
         if (!integerType->isSigned) {
             throw std::invalid_argument("unsigned types are not supported due to arith.constant behavior; TODO: add support");
         }
         return llvm::IntegerType::get(context, integerType->size);
     }
-    else if (auto floatType = dynamic_cast<const ast::FloatType*>(&type)) {
+    else if (auto floatType = dynamic_cast<const FloatType*>(&type)) {
         switch (floatType->size) {
             case 32: return llvm::Type::getFloatTy(context);
             case 64: return llvm::Type::getDoubleTy(context);
         }
         throw std::invalid_argument("only 32 and 64-bit floats are supported");
     }
-    else if (auto indexType = dynamic_cast<const ast::IndexType*>(&type)) {
+    else if (auto indexType = dynamic_cast<const IndexType*>(&type)) {
         return llvm::IntegerType::get(context, 8 * sizeof(size_t));
     }
-    else if (auto fieldType = dynamic_cast<const ast::FieldType*>(&type)) {
+    else if (auto fieldType = dynamic_cast<const FieldType*>(&type)) {
         auto elementType = ConvertType(*fieldType->elementType, context);
         auto ptrType = llvm::PointerType::get(elementType, 0);
         auto llvmIndexType = llvm::IntegerType::get(context, 8 * sizeof(size_t));
@@ -133,7 +133,7 @@ static llvm::Type* ConvertType(const ast::Type& type, llvm::LLVMContext& context
 //------------------------------------------------------------------------------
 // Argument
 //------------------------------------------------------------------------------
-Argument::Argument(ast::TypePtr type, const Runner* runner)
+Argument::Argument(TypePtr type, const Runner* runner)
     : m_type(type),
       m_runner(runner),
       m_llvmType(ConvertType(*type, runner->GetContext())) {
@@ -155,32 +155,32 @@ size_t Argument::GetAlignment() const {
 }
 
 pybind11::object Argument::Read(const std::byte* address) const {
-    if (auto type = dynamic_cast<const ast::IntegerType*>(m_type.get())) {
+    if (auto type = dynamic_cast<const IntegerType*>(m_type.get())) {
         return Read(*type, address);
     }
-    else if (auto type = dynamic_cast<const ast::FloatType*>(m_type.get())) {
+    else if (auto type = dynamic_cast<const FloatType*>(m_type.get())) {
         return Read(*type, address);
     }
-    else if (auto type = dynamic_cast<const ast::IndexType*>(m_type.get())) {
+    else if (auto type = dynamic_cast<const IndexType*>(m_type.get())) {
         return Read(*type, address);
     }
-    else if (auto type = dynamic_cast<const ast::FieldType*>(m_type.get())) {
+    else if (auto type = dynamic_cast<const FieldType*>(m_type.get())) {
         return Read(*type, address);
     }
     std::terminate();
 }
 
 void Argument::Write(pybind11::object value, std::byte* address) const {
-    if (auto type = dynamic_cast<const ast::IntegerType*>(m_type.get())) {
+    if (auto type = dynamic_cast<const IntegerType*>(m_type.get())) {
         return Write(*type, value, address);
     }
-    else if (auto type = dynamic_cast<const ast::FloatType*>(m_type.get())) {
+    else if (auto type = dynamic_cast<const FloatType*>(m_type.get())) {
         return Write(*type, value, address);
     }
-    else if (auto type = dynamic_cast<const ast::IndexType*>(m_type.get())) {
+    else if (auto type = dynamic_cast<const IndexType*>(m_type.get())) {
         return Write(*type, value, address);
     }
-    else if (auto type = dynamic_cast<const ast::FieldType*>(m_type.get())) {
+    else if (auto type = dynamic_cast<const FieldType*>(m_type.get())) {
         return Write(*type, value, address);
     }
     std::terminate();
@@ -190,8 +190,8 @@ void Argument::Write(pybind11::object value, std::byte* address) const {
 // ScalarType methods
 //--------------------------------------
 
-pybind11::object Argument::Read(const ast::IntegerType& type, const std::byte* address) const {
-    return ast::VisitType(type, [&](auto* typed) -> pybind11::object {
+pybind11::object Argument::Read(const IntegerType& type, const std::byte* address) const {
+    return VisitType(type, [&](auto* typed) -> pybind11::object {
         using T = std::decay_t<decltype(*typed)>;
         const T value = *reinterpret_cast<const T*>(address);
         if constexpr (std::is_integral_v<T>) {
@@ -202,15 +202,15 @@ pybind11::object Argument::Read(const ast::IntegerType& type, const std::byte* a
     });
 }
 
-void Argument::Write(const ast::IntegerType& type, pybind11::object value, std::byte* address) const {
-    ast::VisitType(type, [&](auto* typed) {
+void Argument::Write(const IntegerType& type, pybind11::object value, std::byte* address) const {
+    VisitType(type, [&](auto* typed) {
         using T = std::decay_t<decltype(*typed)>;
         *reinterpret_cast<T*>(address) = value.cast<T>();
     });
 }
 
-pybind11::object Argument::Read(const ast::FloatType& type, const std::byte* address) const {
-    return ast::VisitType(type, [&](auto* typed) -> pybind11::object {
+pybind11::object Argument::Read(const FloatType& type, const std::byte* address) const {
+    return VisitType(type, [&](auto* typed) -> pybind11::object {
         using T = std::decay_t<decltype(*typed)>;
         const T value = *reinterpret_cast<const T*>(address);
         if constexpr (std::is_floating_point_v<T>) {
@@ -221,15 +221,15 @@ pybind11::object Argument::Read(const ast::FloatType& type, const std::byte* add
     });
 }
 
-void Argument::Write(const ast::FloatType& type, pybind11::object value, std::byte* address) const {
-    ast::VisitType(type, [&](auto* typed) {
+void Argument::Write(const FloatType& type, pybind11::object value, std::byte* address) const {
+    VisitType(type, [&](auto* typed) {
         using T = std::decay_t<decltype(*typed)>;
         *reinterpret_cast<T*>(address) = value.cast<T>();
     });
 }
 
-pybind11::object Argument::Read(const ast::IndexType& type, const std::byte* address) const {
-    return ast::VisitType(type, [&](auto* typed) -> pybind11::object {
+pybind11::object Argument::Read(const IndexType& type, const std::byte* address) const {
+    return VisitType(type, [&](auto* typed) -> pybind11::object {
         using T = std::decay_t<decltype(*typed)>;
         const T value = *reinterpret_cast<const T*>(address);
         if constexpr (std::is_integral_v<T>) {
@@ -240,8 +240,8 @@ pybind11::object Argument::Read(const ast::IndexType& type, const std::byte* add
     });
 }
 
-void Argument::Write(const ast::IndexType& type, pybind11::object value, std::byte* address) const {
-    ast::VisitType(type, [&](auto* typed) {
+void Argument::Write(const IndexType& type, pybind11::object value, std::byte* address) const {
+    VisitType(type, [&](auto* typed) {
         using T = std::decay_t<decltype(*typed)>;
         *reinterpret_cast<T*>(address) = value.cast<T>();
     });
@@ -250,11 +250,11 @@ void Argument::Write(const ast::IndexType& type, pybind11::object value, std::by
 //--------------------------------------
 // Field type methods
 //--------------------------------------
-pybind11::object Argument::Read(const ast::FieldType& type, const std::byte* address) const {
+pybind11::object Argument::Read(const FieldType& type, const std::byte* address) const {
     auto layout = GetLayout();
     assert(layout);
 
-    return ast::VisitType(*type.elementType, [&](auto* typed) {
+    return VisitType(*type.elementType, [&](auto* typed) {
         using T = std::decay_t<decltype(*typed)>;
 
         const auto startingAddress = address;
@@ -274,7 +274,7 @@ pybind11::object Argument::Read(const ast::FieldType& type, const std::byte* add
     });
 }
 
-void Argument::Write(const ast::FieldType& type, pybind11::object value, std::byte* address) const {
+void Argument::Write(const FieldType& type, pybind11::object value, std::byte* address) const {
     auto layout = GetLayout();
     assert(layout);
 
@@ -283,7 +283,7 @@ void Argument::Write(const ast::FieldType& type, pybind11::object value, std::by
 
     const auto buffer = value.cast<pybind11::buffer>();
     const auto bufferInfo = buffer.request(true);
-    const auto bufferType = ast::FieldType{ GetTypeFromFormat(bufferInfo.format), int(bufferInfo.ndim) };
+    const auto bufferType = FieldType{ GetTypeFromFormat(bufferInfo.format), int(bufferInfo.ndim) };
     if (!bufferType.EqualTo(type)) {
         std::stringstream ss;
         ss << "expected buffer type " << type << ", got " << bufferType;
@@ -315,7 +315,7 @@ const llvm::StructLayout* Argument::GetLayout() const {
 //------------------------------------------------------------------------------
 // ArgumentPack
 //------------------------------------------------------------------------------
-ArgumentPack::ArgumentPack(std::span<const ast::TypePtr> types, const Runner* runner)
+ArgumentPack::ArgumentPack(std::span<const TypePtr> types, const Runner* runner)
     : m_runner(runner) {
     m_items.reserve(types.size());
     for (auto& type : types) {

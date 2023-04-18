@@ -40,14 +40,14 @@ enum class eComparisonFunction {
 
 struct FuncAttr {
     std::string name;
-    std::shared_ptr<ast::FunctionType> signature;
+    std::shared_ptr<FunctionType> signature;
     bool isPublic;
 };
 
 
 struct StencilAttr {
     std::string name;
-    std::shared_ptr<ast::FunctionType> signature;
+    std::shared_ptr<FunctionType> signature;
     int numDims;
     bool isPublic;
 };
@@ -55,7 +55,7 @@ struct StencilAttr {
 
 struct CallAttr {
     std::string name;
-    std::vector<ast::TypePtr> results;
+    std::vector<TypePtr> results;
 };
 
 
@@ -69,7 +69,7 @@ struct ApplyAttr {
 
 
 struct ConstantAttr {
-    ast::TypePtr type;
+    TypePtr type;
     std::any value;
 };
 
@@ -125,7 +125,7 @@ struct ModuleOp : SingleRegion {
 
 struct FuncOp : SingleRegion {
     FuncOp(std::string name,
-           std::shared_ptr<ast::FunctionType> signature,
+           std::shared_ptr<FunctionType> signature,
            bool isPublic = true,
            std::optional<sir::Location> loc = {})
         : SingleRegion(typeid(decltype(*this)), {}, 0, FuncAttr{ name, signature, isPublic }, loc) {
@@ -139,7 +139,7 @@ struct FuncOp : SingleRegion {
         return std::any_cast<const FuncAttr&>(GetAttributes()).name;
     }
 
-    std::shared_ptr<ast::FunctionType> GetFunctionType() const {
+    std::shared_ptr<FunctionType> GetFunctionType() const {
         return std::any_cast<const FuncAttr&>(GetAttributes()).signature;
     }
 };
@@ -147,7 +147,7 @@ struct FuncOp : SingleRegion {
 
 struct StencilOp : SingleRegion {
     StencilOp(std::string name,
-              std::shared_ptr<ast::FunctionType> signature,
+              std::shared_ptr<FunctionType> signature,
               int numDims,
               bool isPublic = true,
               std::optional<sir::Location> loc = {})
@@ -162,7 +162,7 @@ struct StencilOp : SingleRegion {
         return std::any_cast<const StencilAttr&>(GetAttributes()).name;
     }
 
-    std::shared_ptr<ast::FunctionType> GetFunctionType() const {
+    std::shared_ptr<FunctionType> GetFunctionType() const {
         return std::any_cast<const StencilAttr&>(GetAttributes()).signature;
     }
 };
@@ -180,7 +180,7 @@ struct CallOp : Operation {
     CallOp(FuncOp callee, std::vector<Value> args, std::optional<sir::Location> loc = {})
         : CallOp(std::string{ callee.GetName() }, callee.GetFunctionType()->results, std::move(args), std::move(loc)) {}
 
-    CallOp(std::string callee, std::vector<ast::TypePtr> results, std::vector<Value> args, std::optional<sir::Location> loc = {})
+    CallOp(std::string callee, std::vector<TypePtr> results, std::vector<Value> args, std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)),
                     args,
                     results.size(),
@@ -241,10 +241,10 @@ struct InvokeOp;
 //------------------------------------------------------------------------------
 
 struct CastOp : Operation {
-    CastOp(Value input, ast::TypePtr type, std::optional<sir::Location> loc = {})
+    CastOp(Value input, TypePtr type, std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)), { input }, 1, {}, type, loc) {}
     Value GetInput() const { return GetOperands()[0].GetSource(); }
-    ast::TypePtr GetType() const { return std::any_cast<ast::TypePtr>(GetAttributes()); }
+    TypePtr GetType() const { return std::any_cast<TypePtr>(GetAttributes()); }
     Value GetResult() const { return GetResults()[0]; }
 };
 
@@ -252,23 +252,23 @@ struct CastOp : Operation {
 struct ConstantOp : Operation {
     template <class T>
     explicit ConstantOp(T value, std::optional<sir::Location> loc = {})
-        : ConstantOp(std::move(value), ast::InferType<std::decay_t<T>>(), std::move(loc)) {}
-    explicit ConstantOp(auto value, ast::TypePtr type, std::optional<sir::Location> loc = {})
+        : ConstantOp(std::move(value), InferType<std::decay_t<T>>(), std::move(loc)) {}
+    explicit ConstantOp(auto value, TypePtr type, std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)), {}, 1, {}, ConstantAttr{ type, WrapValue(value, type) }, loc) {}
 
     auto GetValue() const { return std::any_cast<const ConstantAttr&>(GetAttributes()).value; }
-    ast::TypePtr GetType() const { return std::any_cast<const ConstantAttr&>(GetAttributes()).type; }
+    TypePtr GetType() const { return std::any_cast<const ConstantAttr&>(GetAttributes()).type; }
     Value GetResult() const { return GetResults()[0]; }
 
 private:
-    static std::any WrapValue(auto value, ast::TypePtr type) {
-        if (std::dynamic_pointer_cast<ast::IntegerType>(type)) {
+    static std::any WrapValue(auto value, TypePtr type) {
+        if (std::dynamic_pointer_cast<IntegerType>(type)) {
             return static_cast<int64_t>(value);
         }
-        else if (std::dynamic_pointer_cast<ast::IndexType>(type)) {
+        else if (std::dynamic_pointer_cast<IndexType>(type)) {
             return static_cast<int64_t>(value);
         }
-        else if (std::dynamic_pointer_cast<ast::FloatType>(type)) {
+        else if (std::dynamic_pointer_cast<FloatType>(type)) {
             return static_cast<double>(value);
         }
         else {
@@ -373,7 +373,7 @@ struct DimOp : Operation {
 
 
 struct AllocTensorOp : Operation {
-    AllocTensorOp(ast::TypePtr elementType, std::vector<Value> sizes, std::optional<sir::Location> loc = {})
+    AllocTensorOp(TypePtr elementType, std::vector<Value> sizes, std::optional<sir::Location> loc = {})
         : Operation(typeid(decltype(*this)), sizes, 1, {}, elementType, loc) {}
 
     auto GetResult() const { return GetResults()[0]; }

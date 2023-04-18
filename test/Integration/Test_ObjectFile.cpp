@@ -15,8 +15,8 @@ using namespace sir;
 TEST_CASE("Object file", "[Program]") {
     auto moduleOp = ops::ModuleOp{};
     auto stencilir_add = moduleOp.Create<ops::FuncOp>("stencilir_add",
-                                                      ast::FunctionType::Get({ ast::Int32, ast::Int32 },
-                                                                             { ast::Int32 }),
+                                                      FunctionType::Get({ Int32, Int32 },
+                                                                        { Int32 }),
                                                       true);
     auto result = stencilir_add.Create<ops::ArithmeticOp>(stencilir_add.GetRegionArg(0),
                                                           stencilir_add.GetRegionArg(1),

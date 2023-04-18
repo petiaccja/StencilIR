@@ -38,8 +38,8 @@ struct CompileOptions {
 
 class CompiledModule {
     struct FunctionType {
-        std::vector<ast::TypePtr> parameters;
-        std::vector<ast::TypePtr> returns;
+        std::vector<TypePtr> parameters;
+        std::vector<TypePtr> returns;
     };
 
 public:

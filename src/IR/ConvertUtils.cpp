@@ -24,14 +24,14 @@ std::string FormatType(mlir::Type type) {
 }
 
 
-mlir::Type ConvertType(mlir::OpBuilder& builder, const ast::Type& type) {
-    if (auto integerType = dynamic_cast<const ast::IntegerType*>(&type)) {
+mlir::Type ConvertType(mlir::OpBuilder& builder, const Type& type) {
+    if (auto integerType = dynamic_cast<const IntegerType*>(&type)) {
         if (!integerType->isSigned) {
             throw std::invalid_argument("unsigned types are not supported due to arith.constant behavior; TODO: add support");
         }
         return builder.getIntegerType(integerType->size);
     }
-    else if (auto floatType = dynamic_cast<const ast::FloatType*>(&type)) {
+    else if (auto floatType = dynamic_cast<const FloatType*>(&type)) {
         switch (floatType->size) {
             case 16: return builder.getF16Type();
             case 32: return builder.getF32Type();
@@ -39,15 +39,15 @@ mlir::Type ConvertType(mlir::OpBuilder& builder, const ast::Type& type) {
         }
         throw std::invalid_argument("only 16, 32, and 64-bit floats are supported");
     }
-    else if (auto indexType = dynamic_cast<const ast::IndexType*>(&type)) {
+    else if (auto indexType = dynamic_cast<const IndexType*>(&type)) {
         return builder.getIndexType();
     }
-    else if (auto fieldType = dynamic_cast<const ast::FieldType*>(&type)) {
+    else if (auto fieldType = dynamic_cast<const FieldType*>(&type)) {
         const mlir::Type elementType = ConvertType(builder, *fieldType->elementType);
         std::vector<int64_t> shape(fieldType->numDimensions, mlir::ShapedType::kDynamicSize);
         return mlir::RankedTensorType::get(shape, elementType);
     }
-    else if (auto functionType = dynamic_cast<const ast::FunctionType*>(&type)) {
+    else if (auto functionType = dynamic_cast<const FunctionType*>(&type)) {
         mlir::SmallVector<mlir::Type> parameters;
         mlir::SmallVector<mlir::Type> results;
         std::ranges::transform(functionType->parameters, std::back_inserter(parameters), [&](const auto& type) {

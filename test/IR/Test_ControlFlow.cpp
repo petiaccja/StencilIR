@@ -9,7 +9,7 @@ using namespace sir;
 
 TEST_CASE("If", "[DAG]") {
     auto mod = ops::ModuleOp();
-    auto func = mod.Create<ops::FuncOp>("fn", ast::FunctionType::Get({ ast::Bool, ast::Float32, ast::Float32 }, { ast::Float32 }));
+    auto func = mod.Create<ops::FuncOp>("fn", FunctionType::Get({ Bool, Float32, Float32 }, { Float32 }));
 
     auto ifop = func.Create<ops::IfOp>(func.GetRegionArg(0), 1);
     ifop.GetThenRegion().Create<ops::YieldOp>(std::vector<Value>{ func.GetRegionArg(1) });
@@ -32,7 +32,7 @@ TEST_CASE("If", "[DAG]") {
 
 TEST_CASE("For", "[DAG]") {
     auto mod = ops::ModuleOp();
-    auto func = mod.Create<ops::FuncOp>("fn", ast::FunctionType::Get({ ast::IndexType::Get(), ast::IndexType::Get(), ast::IndexType::Get(), ast::Float32 }, { ast::Float32 }));
+    auto func = mod.Create<ops::FuncOp>("fn", FunctionType::Get({ IndexType::Get(), IndexType::Get(), IndexType::Get(), Float32 }, { Float32 }));
 
     auto forop = func.Create<ops::ForOp>(func.GetRegionArg(0), func.GetRegionArg(1), func.GetRegionArg(2),
                                          std::vector{ func.GetRegionArg(3) });
