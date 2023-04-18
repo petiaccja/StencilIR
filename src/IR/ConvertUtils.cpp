@@ -42,6 +42,9 @@ mlir::Type ConvertType(mlir::OpBuilder& builder, const Type& type) {
     else if (auto indexType = dynamic_cast<const IndexType*>(&type)) {
         return builder.getIndexType();
     }
+    else if (auto ndIndexType = dynamic_cast<const NDIndexType*>(&type)) {
+        return mlir::VectorType::get({ ndIndexType->numDimensions }, builder.getIndexType());
+    }
     else if (auto fieldType = dynamic_cast<const FieldType*>(&type)) {
         const mlir::Type elementType = ConvertType(builder, *fieldType->elementType);
         std::vector<int64_t> shape(fieldType->numDimensions, mlir::ShapedType::kDynamicSize);
@@ -63,67 +66,6 @@ mlir::Type ConvertType(mlir::OpBuilder& builder, const Type& type) {
         ss << "could not convert type \"" << type << "\" to MLIR type";
         throw std::invalid_argument(ss.str());
     }
-}
-
-
-mlir::Value PromoteValue(mlir::OpBuilder& builder, mlir::Location loc, mlir::Value value, mlir::Type type) {
-    auto inputType = value.getType();
-    if (inputType.isa<mlir::IntegerType>() && type.isa<mlir::IntegerType>()) {
-        auto inputIntType = inputType.dyn_cast<mlir::IntegerType>();
-        auto intType = type.dyn_cast<mlir::IntegerType>();
-        if (inputIntType.getSignedness() == intType.getSignedness()) {
-            if (inputIntType.getWidth() == intType.getWidth()) {
-                return value;
-            }
-            if (inputIntType.getWidth() < intType.getWidth()) {
-                const auto signedness = inputIntType.getSignedness();
-                if (signedness == mlir::IntegerType::Unsigned) {
-                    return builder.create<mlir::arith::ExtUIOp>(loc, type, value);
-                }
-                return builder.create<mlir::arith::ExtSIOp>(loc, type, value);
-            }
-        }
-        return nullptr;
-    }
-    if (inputType.isa<mlir::FloatType>() && type.isa<mlir::FloatType>()) {
-        auto inputFloatType = inputType.dyn_cast<mlir::FloatType>();
-        auto floatType = type.dyn_cast<mlir::FloatType>();
-        if (inputFloatType.getWidth() == floatType.getWidth()) {
-            return value;
-        }
-        if (inputFloatType.getWidth() < floatType.getWidth()) {
-            return builder.create<mlir::arith::ExtFOp>(loc, type, value);
-        }
-        return nullptr;
-    }
-    if (inputType.isa<mlir::IntegerType>() && type.isa<mlir::FloatType>()) {
-        auto inputIntType = inputType.dyn_cast<mlir::IntegerType>();
-        auto floatType = type.dyn_cast<mlir::FloatType>();
-        if (inputIntType.getWidth() < floatType.getFPMantissaWidth()) {
-            if (inputIntType.getSignedness() == mlir::IntegerType::Unsigned) {
-                return builder.create<mlir::arith::UIToFPOp>(loc, floatType, value);
-            }
-            return builder.create<mlir::arith::SIToFPOp>(loc, floatType, value);
-        }
-        return nullptr;
-    }
-    return nullptr;
-}
-
-
-std::pair<mlir::Value, mlir::Value> PromoteToCommonType(mlir::OpBuilder& builder, mlir::Location loc, mlir::Value lhs, mlir::Value rhs) {
-    const auto lhsType = lhs.getType();
-    const auto rhsType = rhs.getType();
-    if (lhsType == rhsType) {
-        return { lhs, rhs };
-    }
-    if (auto promotedLhs = PromoteValue(builder, loc, lhs, rhsType)) {
-        return { promotedLhs, rhs };
-    }
-    if (auto promotedRhs = PromoteValue(builder, loc, rhs, lhsType)) {
-        return { lhs, promotedRhs };
-    }
-    throw OperandTypeError(loc, { FormatType(lhsType), FormatType(rhsType) });
 }
 
 

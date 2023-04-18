@@ -100,6 +100,30 @@ public:
 };
 
 
+class NDIndexType : public Type {
+public:
+    explicit NDIndexType(int numDimensions) : numDimensions(numDimensions) {}
+
+    bool EqualTo(const Type& other) const override {
+        if (auto otherNDIndex = dynamic_cast<const NDIndexType*>(&other)) {
+            return numDimensions == otherNDIndex->numDimensions;
+        }
+        return false;
+    }
+
+    std::ostream& Print(std::ostream& os) const override {
+        return os << "index<" << numDimensions << ">";
+    }
+
+    static std::shared_ptr<NDIndexType> Get(int numDimensions) {
+        return std::make_shared<NDIndexType>(numDimensions);
+    }
+
+public:
+    const int numDimensions;
+};
+
+
 class FieldType : public Type {
 public:
     FieldType(std::shared_ptr<Type> elementType, int numDimensions)

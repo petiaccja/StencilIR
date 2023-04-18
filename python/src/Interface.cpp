@@ -277,6 +277,10 @@ PYBIND11_MODULE(stencilir, m) {
     pybind11::class_<IndexType, std::shared_ptr<IndexType>>(m, "IndexType", type)
         .def(pybind11::init<>());
 
+    pybind11::class_<NDIndexType, std::shared_ptr<NDIndexType>>(m, "NDIndexType", type)
+        .def(pybind11::init<int>())
+        .def_readonly("num_dimensions", &NDIndexType::numDimensions);
+
     pybind11::class_<FieldType, std::shared_ptr<FieldType>>(m, "FieldType", type)
         .def(pybind11::init<TypePtr, int>())
         .def_readonly("element_type", &FieldType::elementType)
