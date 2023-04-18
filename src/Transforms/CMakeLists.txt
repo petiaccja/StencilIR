@@ -15,6 +15,10 @@ target_sources(Transforms
         ReduceDimOps.hpp
         EliminateUnusedAllocTensors.cpp
         EliminateUnusedAllocTensors.hpp
+        EliminateSlicing.cpp
+        EliminateSlicing.hpp
+        Utility.cpp
+        Utility.hpp
 )
 
 target_include_directories(Transforms INTERFACE ${CMAKE_CURRENT_LIST_DIR}/..)

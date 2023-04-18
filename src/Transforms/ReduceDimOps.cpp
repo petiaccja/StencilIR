@@ -1,5 +1,7 @@
 #include "ReduceDimOps.hpp"
 
+#include "Utility.hpp"
+
 #include <mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h>
 #include <mlir/Dialect/MemRef/IR/MemRef.h>
 #include <mlir/Dialect/Tensor/IR/Tensor.h>
@@ -12,32 +14,6 @@
 namespace sir {
 
 using mlir::MLIRContext;
-
-
-mlir::FailureOr<mlir::Value> GetEquivalentBuffer(mlir::Value buffer, mlir::bufferization::AnalysisState& state) {
-    const auto definingOp = buffer.getDefiningOp();
-    if (!definingOp) {
-        return mlir::failure();
-    }
-    auto definingBufferOp = mlir::dyn_cast<mlir::bufferization::BufferizableOpInterface>(definingOp);
-    if (!definingBufferOp) {
-        return mlir::failure();
-    }
-    const auto results = definingBufferOp->getResults();
-    const auto resultIt = std::find(results.begin(), results.end(), buffer);
-    const auto resultIdx = std::distance(results.begin(), resultIt);
-    const auto opResult = definingBufferOp->getOpResult(resultIdx);
-
-    const auto aliasingOperands = state.getAliasingOpOperand(opResult);
-    if (aliasingOperands.empty()) {
-        return mlir::failure();
-    }
-    if (definingBufferOp.bufferRelation(opResult, state) != mlir::bufferization::BufferRelation::Equivalent) {
-        return mlir::failure();
-    }
-    const auto equivalentBuffer = (*aliasingOperands.begin())->get();
-    return equivalentBuffer;
-}
 
 
 class ReducePattern : public mlir::OpRewritePattern<mlir::tensor::DimOp> {
@@ -82,12 +58,6 @@ void ReduceDimOpsPass::runOnOperation() {
     mlir::GreedyRewriteConfig grc;
     grc.useTopDownTraversal = true;
     (void)applyPatternsAndFoldGreedily(op->getRegions(), std::move(patterns), grc);
-
-    mlir::PassManager pm{ &getContext() };
-    pm.addPass(mlir::createCanonicalizerPass());
-    if (pm.run(op).failed()) {
-        signalPassFailure();
-    }
 }
 
 

@@ -1,6 +1,7 @@
 #pragma once
 
 
+#include "EliminateSlicing.hpp"
 #include "EliminateUnusedAllocTensors.hpp"
 #include "ReduceDimOps.hpp"
 
@@ -13,6 +14,10 @@ inline auto createReduceDimOpsPass() {
 
 inline auto createEliminateUnusedAllocTensorsPass() {
     return std::make_unique<EliminateUnusedAllocTensorsPass>();
+}
+
+inline auto createEliminateSlicingPass() {
+    return std::make_unique<EliminateSlicingPass>();
 }
 
 

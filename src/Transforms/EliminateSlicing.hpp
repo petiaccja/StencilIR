@@ -7,7 +7,7 @@
 
 namespace sir {
 
-class ReduceDimOpsPass : public mlir::PassWrapper<ReduceDimOpsPass, mlir::OperationPass<>> {
+class EliminateSlicingPass : public mlir::PassWrapper<EliminateSlicingPass, mlir::OperationPass<>> {
     void runOnOperation() override final;
 };
 
