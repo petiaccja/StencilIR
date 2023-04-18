@@ -68,10 +68,12 @@ Stage CreateGlobalOptimizationStage(mlir::MLIRContext& context,
         auto& funcPrePm = stage.passes->nest<mlir::func::FuncOp>();
 
         funcPrePm.addPass(createReduceDimOpsPass());
+        funcPrePm.addPass(mlir::createCanonicalizerPass());
         funcPrePm.addPass(mlir::createCSEPass());
 
         elimAlloc ? funcPrePm.addPass(mlir::bufferization::createAllocTensorEliminationPass()) : void();
         funcPrePm.addPass(createReduceDimOpsPass());
+        funcPrePm.addPass(mlir::createCanonicalizerPass());
         funcPrePm.addPass(mlir::createCSEPass());
         funcPrePm.addPass(createEliminateSlicingPass());
     }
@@ -81,18 +83,18 @@ Stage CreateGlobalOptimizationStage(mlir::MLIRContext& context,
 
     {
         auto& funcPostPm = stage.passes->nest<mlir::func::FuncOp>();
+        funcPostPm.addPass(mlir::createCanonicalizerPass());
+        funcPostPm.addPass(mlir::createCSEPass());
         funcPostPm.addPass(createEliminateUnusedAllocTensorsPass());
         funcPostPm.addPass(mlir::createLoopInvariantCodeMotionPass());
         funcPostPm.addPass(mlir::createControlFlowSinkPass());
-        funcPostPm.addPass(mlir::createCanonicalizerPass());
-        funcPostPm.addPass(mlir::createCSEPass());
     }
     {
         auto& stencilPostPm = stage.passes->nest<stencil::StencilOp>();
-        stencilPostPm.addPass(mlir::createLoopInvariantCodeMotionPass());
-        stencilPostPm.addPass(mlir::createControlFlowSinkPass());
         stencilPostPm.addPass(mlir::createCanonicalizerPass());
         stencilPostPm.addPass(mlir::createCSEPass());
+        stencilPostPm.addPass(mlir::createLoopInvariantCodeMotionPass());
+        stencilPostPm.addPass(mlir::createControlFlowSinkPass());
     }
 
     return stage;
