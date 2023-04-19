@@ -9,7 +9,7 @@
 #include <vector>
 
 
-namespace ast {
+namespace sir {
 
 
 class Type {
@@ -97,6 +97,30 @@ public:
     static auto Get() {
         return std::make_shared<IndexType>();
     }
+};
+
+
+class NDIndexType : public Type {
+public:
+    explicit NDIndexType(int numDimensions) : numDimensions(numDimensions) {}
+
+    bool EqualTo(const Type& other) const override {
+        if (auto otherNDIndex = dynamic_cast<const NDIndexType*>(&other)) {
+            return numDimensions == otherNDIndex->numDimensions;
+        }
+        return false;
+    }
+
+    std::ostream& Print(std::ostream& os) const override {
+        return os << "index<" << numDimensions << ">";
+    }
+
+    static std::shared_ptr<NDIndexType> Get(int numDimensions) {
+        return std::make_shared<NDIndexType>(numDimensions);
+    }
+
+public:
+    const int numDimensions;
 };
 
 
@@ -210,7 +234,7 @@ TypePtr InferType() {
 
 template <class Visitor>
 decltype(auto) VisitType(const Type& type, Visitor&& visitor) {
-    if (auto type_ = dynamic_cast<const ast::IntegerType*>(&type)) {
+    if (auto type_ = dynamic_cast<const IntegerType*>(&type)) {
         switch (type_->size) {
             case 1: return visitor(static_cast<bool*>(nullptr));
             case 8: return type_->isSigned ? visitor(static_cast<int8_t*>(nullptr)) : visitor(static_cast<uint8_t*>(nullptr));
@@ -219,13 +243,13 @@ decltype(auto) VisitType(const Type& type, Visitor&& visitor) {
             case 64: return type_->isSigned ? visitor(static_cast<int64_t*>(nullptr)) : visitor(static_cast<uint64_t*>(nullptr));
         }
     }
-    else if (auto type_ = dynamic_cast<const ast::FloatType*>(&type)) {
+    else if (auto type_ = dynamic_cast<const FloatType*>(&type)) {
         switch (type_->size) {
             case 32: return visitor(static_cast<float*>(nullptr));
             case 64: return visitor(static_cast<double*>(nullptr));
         }
     }
-    else if (auto type_ = dynamic_cast<const ast::IndexType*>(&type)) {
+    else if (auto type_ = dynamic_cast<const IndexType*>(&type)) {
         return visitor(static_cast<ptrdiff_t*>(nullptr));
     }
     std::stringstream ss;
@@ -250,4 +274,4 @@ inline const auto Uint64 = IntegerType::Get(64, false);
 inline const auto Bool = IntegerType::Get(1, true);
 
 
-} // namespace ast
+} // namespace sir

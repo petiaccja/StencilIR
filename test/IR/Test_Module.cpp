@@ -9,7 +9,7 @@ using namespace sir;
 
 TEST_CASE("Function", "[DAG]") {
     auto mod = ops::ModuleOp();
-    auto func = mod.Create<ops::FuncOp>("fn", ast::FunctionType::Get({ ast::Float32 }, { ast::Float32 }));
+    auto func = mod.Create<ops::FuncOp>("fn", FunctionType::Get({ Float32 }, { Float32 }));
     func.Create<ops::ReturnOp>(std::vector{ func.GetRegionArg(0) });
 
     const auto pattern = R"(
@@ -23,7 +23,7 @@ TEST_CASE("Function", "[DAG]") {
 
 TEST_CASE("Stencil", "[DAG]") {
     auto mod = ops::ModuleOp();
-    auto stencil = mod.Create<ops::StencilOp>("sn", ast::FunctionType::Get({ ast::Float32 }, { ast::Float32 }), 2);
+    auto stencil = mod.Create<ops::StencilOp>("sn", FunctionType::Get({ Float32 }, { Float32 }), 2);
     stencil.Create<ops::ReturnOp>(std::vector{ stencil.GetRegionArg(0) });
 
     const auto pattern = R"(
@@ -38,10 +38,10 @@ TEST_CASE("Stencil", "[DAG]") {
 TEST_CASE("Call", "[DAG]") {
     auto mod = ops::ModuleOp();
 
-    auto callee = mod.Create<ops::FuncOp>("callee", ast::FunctionType::Get({ ast::Float32 }, { ast::Float32 }));
+    auto callee = mod.Create<ops::FuncOp>("callee", FunctionType::Get({ Float32 }, { Float32 }));
     callee.Create<ops::ReturnOp>(std::vector{ callee.GetRegionArg(0) });
 
-    auto caller = mod.Create<ops::FuncOp>("caller", ast::FunctionType::Get({ ast::Float32 }, { ast::Float32 }));
+    auto caller = mod.Create<ops::FuncOp>("caller", FunctionType::Get({ Float32 }, { Float32 }));
     auto call = caller.Create<ops::CallOp>(callee, std::vector{ caller.GetRegionArg(0) });
     caller.Create<ops::ReturnOp>(std::vector{ call.GetResults()[0] });
 
@@ -58,17 +58,17 @@ TEST_CASE("Call", "[DAG]") {
 TEST_CASE("Apply", "[DAG]") {
     auto mod = ops::ModuleOp();
     auto stencil = mod.Create<ops::StencilOp>("sn",
-                                              ast::FunctionType::Get(
-                                                  { ast::Float32 },
-                                                  { ast::Float32 }),
+                                              FunctionType::Get(
+                                                  { Float32 },
+                                                  { Float32 }),
                                               2);
     stencil.Create<ops::ReturnOp>(std::vector{ stencil.GetRegionArg(0) });
 
 
     auto func = mod.Create<ops::FuncOp>("fn",
-                                        ast::FunctionType::Get(
-                                            { ast::Float32, ast::FieldType::Get(ast::Float32, 2) },
-                                            { ast::FieldType::Get(ast::Float32, 2) }));
+                                        FunctionType::Get(
+                                            { Float32, FieldType::Get(Float32, 2) },
+                                            { FieldType::Get(Float32, 2) }));
     auto apply = func.Create<ops::ApplyOp>(stencil,
                                            std::vector{ func.GetRegionArg(0) },
                                            std::vector{ func.GetRegionArg(1) },

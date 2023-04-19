@@ -21,9 +21,9 @@ static ops::ModuleOp CreateAST() {
 
     auto snSubstract = moduleOp.Create<ops::StencilOp>(
         "subtract",
-        ast::FunctionType::Get({ ast::FieldType::Get(ast::Float32, 1),
-                                 ast::FieldType::Get(ast::Float32, 1) },
-                               { ast::Float32 }),
+        FunctionType::Get({ FieldType::Get(Float32, 1),
+                            FieldType::Get(Float32, 1) },
+                          { Float32 }),
         1);
     auto idx = snSubstract.Create<ops::IndexOp>().GetResult();
     auto lSample = snSubstract.Create<ops::SampleOp>(snSubstract.GetRegionArg(0), idx).GetResult();
@@ -35,13 +35,13 @@ static ops::ModuleOp CreateAST() {
 
     auto fnMain = moduleOp.Create<ops::FuncOp>(
         "main",
-        ast::FunctionType::Get({ ast::FieldType::Get(ast::Float32, 1), ast::FieldType::Get(ast::Float32, 1) }, {}));
+        FunctionType::Get({ FieldType::Get(Float32, 1), FieldType::Get(Float32, 1) }, {}));
 
 
     auto input = fnMain.GetRegionArg(0);
     auto output = fnMain.GetRegionArg(1);
-    auto czero = fnMain.Create<ops::ConstantOp>(0, ast::IndexType::Get()).GetResult();
-    auto cone = fnMain.Create<ops::ConstantOp>(1, ast::IndexType::Get()).GetResult();
+    auto czero = fnMain.Create<ops::ConstantOp>(0, IndexType::Get()).GetResult();
+    auto cone = fnMain.Create<ops::ConstantOp>(1, IndexType::Get()).GetResult();
     auto size = fnMain.Create<ops::DimOp>(input, czero).GetResult();
     auto dsize = fnMain.Create<ops::ArithmeticOp>(size, cone, ops::eArithmeticFunction::SUB).GetResult();
     auto ddsize = fnMain.Create<ops::ArithmeticOp>(dsize, cone, ops::eArithmeticFunction::SUB).GetResult();
@@ -49,7 +49,7 @@ static ops::ModuleOp CreateAST() {
 
     auto left = fnMain.Create<ops::ExtractSliceOp>(input, std::vector{ czero }, std::vector{ dsize }, std::vector{ cone }).GetResult();
     auto right = fnMain.Create<ops::ExtractSliceOp>(input, std::vector{ cone }, std::vector{ dsize }, std::vector{ cone }).GetResult();
-    auto tmp1 = fnMain.Create<ops::AllocTensorOp>(ast::Float32, std::vector{ dsize }).GetResult();
+    auto tmp1 = fnMain.Create<ops::AllocTensorOp>(Float32, std::vector{ dsize }).GetResult();
 
     auto d = fnMain.Create<ops::ApplyOp>("subtract",
                                          std::vector{ left, right },

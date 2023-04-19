@@ -9,13 +9,13 @@ using namespace sir;
 
 
 TEST_CASE("Arithmetic cast", "[DAG]") {
-    const auto funcType = ast::FunctionType::Get({ ast::FloatType::Get(32) }, { ast::FloatType::Get(64) });
+    const auto funcType = FunctionType::Get({ FloatType::Get(32) }, { FloatType::Get(64) });
 
     auto mod = ops::ModuleOp();
     auto func = mod.Create<ops::FuncOp>("fn", funcType);
 
     SECTION("Cast") {
-        auto cast = func.Create<ops::CastOp>(func.GetRegionArg(0), ast::FloatType::Get(64));
+        auto cast = func.Create<ops::CastOp>(func.GetRegionArg(0), FloatType::Get(64));
         func.Create<ops::ReturnOp>(std::vector{ cast.GetResult() });
 
         const auto pattern = R"(
@@ -29,13 +29,13 @@ TEST_CASE("Arithmetic cast", "[DAG]") {
 
 
 TEST_CASE("Arithmetic constant", "[DAG]") {
-    const auto funcType = ast::FunctionType::Get({}, { ast::FloatType::Get(32) });
+    const auto funcType = FunctionType::Get({}, { FloatType::Get(32) });
 
     auto mod = ops::ModuleOp();
     auto func = mod.Create<ops::FuncOp>("fn", funcType);
 
     SECTION("Constant") {
-        auto constant = func.Create<ops::ConstantOp>(1.0f, ast::FloatType::Get(32));
+        auto constant = func.Create<ops::ConstantOp>(1.0f, FloatType::Get(32));
         func.Create<ops::ReturnOp>(std::vector{ constant.GetResult() });
 
         const auto pattern = R"(
@@ -50,7 +50,7 @@ TEST_CASE("Arithmetic constant", "[DAG]") {
 
 
 TEST_CASE("Arithmetic binary", "[DAG]") {
-    const auto funcType = ast::FunctionType::Get({ ast::FloatType::Get(32), ast::FloatType::Get(32) }, { ast::FloatType::Get(32) });
+    const auto funcType = FunctionType::Get({ FloatType::Get(32), FloatType::Get(32) }, { FloatType::Get(32) });
 
     auto mod = ops::ModuleOp();
     auto func = mod.Create<ops::FuncOp>("fn", funcType);
@@ -95,7 +95,7 @@ TEST_CASE("Arithmetic binary", "[DAG]") {
 
 
 TEST_CASE("Logic binary", "[DAG]") {
-    const auto funcType = ast::FunctionType::Get({ ast::FloatType::Get(32), ast::FloatType::Get(32) }, { ast::IntegerType::Get(1, true) });
+    const auto funcType = FunctionType::Get({ FloatType::Get(32), FloatType::Get(32) }, { IntegerType::Get(1, true) });
 
     auto mod = ops::ModuleOp();
     auto func = mod.Create<ops::FuncOp>("fn", funcType);

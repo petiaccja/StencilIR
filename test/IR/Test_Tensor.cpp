@@ -10,10 +10,10 @@ using namespace sir;
 TEST_CASE("Dim", "[DAG]") {
     auto mod = ops::ModuleOp();
     auto func = mod.Create<ops::FuncOp>("fn",
-                                        ast::FunctionType::Get(
-                                            { ast::FieldType::Get(ast::Float32, 1),
-                                              ast::IndexType::Get() },
-                                            { ast::IndexType::Get() }));
+                                        FunctionType::Get(
+                                            { FieldType::Get(Float32, 1),
+                                              IndexType::Get() },
+                                            { IndexType::Get() }));
 
     auto dim = func.Create<ops::DimOp>(func.GetRegionArg(0), func.GetRegionArg(1));
     func.Create<ops::ReturnOp>(std::vector{ dim.GetResults()[0] });
@@ -31,11 +31,11 @@ TEST_CASE("Dim", "[DAG]") {
 TEST_CASE("Alloc tensor", "[DAG]") {
     auto mod = ops::ModuleOp();
     auto func = mod.Create<ops::FuncOp>("fn",
-                                        ast::FunctionType::Get(
-                                            { ast::IndexType::Get() },
-                                            { ast::FieldType::Get(ast::Float32, 1) }));
+                                        FunctionType::Get(
+                                            { IndexType::Get() },
+                                            { FieldType::Get(Float32, 1) }));
 
-    auto alloc = func.Create<ops::AllocTensorOp>(ast::Float32, std::vector{ func.GetRegionArg(0) });
+    auto alloc = func.Create<ops::AllocTensorOp>(Float32, std::vector{ func.GetRegionArg(0) });
     func.Create<ops::ReturnOp>(std::vector{ alloc.GetResults()[0] });
 
     const auto pattern = R"(
@@ -51,12 +51,12 @@ TEST_CASE("Alloc tensor", "[DAG]") {
 TEST_CASE("Extract slice", "[DAG]") {
     auto mod = ops::ModuleOp();
     auto func = mod.Create<ops::FuncOp>("fn",
-                                        ast::FunctionType::Get(
-                                            { ast::FieldType::Get(ast::Float32, 1),
-                                              ast::IndexType::Get(),
-                                              ast::IndexType::Get(),
-                                              ast::IndexType::Get() },
-                                            { ast::FieldType::Get(ast::Float32, 1) }));
+                                        FunctionType::Get(
+                                            { FieldType::Get(Float32, 1),
+                                              IndexType::Get(),
+                                              IndexType::Get(),
+                                              IndexType::Get() },
+                                            { FieldType::Get(Float32, 1) }));
 
     auto extract = func.Create<ops::ExtractSliceOp>(func.GetRegionArg(0),
                                                     std::vector{ func.GetRegionArg(1) },
@@ -77,13 +77,13 @@ TEST_CASE("Extract slice", "[DAG]") {
 TEST_CASE("Insert slice", "[DAG]") {
     auto mod = ops::ModuleOp();
     auto func = mod.Create<ops::FuncOp>("fn",
-                                        ast::FunctionType::Get(
-                                            { ast::FieldType::Get(ast::Float32, 1),
-                                              ast::FieldType::Get(ast::Float32, 1),
-                                              ast::IndexType::Get(),
-                                              ast::IndexType::Get(),
-                                              ast::IndexType::Get() },
-                                            { ast::FieldType::Get(ast::Float32, 1) }));
+                                        FunctionType::Get(
+                                            { FieldType::Get(Float32, 1),
+                                              FieldType::Get(Float32, 1),
+                                              IndexType::Get(),
+                                              IndexType::Get(),
+                                              IndexType::Get() },
+                                            { FieldType::Get(Float32, 1) }));
 
     auto insert = func.Create<ops::InsertSliceOp>(func.GetRegionArg(0),
                                                   func.GetRegionArg(1),

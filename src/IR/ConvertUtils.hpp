@@ -13,7 +13,7 @@ namespace sir {
 
 
 std::string FormatType(mlir::Type type);
-mlir::Type ConvertType(mlir::OpBuilder& builder, const ast::Type& type);
+mlir::Type ConvertType(mlir::OpBuilder& builder, const Type& type);
 std::optional<mlir::Value> Cast(mlir::Value value, mlir::Type type, mlir::OpBuilder& builder, mlir::Location loc);
 
 

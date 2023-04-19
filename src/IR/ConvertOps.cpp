@@ -153,7 +153,7 @@ mlir::Operation* ConvertApplyOp(Converter& converter, Operation op, mlir::ValueR
 mlir::Operation* ConvertCastOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
     const auto loc = ConvertLocation(builder, op.GetLocation());
-    const auto& attr = std::any_cast<const ast::TypePtr&>(op.GetAttributes());
+    const auto& attr = std::any_cast<const TypePtr&>(op.GetAttributes());
 
     mlir::Value value = operands[0];
     mlir::Type type = ConvertType(builder, *attr);
@@ -180,16 +180,16 @@ mlir::Operation* ConvertConstantOp(Converter& converter, Operation op, mlir::Val
 
     const auto type = ConvertType(builder, *attr.type);
 
-    if (std::dynamic_pointer_cast<ast::IntegerType>(attr.type)) {
+    if (std::dynamic_pointer_cast<IntegerType>(attr.type)) {
         const int64_t value = std::any_cast<int64_t>(attr.value);
         auto signlessType = builder.getIntegerType(type.dyn_cast<mlir::IntegerType>().getWidth());
         return { builder.create<mlir::arith::ConstantIntOp>(loc, value, signlessType) };
     }
-    else if (std::dynamic_pointer_cast<ast::IndexType>(attr.type)) {
+    else if (std::dynamic_pointer_cast<IndexType>(attr.type)) {
         const int64_t value = std::any_cast<int64_t>(attr.value);
         return { builder.create<mlir::arith::ConstantIndexOp>(loc, value) };
     }
-    else if (auto floatType = std::dynamic_pointer_cast<ast::FloatType>(attr.type)) {
+    else if (auto floatType = std::dynamic_pointer_cast<FloatType>(attr.type)) {
         const double value = std::any_cast<double>(attr.value);
         const auto apfloat = floatType->size == 32 ? mlir::APFloat(float(value)) : mlir::APFloat(double(value));
         return { builder.create<mlir::arith::ConstantFloatOp>(loc, apfloat, type.dyn_cast<mlir::FloatType>()) };
@@ -404,7 +404,7 @@ mlir::Operation* ConvertDimOp(Converter& converter, Operation op, mlir::ValueRan
 mlir::Operation* ConvertAllocTensorOp(Converter& converter, Operation op, mlir::ValueRange operands) {
     auto& builder = converter.Builder();
     const auto loc = ConvertLocation(builder, op.GetLocation());
-    const auto& attr = std::any_cast<ast::TypePtr>(op.GetAttributes());
+    const auto& attr = std::any_cast<TypePtr>(op.GetAttributes());
 
     const auto elementType = ConvertType(builder, *attr);
     const auto sizes = operands;
