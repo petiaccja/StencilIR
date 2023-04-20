@@ -23,11 +23,12 @@ TypePtr GetTypeFromFormat(std::string_view format) {
             case 'I': return std::make_shared<IntegerType>(32, false);
             case 'q': return std::make_shared<IntegerType>(64, true);
             case 'Q': return std::make_shared<IntegerType>(64, false);
+            case 'e': return std::make_shared<FloatType>(16);
             case 'f': return std::make_shared<FloatType>(32);
             case 'd': return std::make_shared<FloatType>(64);
-            case 'g': return sizeof(double) == sizeof(long double)
-                                 ? std::make_shared<FloatType>(64)
-                                 : throw std::invalid_argument("long double is not supported");
+            case 'g': return sizeof(long double) == 8    ? std::make_shared<FloatType>(64)
+                             : sizeof(long double) == 16 ? std::make_shared<FloatType>(128)
+                                                         : throw std::invalid_argument("long double is not supported");
         }
         return {};
     }();
@@ -46,8 +47,12 @@ TypePtr GetTypeFromFormat(std::string_view format) {
             case 'L': return InferType<long long>();
             case 'K': return InferType<unsigned long long>();
             case 'n': return InferType<Py_ssize_t>();
+            case 'e': return std::make_shared<FloatType>(16);
             case 'f': return InferType<float>();
             case 'd': return InferType<double>();
+            case 'g': return sizeof(long double) == 8    ? std::make_shared<FloatType>(64)
+                             : sizeof(long double) == 16 ? std::make_shared<FloatType>(128)
+                                                         : throw std::invalid_argument("long double is not supported");
             case 'p': return InferType<int>();
         }
         return {};
@@ -100,10 +105,12 @@ static llvm::Type* ConvertType(const Type& type, llvm::LLVMContext& context) {
     }
     else if (auto floatType = dynamic_cast<const FloatType*>(&type)) {
         switch (floatType->size) {
+            case 16: return llvm::Type::getHalfTy(context);
             case 32: return llvm::Type::getFloatTy(context);
             case 64: return llvm::Type::getDoubleTy(context);
+            case 128: return llvm::Type::getFP128Ty(context);
         }
-        throw std::invalid_argument("only 32 and 64-bit floats are supported");
+        throw std::invalid_argument("only 16, 32, 64, and 128-bit floats are supported");
     }
     else if (auto indexType = dynamic_cast<const IndexType*>(&type)) {
         return llvm::IntegerType::get(context, 8 * sizeof(size_t));

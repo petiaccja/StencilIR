@@ -56,8 +56,8 @@ public:
 class FloatType : public Type {
 public:
     explicit FloatType(int size) : size(size) {
-        if (size != 16 && size != 32 && size != 64) {
-            throw std::invalid_argument("float type must be 16, 32, or 64-bit");
+        if (size != 16 && size != 32 && size != 64 && size != 128) {
+            throw std::invalid_argument("float type must be 16, 32, 64, or 128-bit");
         }
     }
 

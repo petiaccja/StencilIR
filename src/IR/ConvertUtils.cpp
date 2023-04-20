@@ -36,8 +36,9 @@ mlir::Type ConvertType(mlir::OpBuilder& builder, const Type& type) {
             case 16: return builder.getF16Type();
             case 32: return builder.getF32Type();
             case 64: return builder.getF64Type();
+            case 128: return builder.getF128Type();
         }
-        throw std::invalid_argument("only 16, 32, and 64-bit floats are supported");
+        throw std::invalid_argument("only 16, 32, 64, and 128-bit floats are supported");
     }
     else if (auto indexType = dynamic_cast<const IndexType*>(&type)) {
         return builder.getIndexType();
