@@ -14,10 +14,10 @@ using namespace std::string_literals;
 std::string IndentText(std::string_view input, int spaces) {
     std::string s;
     s.reserve(input.size() + spaces * 3);
-    s.append(' ', spaces);
+    s.append(spaces, ' ');
     for (auto& c : input) {
         if (c == '\n') {
-            s.append(' ', spaces);
+            s.append(spaces, ' ');
         }
         s.push_back(c);
     }

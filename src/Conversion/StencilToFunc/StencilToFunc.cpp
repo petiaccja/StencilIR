@@ -3,7 +3,7 @@
 #include <Dialect/Stencil/IR/StencilOps.hpp>
 
 #include <llvm/ADT/ArrayRef.h>
-#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
+#include <mlir/Dialect/Arith/IR/Arith.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/Dialect/MemRef/IR/MemRef.h>
 #include <mlir/Dialect/SCF/IR/SCF.h>
@@ -36,7 +36,7 @@ struct StencilOpLowering : public OpRewritePattern<stencil::StencilOp> {
     LogicalResult matchAndRewrite(stencil::StencilOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
 
-        const int64_t numDims = op.getNumDimensions().getSExtValue();
+        const int64_t numDims = op.getNumDimensions();
 
         std::vector<mlir::Type> functionParamTypes;
         const auto indexType = VectorType::get({ numDims }, rewriter.getIndexType());
@@ -117,7 +117,7 @@ struct IndexOpLowering : public OpRewritePattern<stencil::IndexOp> {
 
 
 void StencilToFuncPass::getDependentDialects(DialectRegistry& registry) const {
-    registry.insert<arith::ArithmeticDialect,
+    registry.insert<arith::ArithDialect,
                     func::FuncDialect,
                     memref::MemRefDialect,
                     vector::VectorDialect,
@@ -127,7 +127,7 @@ void StencilToFuncPass::getDependentDialects(DialectRegistry& registry) const {
 
 void StencilToFuncPass::runOnOperation() {
     ConversionTarget target(getContext());
-    target.addLegalDialect<arith::ArithmeticDialect>();
+    target.addLegalDialect<arith::ArithDialect>();
     target.addLegalDialect<func::FuncDialect>();
     target.addLegalDialect<memref::MemRefDialect>();
     target.addLegalDialect<scf::SCFDialect>();

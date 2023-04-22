@@ -45,11 +45,11 @@ class StencilInlinerInterface : public DialectInlinerInterface {
         return true;
     }
 
-    bool isLegalToInline(Region* dest, Region* src, bool wouldBeCloned, BlockAndValueMapping& valueMapping) const override {
+    bool isLegalToInline(Region* dest, Region* src, bool wouldBeCloned, IRMapping& valueMapping) const override {
         return true;
     }
 
-    bool isLegalToInline(Operation* op, Region* dest, bool wouldBeCloned, BlockAndValueMapping& valueMapping) const override {
+    bool isLegalToInline(Operation* op, Region* dest, bool wouldBeCloned, IRMapping& valueMapping) const override {
         return true;
     }
 
@@ -94,18 +94,85 @@ class StencilInlinerInterface : public DialectInlinerInterface {
 // StencilOp
 //------------------------------------------------------------------------------
 
+StencilOp StencilOp::create(Location location,
+                            StringRef name,
+                            FunctionType type,
+                            IntegerAttr numDimensions,
+                            ArrayRef<NamedAttribute> attrs) {
+    OpBuilder builder(location->getContext());
+    OperationState state(location, getOperationName());
+    StencilOp::build(builder, state, name, type, numDimensions, attrs);
+    return cast<StencilOp>(Operation::create(state));
+}
+
+
+StencilOp StencilOp::create(Location location,
+                            StringRef name,
+                            FunctionType type,
+                            IntegerAttr numDimensions,
+                            Operation::dialect_attr_range attrs) {
+    SmallVector<NamedAttribute, 8> attrRef(attrs);
+    return create(location, name, type, numDimensions, llvm::ArrayRef(attrRef));
+}
+
+
+StencilOp StencilOp::create(Location location,
+                            StringRef name,
+                            FunctionType type,
+                            IntegerAttr numDimensions,
+                            ArrayRef<NamedAttribute> attrs,
+                            ArrayRef<DictionaryAttr> argAttrs) {
+    StencilOp func = create(location, name, type, numDimensions, attrs);
+    func.setAllArgAttrs(argAttrs);
+    return func;
+}
+
+
+void StencilOp::build(OpBuilder& builder,
+                      OperationState& state,
+                      StringRef name,
+                      FunctionType type,
+                      IntegerAttr numDimensions,
+                      ArrayRef<NamedAttribute> attrs,
+                      ArrayRef<DictionaryAttr> argAttrs) {
+    state.addAttribute(SymbolTable::getSymbolAttrName(),
+                       builder.getStringAttr(name));
+    state.addAttribute(getFunctionTypeAttrName(state.name), TypeAttr::get(type));
+    state.addAttribute(getNumDimensionsAttrName(state.name), numDimensions);
+    state.attributes.append(attrs.begin(), attrs.end());
+    state.addRegion();
+
+    if (argAttrs.empty())
+        return;
+    assert(type.getNumInputs() == argAttrs.size());
+    function_interface_impl::addArgAndResultAttrs(
+        builder, state, argAttrs, /*resultAttrs=*/std::nullopt,
+        getArgAttrsAttrName(state.name), getResAttrsAttrName(state.name));
+}
+
+
 ParseResult StencilOp::parse(OpAsmParser& parser, OperationState& result) {
     auto buildFuncType =
         [](Builder& builder, ArrayRef<Type> argTypes, ArrayRef<Type> results,
            function_interface_impl::VariadicFlag,
            std::string&) { return builder.getFunctionType(argTypes, results); };
 
-    return function_interface_impl::parseFunctionOp(
-        parser, result, /*allowVariadic=*/false, buildFuncType);
+    return function_interface_impl::parseFunctionOp(parser,
+                                                    result,
+                                                    /*allowVariadic=*/false,
+                                                    getFunctionTypeAttrName(result.name),
+                                                    buildFuncType,
+                                                    getArgAttrsAttrName(result.name),
+                                                    getResAttrsAttrName(result.name));
 }
 
 void StencilOp::print(OpAsmPrinter& p) {
-    function_interface_impl::printFunctionOp(p, *this, /*isVariadic=*/false);
+    function_interface_impl::printFunctionOp(p,
+                                             *this,
+                                             /*isVariadic=*/false,
+                                             getFunctionTypeAttrName(),
+                                             getArgAttrsAttrName(),
+                                             getResAttrsAttrName());
 }
 
 
@@ -127,7 +194,7 @@ LogicalResult ApplyOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
 
     // Verify that the dimensions match up
     if (getNumResults() > 0) {
-        const auto numStencilDims = fn.getNumDimensions().getSExtValue();
+        const auto numStencilDims = fn.getNumDimensions();
         const auto numMyDims = getResultTypes()[0].dyn_cast<mlir::ShapedType>().getRank();
         if (numStencilDims != numMyDims) {
             return emitOpError() << "number of stencil dimensions (" << numStencilDims << ")"
@@ -315,7 +382,7 @@ void ApplyOp::getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffec
                 if (auto effectInterface = mlir::dyn_cast<MemoryEffectOpInterface>(nestedOp)) {
                     hasReadEffects = hasReadEffects || effectInterface.hasEffect<MemoryEffects::Read>();
                     hasWriteEffects = hasWriteEffects || effectInterface.hasEffect<MemoryEffects::Write>();
-                    hasWriteEffects = hasWriteEffects || nestedOp->hasTrait<::mlir::OpTrait::HasRecursiveSideEffects>();
+                    hasWriteEffects = hasWriteEffects || nestedOp->hasTrait<::mlir::OpTrait::HasRecursiveMemoryEffects>();
                 }
                 else {
                     hasWriteEffects = true;
@@ -392,7 +459,7 @@ mlir::LogicalResult IndexOp::verify() {
     }
     auto resultType = getResult().getType().dyn_cast<VectorType>();
     const auto indexDims = resultType.getShape()[0];
-    const auto stencilDims = stencil.getNumDimensions().getSExtValue();
+    const auto stencilDims = stencil.getNumDimensions();
     if (stencilDims != indexDims) {
         return emitOpError() << "index op has dimension " << indexDims
                              << " but enclosing stencil has dimension " << stencilDims;
@@ -487,7 +554,7 @@ mlir::LogicalResult SampleOp::verify() {
 // Folding
 //------------------------------------------------------------------------------
 
-OpFoldResult JumpOp::fold([[maybe_unused]] llvm::ArrayRef<::mlir::Attribute> operands) {
+OpFoldResult JumpOp::fold(FoldAdaptor) {
     auto input = getInputIndex();
     auto offset = getOffset();
     auto range = offset.getAsRange<mlir::IntegerAttr>();
@@ -540,7 +607,7 @@ void JumpOp::getCanonicalizationPatterns(RewritePatternSet& results, MLIRContext
 }
 
 
-OpFoldResult ProjectOp::fold([[maybe_unused]] llvm::ArrayRef<::mlir::Attribute> operands) {
+OpFoldResult ProjectOp::fold(FoldAdaptor) {
     const auto positions = getPositions();
     const auto range = positions.getAsRange<mlir::IntegerAttr>();
     int64_t idx = 0;

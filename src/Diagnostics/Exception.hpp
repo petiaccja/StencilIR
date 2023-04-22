@@ -16,8 +16,8 @@ class Exception : public std::exception {
 public:
     Exception(std::string message) : m_message(std::move(message)) {}
 
-    const char* what() const noexcept override { return m_message.c_str(); }
-    std::string_view GetMessage() const noexcept { return m_message; }
+    const char* what() const noexcept override;
+    std::string_view GetMessage() const noexcept;
 
 private:
     std::string m_message;

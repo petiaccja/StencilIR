@@ -24,7 +24,7 @@ target_include_directories(Compiler SYSTEM PUBLIC ${MLIR_INCLUDE_DIRS})
 target_link_directories(Compiler PUBLIC ${LLVM_BUILD_LIBRARY_DIR})
 target_compile_definitions(Compiler PUBLIC ${LLVM_DEFINITIONS})
 
-target_link_libraries(Compiler StencilDialect Conversion BufferizationExtensions Transforms)
+target_link_libraries(Compiler StencilDialect Conversion Transforms)
 
 target_link_libraries(Compiler
     MLIRAnalysis

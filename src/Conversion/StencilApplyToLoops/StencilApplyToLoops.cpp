@@ -3,7 +3,7 @@
 #include <Dialect/Stencil/IR/StencilOps.hpp>
 
 #include <llvm/ADT/ArrayRef.h>
-#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
+#include <mlir/Dialect/Arith/IR/Arith.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/Dialect/MemRef/IR/MemRef.h>
 #include <mlir/Dialect/SCF/IR/SCF.h>
@@ -130,7 +130,7 @@ struct ApplyOpLoweringParallel : ApplyOpLoweringBase {
 
 
 void StencilApplyToLoopsPass::getDependentDialects(DialectRegistry& registry) const {
-    registry.insert<arith::ArithmeticDialect,
+    registry.insert<arith::ArithDialect,
                     func::FuncDialect,
                     memref::MemRefDialect,
                     vector::VectorDialect,
@@ -141,7 +141,7 @@ void StencilApplyToLoopsPass::getDependentDialects(DialectRegistry& registry) co
 
 void StencilApplyToLoopsPass::runOnOperation() {
     ConversionTarget target(getContext());
-    target.addLegalDialect<arith::ArithmeticDialect>();
+    target.addLegalDialect<arith::ArithDialect>();
     target.addLegalDialect<func::FuncDialect>();
     target.addLegalDialect<memref::MemRefDialect>();
     target.addLegalDialect<scf::SCFDialect>();

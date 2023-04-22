@@ -171,6 +171,7 @@ auto FusePrecedingStencilOp(stencil::StencilOp precedingStencil,
     // Update function type
     fusedStencil.setFunctionTypeAttr(mlir::TypeAttr::get(rewriter.getFunctionType(fusedParamTypes, fusedResultTypes)));
     fusedStencil.setSymNameAttr(UniqueStencilName(targetStencil, rewriter));
+    fusedStencil.setVisibility(mlir::SymbolTable::Visibility::Private);
 
     return fusedStencil;
 }

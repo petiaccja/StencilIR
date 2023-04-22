@@ -1,9 +1,9 @@
-stencil.stencil @test_stencil_1d() -> f32 attributes {num_dimensions = 1 : index} {
+stencil.stencil @test_stencil_1d() -> f32 attributes {num_dimensions = 1 : i64} {
     %0 = arith.constant 0.0 : f32
     return %0 : f32
 }
 
-stencil.stencil @test_stencil_2d() -> f32 attributes {num_dimensions = 2 : index} {
+stencil.stencil @test_stencil_2d() -> f32 attributes {num_dimensions = 2 : i64} {
     %0 = arith.constant 0.0 : f32
     return %0 : f32
 }

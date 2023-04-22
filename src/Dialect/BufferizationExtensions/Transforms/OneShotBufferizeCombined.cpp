@@ -28,7 +28,6 @@ namespace memref {
 #include <mlir/Dialect/Bufferization/Transforms/OneShotAnalysis.h>
 #include <mlir/Dialect/Bufferization/Transforms/OneShotModuleBufferize.h>
 #include <mlir/Dialect/Bufferization/Transforms/Passes.h>
-#include <mlir/Dialect/Bufferization/Transforms/TensorCopyInsertion.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/Dialect/MemRef/IR/MemRef.h>
 #include <mlir/IR/Operation.h>
@@ -41,13 +40,13 @@ using namespace mlir;
 using namespace bufferization;
 
 
-static BufferizationOptions::LayoutMapOption parseLayoutMapOption(const std::string& s) {
+static LayoutMapOption parseLayoutMapOption(const std::string& s) {
     if (s == "fully-dynamic-layout-map")
-        return BufferizationOptions::LayoutMapOption::FullyDynamicLayoutMap;
+        return LayoutMapOption::FullyDynamicLayoutMap;
     if (s == "identity-layout-map")
-        return BufferizationOptions::LayoutMapOption::IdentityLayoutMap;
+        return LayoutMapOption::IdentityLayoutMap;
     if (s == "infer-layout-map")
-        return BufferizationOptions::LayoutMapOption::InferLayoutMap;
+        return LayoutMapOption::InferLayoutMap;
     llvm_unreachable("invalid layout map option");
 }
 
@@ -77,22 +76,22 @@ struct OneShotBufferizeCombinedPass
             opt.functionBoundaryTypeConversion =
                 parseLayoutMapOption(functionBoundaryTypeConversion);
             if (mustInferMemorySpace)
-                opt.defaultMemorySpace = None;
+                opt.defaultMemorySpace = {};
             opt.printConflicts = printConflicts;
             opt.testAnalysisOnly = testAnalysisOnly;
             opt.bufferizeFunctionBoundaries = bufferizeFunctionBoundaries;
 
             // Configure type converter.
-            BufferizationOptions::LayoutMapOption unknownTypeConversionOption =
+            LayoutMapOption unknownTypeConversionOption =
                 parseLayoutMapOption(unknownTypeConversion);
             opt.unknownTypeConverterFn = [=](Value value, unsigned memorySpace,
                                              const BufferizationOptions& options) {
                 auto tensorType = value.getType().cast<TensorType>();
-                if (unknownTypeConversionOption == BufferizationOptions::LayoutMapOption::IdentityLayoutMap)
+                if (unknownTypeConversionOption == LayoutMapOption::IdentityLayoutMap)
                     return bufferization::getMemRefTypeWithStaticIdentityLayout(
                         tensorType, memorySpace);
                 assert(
-                    unknownTypeConversionOption == BufferizationOptions::LayoutMapOption::FullyDynamicLayoutMap && "invalid layout map option");
+                    unknownTypeConversionOption == LayoutMapOption::FullyDynamicLayoutMap && "invalid layout map option");
                 return bufferization::getMemRefTypeWithFullyDynamicLayout(tensorType,
                                                                           memorySpace);
             };

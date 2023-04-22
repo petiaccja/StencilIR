@@ -1,4 +1,4 @@
-stencil.stencil private @stencil(%a: tensor<?xf32>) -> f32 attributes {num_dimensions = 1 : index} {
+stencil.stencil private @stencil(%a: tensor<?xf32>) -> f32 attributes {num_dimensions = 1 : i64} {
     %idx = index : vector<1xindex>
     %as = sample %a[%idx] : (tensor<?xf32>, vector<1xindex>) -> f32
     return %as : f32

@@ -33,7 +33,7 @@ TEST_CASE("Convert stencil to standard", "[StencilDialect]") {
 
 
 TEST_CASE("Eliminate alloc tensors", "[StencilDialect]") {
-    REQUIRE(CheckFile(TestFile("EliminateAllocTensors.mlir"), Pass(mlir::bufferization::createAllocTensorEliminationPass())));
+    REQUIRE(CheckFile(TestFile("EliminateAllocTensors.mlir"), Pass(mlir::bufferization::createEmptyTensorEliminationPass())));
 }
 
 

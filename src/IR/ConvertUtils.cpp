@@ -2,7 +2,7 @@
 
 #include <Diagnostics/Exception.hpp>
 
-#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
+#include <mlir/Dialect/Arith/IR/Arith.h>
 #include <mlir/IR/Builders.h>
 #include <mlir/IR/BuiltinAttributes.h>
 #include <mlir/IR/BuiltinDialect.h>
@@ -47,7 +47,7 @@ mlir::Type ConvertType(mlir::OpBuilder& builder, const Type& type) {
     }
     else if (auto fieldType = dynamic_cast<const FieldType*>(&type)) {
         const mlir::Type elementType = ConvertType(builder, *fieldType->elementType);
-        std::vector<int64_t> shape(fieldType->numDimensions, mlir::ShapedType::kDynamicSize);
+        std::vector<int64_t> shape(fieldType->numDimensions, mlir::ShapedType::kDynamic);
         return mlir::RankedTensorType::get(shape, elementType);
     }
     else if (auto functionType = dynamic_cast<const FunctionType*>(&type)) {

@@ -1,5 +1,5 @@
 // CHECK: stencil.stencil private @stencil_proc_[[NR:[0-9]+]](%[[A:.*]]: tensor<?xf32>)
-stencil.stencil private @stencil(%a: tensor<?xf32>) -> f32 attributes {num_dimensions = 1 : index} {
+stencil.stencil private @stencil(%a: tensor<?xf32>) -> f32 attributes {num_dimensions = 1 : i64} {
     // CHECK-NEXT: %[[IDX:.*]] = index
     %idx = index : vector<1xindex>
     // CHECK-NEXT: %[[OFF:.*]] = jump %[[IDX]], [3]

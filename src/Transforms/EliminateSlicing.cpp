@@ -17,17 +17,15 @@ namespace sir {
 using mlir::MLIRContext;
 
 
-bool IsCompleteSlice(mlir::ArrayAttr staticOffsets,
+bool IsCompleteSlice(mlir::ArrayRef<int64_t> staticOffsets,
                      mlir::ValueRange sizes,
-                     mlir::ArrayAttr staticStrides,
+                     mlir::ArrayRef<int64_t> staticStrides,
                      mlir::ValueRange bufferSizes) {
-    auto staticOffsetAttrs = staticOffsets.getAsRange<mlir::IntegerAttr>();
-    auto statiStrideAttrs = staticStrides.getAsRange<mlir::IntegerAttr>();
-    const bool completeOffsets = std::all_of(staticOffsetAttrs.begin(), staticOffsetAttrs.end(), [](const auto& offset) {
-        return offset.getInt() == 0;
+    const bool completeOffsets = std::all_of(staticOffsets.begin(), staticOffsets.end(), [](const auto& offset) {
+        return offset == 0;
     });
-    const bool completeStrides = std::all_of(statiStrideAttrs.begin(), statiStrideAttrs.end(), [](const auto& stride) {
-        return stride.getInt() == 1;
+    const bool completeStrides = std::all_of(staticStrides.begin(), staticStrides.end(), [](const auto& stride) {
+        return stride == 1;
     });
     const bool equalSizes = sizes == bufferSizes && sizes.size() == staticOffsets.size();
     return completeOffsets && completeStrides && equalSizes;

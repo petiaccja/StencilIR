@@ -40,7 +40,7 @@ TEST_CASE("Alloc tensor", "[DAG]") {
 
     const auto pattern = R"(
         // CHECK: func @fn(%[[SIZE:.*]]: index) -> tensor<?xf32>
-        // CHECK-NEXT: %[[RES:.*]] = bufferization.alloc_tensor(%[[SIZE]]) : tensor<?xf32>
+        // CHECK-NEXT: %[[RES:.*]] = tensor.empty(%[[SIZE]]) : tensor<?xf32>
         // CHECK-NEXT: return %[[RES]]
     )";
 

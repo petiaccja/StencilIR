@@ -57,7 +57,7 @@ set(llvm_cache_args
 set(LLVM_PROJECT_PREFIX "${CMAKE_BINARY_DIR}/llvm-project")
 
 ExternalProject_Add(llvm-project
-    URL "https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.6/llvm-project-15.0.6.src.tar.xz"
+    URL "https://github.com/llvm/llvm-project/releases/download/llvmorg-16.0.2/llvm-project-16.0.2.src.tar.xz"
     SOURCE_SUBDIR llvm
     PREFIX "${LLVM_PROJECT_PREFIX}"
     STAMP_DIR "${LLVM_PROJECT_PREFIX}/stamp"

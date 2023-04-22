@@ -1,12 +1,12 @@
 // CHECK-NOT: stencil.stencil private @callee
-stencil.stencil private @callee(%a: tensor<?xf32>) -> f32 attributes {num_dimensions = 1 : index} {
+stencil.stencil private @callee(%a: tensor<?xf32>) -> f32 attributes {num_dimensions = 1 : i64} {
     %idx = index : vector<1xindex>
     %as = sample %a[%idx] : (tensor<?xf32>, vector<1xindex>) -> f32
     return %as : f32
 }
 
 // CHECK: stencil.stencil public @caller(%[[A:.*]]: tensor<?xf32>)
-stencil.stencil public @caller(%a: tensor<?xf32>) -> f32 attributes {num_dimensions = 1 : index} {
+stencil.stencil public @caller(%a: tensor<?xf32>) -> f32 attributes {num_dimensions = 1 : i64} {
     // CHECK: %[[IDX:.*]] = index
     %idx = index : vector<1xindex>
     // CHECK-NEXT: %[[IDX_LEFT:.*]] = jump
