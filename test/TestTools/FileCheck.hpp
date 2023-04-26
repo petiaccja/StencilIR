@@ -50,5 +50,5 @@ inline bool CheckFile(const std::filesystem::path& file, std::vector<std::unique
 template <class... Passes>
 auto CheckFile(const std::filesystem::path& file, Passes... passes) {
     mlir::MLIRContext context;
-    return CheckFile(context, file, std::forward<Passes>(passes)...);
+    return CheckFile(context, file, std::move(passes)...);
 }

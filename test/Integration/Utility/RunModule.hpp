@@ -23,8 +23,8 @@ std::vector<sir::StageResult> RunModule(const sir::ops::ModuleOp& mod,
     mlir::ModuleOp ir = mlir::dyn_cast<mlir::ModuleOp>(ConvertOperation(context, mod));
 
     mlir::PassManager snapshotPm(ir->getContext());
-    auto snapshotFile = std::filesystem::temp_directory_path() / "0_0_original.mlir";
-    snapshotPm.addPass(mlir::createLocationSnapshotPass({}, snapshotFile.c_str()));
+    const auto snapshotFile = std::filesystem::temp_directory_path() / "0_0_original.mlir";
+    snapshotPm.addPass(mlir::createLocationSnapshotPass({}, snapshotFile.string()));
     if (failed(snapshotPm.run(ir))) {
         throw sir::Exception("failed to snapshot IR locations");
     }
