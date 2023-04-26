@@ -131,12 +131,12 @@ TEST_CASE("Optimization #2", "[Program]") {
         const auto xv = float(x);
         inputBuffer[x + 0 * sizeX] = std::exp(0.1 * xv);
         inputBuffer[x + 1 * sizeX] = xv * xv * xv;
-        inputBuffer[x + 2 * sizeX] = std::sin(0.2*xv);
+        inputBuffer[x + 2 * sizeX] = std::sin(0.2 * xv);
         const auto xo = x - 4;
         if (0 <= xo && xo < outputX) {
             expectedBuffer[xo + 0 * outputX] = 0.01 * std::exp(0.1 * xv);
             expectedBuffer[xo + 1 * outputX] = 6 * xv;
-            expectedBuffer[xo + 2 * outputX] = -0.04*std::sin(0.2*xv);
+            expectedBuffer[xo + 2 * outputX] = -0.04 * std::sin(0.2 * xv);
         }
     }
 

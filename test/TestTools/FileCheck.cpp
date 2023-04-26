@@ -122,7 +122,7 @@ bool CheckDAG(Operation moduleNode, std::string_view pattern) {
 }
 
 
-bool CheckFile(const std::filesystem::path& file, std::vector<std::unique_ptr<Pass>>&& passes) {
+bool CheckFile(mlir::MLIRContext& context, const std::filesystem::path& file, std::vector<std::unique_ptr<Pass>>&& passes) {
     std::ifstream is(file);
     if (!is.is_open()) {
         throw std::runtime_error("failed to open file: " + file.string());
@@ -134,7 +134,6 @@ bool CheckFile(const std::filesystem::path& file, std::vector<std::unique_ptr<Pa
     is.read(source.data(), length);
 
     // Load all dialects
-    mlir::MLIRContext context;
     mlir::registerAllDialects(context);
     context.getOrLoadDialect<stencil::StencilDialect>();
     mlir::DialectRegistry registry;

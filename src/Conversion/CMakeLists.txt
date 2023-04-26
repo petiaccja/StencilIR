@@ -13,8 +13,8 @@ target_sources(Conversion
     PRIVATE
         StencilPrintToLLVM/StencilPrintToLLVM.cpp
         StencilPrintToLLVM/StencilPrintToLLVM.hpp
-        StencilApplyToLoops/StencilApplyToLoops.cpp
-        StencilApplyToLoops/StencilApplyToLoops.hpp
+        StencilApplyToLoops/StencilToLoops.cpp
+        StencilApplyToLoops/StencilToLoops.hpp
         StencilToStandard/StencilToStandard.cpp
         StencilToStandard/StencilToStandard.hpp
         StencilToFunc/StencilToFunc.cpp

@@ -1,4 +1,4 @@
-#include "StencilApplyToLoops.hpp"
+#include "StencilToLoops.hpp"
 
 #include <Dialect/Stencil/IR/StencilOps.hpp>
 
@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <iostream>
 #include <vector>
 
 
@@ -30,10 +31,10 @@ namespace sir {
 using namespace mlir;
 
 
-struct ApplyOpLoweringBase : public OpRewritePattern<stencil::ApplyOp> {
-    using OpRewritePattern<stencil::ApplyOp>::OpRewritePattern;
+struct GenerateOpLoweringBase : public OpRewritePattern<stencil::GenerateOp> {
+    using OpRewritePattern<stencil::GenerateOp>::OpRewritePattern;
 
-    static auto CreateLoopBody(stencil::ApplyOp op, OpBuilder& builder, Location loc, ValueRange loopVars) {
+    static auto CreateLoopBody(stencil::GenerateOp op, OpBuilder& builder, Location loc, ValueRange loopVars) {
         auto ConstantIndex = [&builder, &loc](int64_t value) {
             return builder.create<arith::ConstantIndexOp>(loc, value);
         };
@@ -75,10 +76,15 @@ struct ApplyOpLoweringBase : public OpRewritePattern<stencil::ApplyOp> {
             index = builder.create<vector::InsertElementOp>(loc, offsetLoopVars[dimIdx], index, ConstantIndex(dimIdx));
         }
 
-        auto call = builder.create<stencil::InvokeOp>(loc, resultTypes, op.getCallee(), index, op.getInputs());
+        auto& generateRegion = op.getBody();
+        auto execRegionOp = builder.create<mlir::scf::ExecuteRegionOp>(loc, resultTypes);
+        mlir::IRMapping mapping;
+        mapping.map(op->getRegion(0).front().getArgument(0), index);
+        execRegionOp->getRegion(0).getBlocks().clear();
+        generateRegion.cloneInto(&execRegionOp->getRegion(0), mapping);
 
         // Store return values to targets
-        const auto results = call.getResults();
+        const auto results = execRegionOp->getResults();
         const auto outputs = op.getOutputs();
         const auto numResults = results.size();
 
@@ -89,13 +95,13 @@ struct ApplyOpLoweringBase : public OpRewritePattern<stencil::ApplyOp> {
         }
     };
 
-    static int64_t GetDimension(stencil::ApplyOp op) {
+    static int64_t GetDimension(stencil::GenerateOp op) {
         const auto& output0 = op.getOutputs()[0];
         const auto& type0 = output0.getType().cast<mlir::ShapedType>();
         return type0.getRank();
     }
 
-    static auto GetOutputSize(stencil::ApplyOp op, OpBuilder& builder, Location loc)
+    static auto GetOutputSize(stencil::GenerateOp op, OpBuilder& builder, Location loc)
         -> std::vector<Value> {
         const auto& output0 = op.getOutputs()[0];
         const int64_t numDims = GetDimension(op);
@@ -108,10 +114,10 @@ struct ApplyOpLoweringBase : public OpRewritePattern<stencil::ApplyOp> {
 };
 
 
-struct ApplyOpLoweringParallel : ApplyOpLoweringBase {
-    using ApplyOpLoweringBase::ApplyOpLoweringBase;
+struct GenerateOpLoweringParallel : GenerateOpLoweringBase {
+    using GenerateOpLoweringBase::GenerateOpLoweringBase;
 
-    LogicalResult matchAndRewrite(stencil::ApplyOp op, PatternRewriter& rewriter) const override final {
+    LogicalResult matchAndRewrite(stencil::GenerateOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
         const int64_t numDims = GetDimension(op);
 
@@ -129,7 +135,17 @@ struct ApplyOpLoweringParallel : ApplyOpLoweringBase {
 };
 
 
-void StencilApplyToLoopsPass::getDependentDialects(DialectRegistry& registry) const {
+struct YieldOpLowering : public OpRewritePattern<stencil::YieldOp> {
+    using OpRewritePattern<stencil::YieldOp>::OpRewritePattern;
+
+    LogicalResult matchAndRewrite(stencil::YieldOp op, PatternRewriter& rewriter) const override final {
+        rewriter.replaceOpWithNewOp<mlir::scf::YieldOp>(op, op->getOperands());
+        return success();
+    }
+};
+
+
+void StencilToLoopsPass::getDependentDialects(DialectRegistry& registry) const {
     registry.insert<arith::ArithDialect,
                     func::FuncDialect,
                     memref::MemRefDialect,
@@ -139,21 +155,29 @@ void StencilApplyToLoopsPass::getDependentDialects(DialectRegistry& registry) co
 }
 
 
-void StencilApplyToLoopsPass::runOnOperation() {
+void StencilToLoopsPass::runOnOperation() {
     ConversionTarget target(getContext());
     target.addLegalDialect<arith::ArithDialect>();
     target.addLegalDialect<func::FuncDialect>();
     target.addLegalDialect<memref::MemRefDialect>();
     target.addLegalDialect<scf::SCFDialect>();
     target.addLegalDialect<vector::VectorDialect>();
-    target.addLegalDialect<stencil::StencilDialect>();
 
-    target.addIllegalOp<stencil::ApplyOp>();
+    // It's never matching stencil.yield unless I do that first in a separate conversion pass.
+    // I have not the slightest clue why...
+    RewritePatternSet yieldPattern(&getContext());
+    target.addIllegalOp<stencil::YieldOp>();
+    yieldPattern.add<YieldOpLowering>(&getContext());
 
-    RewritePatternSet patterns(&getContext());
-    patterns.add<ApplyOpLoweringParallel>(&getContext());
+    if (failed(applyPartialConversion(getOperation(), target, std::move(yieldPattern)))) {
+        signalPassFailure();
+    }
 
-    if (failed(applyPartialConversion(getOperation(), target, std::move(patterns)))) {
+    RewritePatternSet generatePattern(&getContext());
+    target.addIllegalOp<stencil::GenerateOp>();
+    generatePattern.add<GenerateOpLoweringParallel>(&getContext());
+
+    if (failed(applyPartialConversion(getOperation(), target, std::move(generatePattern)))) {
         signalPassFailure();
     }
 }

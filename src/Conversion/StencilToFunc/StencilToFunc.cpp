@@ -30,6 +30,40 @@ namespace sir {
 using namespace mlir;
 
 
+
+struct ApplyOpLowering : public OpRewritePattern<stencil::ApplyOp> {
+    using OpRewritePattern<stencil::ApplyOp>::OpRewritePattern;
+
+    LogicalResult matchAndRewrite(stencil::ApplyOp op, PatternRewriter& rewriter) const override final {
+        Location loc = op.getLoc();
+
+        auto generateOp = rewriter.create<stencil::GenerateOp>(loc,
+                                                               op->getResultTypes(),
+                                                               op.getOutputs(),
+                                                               op.getOffsets(),
+                                                               op.getStaticOffsets());
+
+        auto resultTypes = op->getResultTypes();
+        mlir::SmallVector<mlir::Type> elementTypes;
+        std::transform(resultTypes.begin(), resultTypes.end(), std::back_inserter(elementTypes), [](mlir::Type result) {
+            auto shaped = result.dyn_cast<mlir::ShapedType>();
+            assert(shaped);
+            return shaped.getElementType();
+        });
+
+        auto& block = *generateOp.addEntryBlock();
+        rewriter.setInsertionPointToEnd(&block);
+        mlir::SmallVector<mlir::Value> args = { block.getArgument(0) };
+        std::copy(op.getInputs().begin(), op.getInputs().end(), std::back_inserter(args));
+        auto callOp = rewriter.create<func::CallOp>(loc, op.getCalleeAttr(), elementTypes, args);
+        rewriter.create<stencil::YieldOp>(loc, callOp->getResults());
+
+        rewriter.replaceOp(op, generateOp.getResults());
+        return success();
+    }
+};
+
+
 struct StencilOpLowering : public OpRewritePattern<stencil::StencilOp> {
     using OpRewritePattern<stencil::StencilOp>::OpRewritePattern;
 
@@ -66,9 +100,7 @@ struct ReturnOpLowering : public OpRewritePattern<stencil::ReturnOp> {
     using OpRewritePattern<stencil::ReturnOp>::OpRewritePattern;
 
     LogicalResult matchAndRewrite(stencil::ReturnOp op, PatternRewriter& rewriter) const override {
-        Location loc = op->getLoc();
-        rewriter.create<func::ReturnOp>(loc, op->getOperands());
-        rewriter.eraseOp(op);
+        rewriter.replaceOpWithNewOp<func::ReturnOp>(op, op->getOperands());
         return success();
     }
 };
@@ -132,13 +164,16 @@ void StencilToFuncPass::runOnOperation() {
     target.addLegalDialect<memref::MemRefDialect>();
     target.addLegalDialect<scf::SCFDialect>();
     target.addLegalDialect<vector::VectorDialect>();
+    target.addLegalDialect<stencil::StencilDialect>();
 
+    target.addIllegalOp<stencil::ApplyOp>();
     target.addIllegalOp<stencil::StencilOp>();
     target.addIllegalOp<stencil::ReturnOp>();
     target.addIllegalOp<stencil::InvokeOp>();
     target.addIllegalOp<stencil::IndexOp>();
 
     RewritePatternSet patterns(&getContext());
+    patterns.add<ApplyOpLowering>(&getContext());
     patterns.add<StencilOpLowering>(&getContext());
     patterns.add<ReturnOpLowering>(&getContext());
     patterns.add<InvokeOpLowering>(&getContext());

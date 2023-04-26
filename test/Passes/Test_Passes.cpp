@@ -5,6 +5,7 @@
 #include <Dialect/Stencil/Transforms/Passes.hpp>
 #include <Transforms/Passes.hpp>
 
+#include <mlir/Dialect/Bufferization/Transforms/OneShotAnalysis.h>
 #include <mlir/Dialect/Bufferization/Transforms/Passes.h>
 #include <mlir/Transforms/Passes.h>
 
@@ -22,8 +23,8 @@ static std::string TestFile(std::string_view name) {
 }
 
 
-TEST_CASE("Convert stencil apply to loops", "[StencilDialect]") {
-    REQUIRE(CheckFile(TestFile("ConvertStencilApplyToLoops.mlir"), Pass(createStencilApplyToLoopsPass())));
+TEST_CASE("Convert stencil to loops", "[StencilDialect]") {
+    REQUIRE(CheckFile(TestFile("ConvertStencilToLoops.mlir"), Pass(createStencilToLoopsPass())));
 }
 
 
@@ -64,4 +65,25 @@ TEST_CASE("Reduce dim ops", "[Canonicalization]") {
 
 TEST_CASE("Eliminate slicing", "[Canonicalization]") {
     REQUIRE(CheckFile(TestFile("EliminateSlicing.mlir"), Pass(createEliminateSlicingPass())));
+}
+
+
+TEST_CASE("Convert stencil to func", "[StencilDialect]") {
+    REQUIRE(CheckFile(TestFile("ConvertStencilToFunc.mlir"), Pass(createStencilToFuncPass())));
+}
+
+
+TEST_CASE("Regression: bufferize crash", "[StencilDialect]") {
+    mlir::MLIRContext context;
+    mlir::bufferization::OneShotBufferizationOptions bufferizationOptions;
+    bufferizationOptions.allowUnknownOps = false;
+    bufferizationOptions.allowReturnAllocs = false;
+    bufferizationOptions.createDeallocs = true;
+    bufferizationOptions.defaultMemorySpace = mlir::IntegerAttr::get(mlir::IntegerType::get(&context, 64), 0);
+    bufferizationOptions.functionBoundaryTypeConversion = mlir::bufferization::LayoutMapOption::FullyDynamicLayoutMap;
+    bufferizationOptions.bufferizeFunctionBoundaries = true;
+    REQUIRE(CheckFile(context,
+                      TestFile("Regression_BufferizeCrash.mlir"),
+                      Pass(mlir::bufferization::createEmptyTensorToAllocTensorPass()),
+                      Pass(mlir::bufferization::createOneShotBufferizePass(bufferizationOptions))));
 }

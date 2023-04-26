@@ -34,12 +34,21 @@ struct NestedPass : public Pass {
 
 
 bool CheckText(std::string_view input, std::string_view pattern);
-bool CheckFile(const std::filesystem::path& file, std::vector<std::unique_ptr<Pass>>&& passes);
+bool CheckFile(mlir::MLIRContext& context, const std::filesystem::path& file, std::vector<std::unique_ptr<Pass>>&& passes);
 bool CheckDAG(Operation moduleNode, std::string_view pattern);
 template <class... Passes>
-auto CheckFile(const std::filesystem::path& file, Passes... passes) {
+auto CheckFile(mlir::MLIRContext& context, const std::filesystem::path& file, Passes... passes) {
     std::vector<std::unique_ptr<Pass>> passVec;
     passVec.reserve(sizeof...(passes));
     (..., passVec.push_back(std::make_unique<Passes>(std::move(passes))));
-    return CheckFile(file, std::move(passVec));
+    return CheckFile(context, file, std::move(passVec));
+}
+inline bool CheckFile(const std::filesystem::path& file, std::vector<std::unique_ptr<Pass>>&& passes) {
+    mlir::MLIRContext context;
+    return CheckFile(context, file, std::move(passes));
+}
+template <class... Passes>
+auto CheckFile(const std::filesystem::path& file, Passes... passes) {
+    mlir::MLIRContext context;
+    return CheckFile(context, file, std::forward<Passes>(passes)...);
 }

@@ -153,6 +153,52 @@ def ApplyOp : Stencil_Op<"apply", [
 }
 
 
+def GenerateOp : Stencil_Op<"generate", [
+  MemRefsNormalizable,
+  AttrSizedOperandSegments,
+  DeclareOpInterfaceMethods<MemoryEffectsOpInterface>
+]> {
+  let arguments = (ins Variadic<AnyShaped>:$outputs,
+                   Variadic<Index>:$offsets,
+                   I64ArrayAttr:$static_offsets);
+  let results = (outs Variadic<AnyShaped>:$results);
+  let regions = (region AnyRegion:$body);
+  let builders = [
+    OpBuilder<(ins "::mlir::ValueRange":$outputs)>,
+    OpBuilder<(ins "::mlir::ValueRange":$outputs, "::llvm::ArrayRef<int64_t>":$static_offsets)>,
+    OpBuilder<(ins "::mlir::ValueRange":$outputs, "::mlir::ValueRange":$offsets)>,
+    OpBuilder<(ins "::mlir::ValueRange":$outputs, "::mlir::ValueRange":$offsets, "::llvm::ArrayRef<int64_t>":$static_offsets)>
+  ];
+
+  let hasVerifier = 1;
+  let hasCustomAssemblyFormat = 1;
+  let assemblyFormat = [{
+    ` ` `outs` `(` $outputs `)` `offsets` $offsets `` $static_offsets attr-dict `:` functional-type(operands, $results) $body
+  }];
+  let summary = "TODO";
+  let description = [{
+    TODO
+  }];
+  let extraClassDeclaration = [{
+      ::mlir::Block *addEntryBlock();
+  }];  
+}
+
+
+def YieldOp : Stencil_Op<"yield", [
+  ReturnLike, Terminator, MemRefsNormalizable, Pure, HasParent<"GenerateOp">
+]> {
+  let arguments = (ins Variadic<AnyType>:$arguments);
+  let builders = [OpBuilder<(ins), [{
+    build($_builder, $_state, std::nullopt);
+  }]>];
+  let hasVerifier = 1;
+  let hasCustomAssemblyFormat = 1;
+  let assemblyFormat = "attr-dict ($arguments^ `:` type($arguments))?";
+  let summary = "TODO.";
+}
+
+
 def InvokeOp : Stencil_Op<"invoke", [
   MemRefsNormalizable, CallOpInterface,
   DeclareOpInterfaceMethods<SymbolUserOpInterface>

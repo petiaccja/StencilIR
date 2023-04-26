@@ -1,7 +1,6 @@
 #include "Pipelines.hpp"
 
 #include <Conversion/Passes.hpp>
-// #include <Dialect/BufferizationExtensions/Transforms/OneShotBufferizeCombined.hpp>
 #include <Dialect/Stencil/Transforms/BufferizableOpInterfaceImpl.hpp>
 #include <Dialect/Stencil/Transforms/Passes.hpp>
 #include <Transforms/Passes.hpp>
@@ -34,18 +33,11 @@ Stage CreateBufferizationStage(mlir::MLIRContext& context) {
     bufferizationOptions.functionBoundaryTypeConversion = mlir::bufferization::LayoutMapOption::FullyDynamicLayoutMap;
     bufferizationOptions.bufferizeFunctionBoundaries = true;
 
-    // bufferizationOptions.testAnalysisOnly = true;
-
-    stage.passes->enableVerifier(false);
     stage.passes->addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createEmptyTensorToAllocTensorPass());
-    //stage.passes->addPass(mlir::bufferization::createOneShotBufferizePass(bufferizationOptions));
-    bufferizationOptions.bufferizeFunctionBoundaries = false;
     stage.passes->addPass(mlir::bufferization::createOneShotBufferizePass(bufferizationOptions));
-    stage.passes->addPass(mlir::func::createFuncBufferizePass());
     stage.passes->addNestedPass<mlir::func::FuncOp>(mlir::createTensorBufferizePass());
     stage.passes->addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createBufferizationBufferizePass());
     stage.passes->addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createFinalizingBufferizePass());
-    // stage.passes->addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createBufferDeallocationPass());
     stage.passes->addPass(mlir::createCanonicalizerPass());
     stage.passes->addPass(mlir::createCSEPass());
 
@@ -58,12 +50,12 @@ Stage CreateGlobalOptimizationStage(mlir::MLIRContext& context,
     Stage stage{ "global_opt", context };
 
     llvm::StringMap<mlir::OpPassManager> inlinerPipelines;
-    const bool inlineFn = false && optimizationOptions.inlineFunctions;
-    const bool fuseExtract = false && optimizationOptions.fuseExtractSliceOps;
-    const bool fuseApply = false && optimizationOptions.fuseApplyOps;
-    const bool elimAlloc = false && optimizationOptions.eliminateAllocBuffers;
-    const bool elimSlicing = false;
-    const bool redDims = false;
+    const bool inlineFn = optimizationOptions.inlineFunctions;
+    const bool fuseExtract = optimizationOptions.fuseExtractSliceOps;
+    const bool fuseApply = optimizationOptions.fuseApplyOps;
+    const bool elimAlloc = optimizationOptions.eliminateAllocBuffers;
+    const bool elimSlicing = true; // Maybe expose / run always?
+    const bool redDims = true; // Maybe expose / run always?
 
     // Optimization pipeline for inliner
     mlir::OpPassManager inlinerFuncPm;
@@ -74,6 +66,9 @@ Stage CreateGlobalOptimizationStage(mlir::MLIRContext& context,
     inlinerPipelines.insert_or_assign("func.func", std::move(inlinerFuncPm));
 
     // General optimizer
+    // Temporarily here, where it causes no issues
+    elimAlloc ? stage.passes->addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createEmptyTensorEliminationPass()) : void();
+
     inlineFn ? stage.passes->addPass(mlir::createInlinerPass(std::move(inlinerPipelines))) : void();
 
     {
@@ -83,7 +78,8 @@ Stage CreateGlobalOptimizationStage(mlir::MLIRContext& context,
         funcPrePm.addPass(mlir::createCanonicalizerPass());
         funcPrePm.addPass(mlir::createCSEPass());
 
-        elimAlloc ? funcPrePm.addPass(mlir::bufferization::createEmptyTensorEliminationPass()) : void();
+        // Better here, but the pass has a bug
+        // elimAlloc ? funcPrePm.addPass(mlir::bufferization::createEmptyTensorEliminationPass()) : void();
         redDims ? funcPrePm.addPass(createReduceDimOpsPass()) : void();
         funcPrePm.addPass(mlir::createCanonicalizerPass());
         funcPrePm.addPass(mlir::createCSEPass());
@@ -115,25 +111,31 @@ Stage CreateGlobalOptimizationStage(mlir::MLIRContext& context,
 
 std::vector<Stage> TargetCPUPipeline(mlir::MLIRContext& context,
                                      const OptimizationOptions& optimizationOptions) {
+    // Clean-up
     Stage canonicalization{ "canonicalization", context };
     canonicalization.passes->addPass(mlir::createCSEPass());
     canonicalization.passes->addPass(mlir::createCanonicalizerPass());
-    canonicalization.passes->addPass(createReduceDimOpsPass());
     canonicalization.passes->addPass(mlir::createTopologicalSortPass());
 
-    Stage bufferization = CreateBufferizationStage(context);
+    // High-level optimizer
     Stage globalOpt = CreateGlobalOptimizationStage(context, optimizationOptions);
 
-    Stage loops{ "loops", context };
-    loops.passes->addPass(createStencilApplyToLoopsPass());
-    loops.passes->addPass(createStencilToFuncPass());
+    // Convert to func
+    Stage func{ "func", context };
+    func.passes->addPass(createStencilToFuncPass());
 
+    // Bufferize
+    Stage bufferization = CreateBufferizationStage(context);
+
+    // Convert out of stencil dialect
     Stage standard{ "standard", context };
+    standard.passes->addPass(createStencilToLoopsPass());
     standard.passes->addPass(createStencilToStandardPass());
     standard.passes->addPass(createStencilPrintToLLVMPass());
     standard.passes->addPass(mlir::createCSEPass());
     standard.passes->addPass(mlir::createCanonicalizerPass());
 
+    // Convert all to LLVM IR
     Stage llvm{ "llvm", context };
     llvm.passes->addPass(mlir::createConvertSCFToCFPass());
 
@@ -159,8 +161,8 @@ std::vector<Stage> TargetCPUPipeline(mlir::MLIRContext& context,
 
     std::array stages{ std::move(canonicalization),
                        std::move(globalOpt),
+                       std::move(func),
                        std::move(bufferization),
-                       std::move(loops),
                        std::move(standard),
                        std::move(llvm) };
     return { std::make_move_iterator(stages.begin()), std::make_move_iterator(stages.end()) };
