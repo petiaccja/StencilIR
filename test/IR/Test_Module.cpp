@@ -21,6 +21,18 @@ TEST_CASE("Function", "[DAG]") {
 }
 
 
+TEST_CASE("Function - external", "[DAG]") {
+    auto mod = ops::ModuleOp();
+    auto func = mod.Create<ops::FuncOp>("powf", FunctionType::Get({ Float32 }, { Float32 }));
+
+    const auto pattern = R"(
+        // CHECK: func.func private @powf(f32) -> f32
+    )";
+
+    REQUIRE(CheckDAG(mod, pattern));
+}
+
+
 TEST_CASE("Stencil", "[DAG]") {
     auto mod = ops::ModuleOp();
     auto stencil = mod.Create<ops::StencilOp>("sn", FunctionType::Get({ Float32 }, { Float32 }), 2);

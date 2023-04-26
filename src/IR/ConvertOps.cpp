@@ -58,13 +58,20 @@ mlir::Operation* ConvertFuncOp(Converter& converter, Operation op, mlir::ValueRa
     auto functionType = ConvertType(builder, *attr.signature).dyn_cast<mlir::FunctionType>();
 
     auto converted = builder.create<mlir::func::FuncOp>(loc, attr.name, functionType);
-    const auto entryBlock = converted.addEntryBlock();
-    converter.MapEntryBlock(op.GetRegions().front(), *entryBlock);
 
-    converted.setVisibility(attr.isPublic ? mlir::SymbolTable::Visibility::Public : mlir::SymbolTable::Visibility::Private);
-    builder.setInsertionPointToEnd(entryBlock);
-    for (const auto& op : op.GetRegions().front().GetOperations()) {
-        converter(op);
+    if (!op.GetRegions().empty() && !op.GetRegions().front().GetOperations().empty()) {
+        converted.setVisibility(attr.isPublic ? mlir::SymbolTable::Visibility::Public : mlir::SymbolTable::Visibility::Private);
+
+        const auto entryBlock = converted.addEntryBlock();
+        converter.MapEntryBlock(op.GetRegions().front(), *entryBlock);
+
+        builder.setInsertionPointToEnd(entryBlock);
+        for (const auto& op : op.GetRegions().front().GetOperations()) {
+            converter(op);
+        }
+    }
+    else {
+        converted.setVisibility(mlir::SymbolTable::Visibility::Private);
     }
 
     return converted;
