@@ -27,6 +27,8 @@ target_sources(StencilDialect
         Transforms/DeduplicateApplyInputs.hpp
         Transforms/Utility.cpp
         Transforms/Utility.hpp
+        Transforms/RuntimeVerificationInterfaceImpl.cpp
+        Transforms/RuntimeVerificationInterfaceImpl.hpp
 )
 
 target_include_directories(StencilDialect PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/include)

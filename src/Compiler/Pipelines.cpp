@@ -114,6 +114,7 @@ std::vector<Stage> TargetCPUPipeline(mlir::MLIRContext& context,
     // Clean-up
     Stage canonicalization{ "canonicalization", context };
     canonicalization.passes->addPass(mlir::createCSEPass());
+    canonicalization.passes->addPass(mlir::createGenerateRuntimeVerificationPass());
     canonicalization.passes->addPass(mlir::createCanonicalizerPass());
     canonicalization.passes->addPass(mlir::createTopologicalSortPass());
 
