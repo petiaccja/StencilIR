@@ -62,6 +62,7 @@ jobs:
         cmake -E make_directory ${{runner.workspace}}/build/externals/LLVM
         cmake -S ${{github.workspace}}/externals/LLVM -B ${{runner.workspace}}/build/externals/LLVM -G Ninja -DCMAKE_BUILD_TYPE=${{matrix.build_type}} -DCMAKE_CXX_STANDARD=${{ matrix.cxx_standard }} -DSTRIP_DEBUG_INFO:BOOL=ON
         cmake --build ${{runner.workspace}}/build/externals/LLVM --parallel
+        cmake -E remove_directory ${{runner.workspace}}/build/externals/LLVM/llvm-project
 
     - name: Configure CMake
       working-directory: ${{runner.workspace}}/build
