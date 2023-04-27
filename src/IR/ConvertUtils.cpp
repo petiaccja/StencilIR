@@ -80,6 +80,11 @@ mlir::Type MakeUnsignedType(mlir::IntegerType type) {
 }
 
 
+mlir::Type MakeSignlessType(mlir::IntegerType type) {
+    return mlir::IntegerType::get(type.getContext(), type.getWidth(), mlir::IntegerType::SignednessSemantics::Signless);
+}
+
+
 namespace cast_methods {
 
     mlir::Value CastInt2Int(mlir::IntegerType sourceType,
@@ -162,7 +167,7 @@ namespace cast_methods {
                               mlir::Value value,
                               mlir::OpBuilder& builder,
                               mlir::Location loc) {
-        return builder.create<mlir::arith::IndexCastOp>(loc, targetType, value).getResult();
+        return builder.create<mlir::arith::IndexCastOp>(loc, MakeSignlessType(targetType), value).getResult();
     }
 
     mlir::Value CastIndex2Float(mlir::IndexType sourceType,
