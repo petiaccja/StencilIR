@@ -65,3 +65,18 @@ private:
 
 
 } // namespace sir
+
+namespace std {
+
+template <>
+struct std::hash<sir::CompileOptions> {
+    auto operator()(const sir::CompileOptions& obj) const noexcept {
+        auto v = std::hash<sir::OptimizationOptions>{}(obj.optimizationOptions);
+        constexpr auto c = static_cast<decltype(v)>(8934546291568956629LL);
+        v = (v * c) + std::hash<sir::eTargetArch>{}(obj.targetArch);
+        v = (v * c) + std::hash<sir::eOptimizationLevel>{}(obj.optimizationLevel);
+        return v;
+    }
+};
+
+} // namespace std

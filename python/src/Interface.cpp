@@ -309,15 +309,18 @@ PYBIND11_MODULE(stencilir, m) {
         .export_values();
 
     pybind11::class_<OptimizationOptions>(m, "OptimizationOptions")
-        .def(pybind11::init<bool, bool, bool, bool>(),
+        .def(pybind11::init<bool, bool, bool, bool, bool>(),
              pybind11::arg("inline_functions") = false,
              pybind11::arg("fuse_extract_slice_ops") = false,
              pybind11::arg("fuse_apply_ops") = false,
-             pybind11::arg("eliminate_alloc_buffers") = false)
-        .def_readwrite("eliminate_alloc_buffers", &OptimizationOptions::eliminateAllocBuffers)
+             pybind11::arg("eliminate_alloc_buffers") = false,
+             pybind11::arg("enable_runtime_verification") = false)
         .def_readwrite("inline_functions", &OptimizationOptions::inlineFunctions)
         .def_readwrite("fuse_extract_slice_ops", &OptimizationOptions::fuseExtractSliceOps)
-        .def_readwrite("fuse_apply_ops", &OptimizationOptions::fuseApplyOps);
+        .def_readwrite("fuse_apply_ops", &OptimizationOptions::fuseApplyOps)
+        .def_readwrite("eliminate_alloc_buffers", &OptimizationOptions::eliminateAllocBuffers)
+        .def_readwrite("enable_runtime_verification", &OptimizationOptions::enableRuntimeVerification)
+        .def("__hash__", [](const OptimizationOptions& self) { return std::hash<OptimizationOptions>{}(self); });
 
     pybind11::class_<CompileOptions>(m, "CompileOptions")
         .def(pybind11::init<eTargetArch, eOptimizationLevel, OptimizationOptions>(),
@@ -326,7 +329,8 @@ PYBIND11_MODULE(stencilir, m) {
              pybind11::arg("opt_options") = OptimizationOptions{})
         .def_readwrite("target_arch", &CompileOptions::targetArch)
         .def_readwrite("opt_level", &CompileOptions::optimizationLevel)
-        .def_readwrite("opt_options", &CompileOptions::optimizationOptions);
+        .def_readwrite("opt_options", &CompileOptions::optimizationOptions)
+        .def("__hash__", [](const CompileOptions& self) { return std::hash<CompileOptions>{}(self); });
 
 
     pybind11::class_<StageResult>(m, "StageIR")

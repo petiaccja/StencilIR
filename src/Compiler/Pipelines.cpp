@@ -63,7 +63,7 @@ Stage CreateGlobalOptimizationStage(mlir::MLIRContext& context,
     inlinerFuncPm.addNestedPass<mlir::func::FuncOp>(mlir::createCanonicalizerPass());
     inlinerFuncPm.addNestedPass<mlir::func::FuncOp>(mlir::createCSEPass());
     elimAlloc ? inlinerFuncPm.addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createEmptyTensorEliminationPass()) : void();
-    inlinerPipelines.insert_or_assign("func.func", std::move(inlinerFuncPm));
+    inlinerPipelines.insert_or_assign(mlir::func::FuncOp::getOperationName(), std::move(inlinerFuncPm));
 
     // General optimizer
     // Temporarily here, where it causes no issues
@@ -111,10 +111,11 @@ Stage CreateGlobalOptimizationStage(mlir::MLIRContext& context,
 
 std::vector<Stage> TargetCPUPipeline(mlir::MLIRContext& context,
                                      const OptimizationOptions& optimizationOptions) {
+    const bool runtimeVerif = optimizationOptions.enableRuntimeVerification;
+
     // Clean-up
     Stage canonicalization{ "canonicalization", context };
     canonicalization.passes->addPass(mlir::createCSEPass());
-    canonicalization.passes->addPass(mlir::createGenerateRuntimeVerificationPass());
     canonicalization.passes->addPass(mlir::createCanonicalizerPass());
     canonicalization.passes->addPass(mlir::createTopologicalSortPass());
 
@@ -130,6 +131,7 @@ std::vector<Stage> TargetCPUPipeline(mlir::MLIRContext& context,
 
     // Convert out of stencil dialect
     Stage standard{ "standard", context };
+    runtimeVerif ? standard.passes->addPass(mlir::createGenerateRuntimeVerificationPass()) : void();
     standard.passes->addPass(createStencilToLoopsPass());
     standard.passes->addPass(createStencilToStandardPass());
     standard.passes->addPass(createStencilPrintToLLVMPass());
