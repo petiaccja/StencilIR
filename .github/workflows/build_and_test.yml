@@ -71,6 +71,7 @@ jobs:
         LLVM_DIR: ${{runner.workspace}}/build/externals/LLVM/install/lib/cmake/llvm
         CC: ${{matrix.c_compiler}}
         CXX: ${{matrix.cxx_compiler}}
+        LDFLAGS: ${{ fromJSON('{"clang++":"-fuse-ld=lld", "cl":""}')[matrix.cxx_compiler] }}
       run: cmake -S ${{github.workspace}} -B ${{runner.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=${{matrix.build_type}} -DCMAKE_CXX_STANDARD=${{ matrix.cxx_standard }} -DEXTERNAL_LLVM_STRIP_DEBUG_INFO:BOOL=ON
 
     - name: Build
@@ -86,6 +87,7 @@ jobs:
         CXX: ${{matrix.cxx_compiler}}
         CMAKE_BUILD_TYPE: ${{matrix.build_type}}
         CMAKE_CXX_STANDARD: ${{ matrix.cxx_standard }}
+        LDFLAGS: ${{ fromJSON('{"clang++":"-fuse-ld=lld", "cl":""}')[matrix.cxx_compiler] }}
       run: |
         pip install ${{github.workspace}}
         pip install -r ${{github.workspace}}/python/requirements-dev.txt      

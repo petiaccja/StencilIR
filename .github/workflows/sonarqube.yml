@@ -49,6 +49,7 @@ jobs:
         env:
           CC: clang
           CXX: clang++
+          LDFLAGS: -fuse-ld=lld
         run: cmake -S $GITHUB_WORKSPACE -B ${{runner.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_LLVM_COV=ON -DCMAKE_CXX_STANDARD=20 -DEXTERNAL_LLVM_BUILD_TYPE:STRING=Release
 
       - name: Run build-wrapper
@@ -63,6 +64,7 @@ jobs:
           LLVM_DIR: ${{runner.workspace}}/build/externals/LLVM/install/lib/cmake/llvm
           CC: clang
           CXX: clang++
+          LDFLAGS: -fuse-ld=lld
           CMAKE_BUILD_TYPE: Debug
           CMAKE_CXX_STANDARD: 20
         run: |
