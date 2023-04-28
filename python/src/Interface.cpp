@@ -1,5 +1,6 @@
 #include "CompiledModule.hpp"
 #include <pybind11/numpy.h>
+#include <pybind11/operators.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
@@ -320,7 +321,8 @@ PYBIND11_MODULE(stencilir, m) {
         .def_readwrite("fuse_apply_ops", &OptimizationOptions::fuseApplyOps)
         .def_readwrite("eliminate_alloc_buffers", &OptimizationOptions::eliminateAllocBuffers)
         .def_readwrite("enable_runtime_verification", &OptimizationOptions::enableRuntimeVerification)
-        .def("__hash__", [](const OptimizationOptions& self) { return std::hash<OptimizationOptions>{}(self); });
+        .def("__hash__", [](const OptimizationOptions& self) { return std::hash<OptimizationOptions>{}(self); })
+        .def(pybind11::self == pybind11::self);
 
     pybind11::class_<CompileOptions>(m, "CompileOptions")
         .def(pybind11::init<eTargetArch, eOptimizationLevel, OptimizationOptions>(),
@@ -330,7 +332,8 @@ PYBIND11_MODULE(stencilir, m) {
         .def_readwrite("target_arch", &CompileOptions::targetArch)
         .def_readwrite("opt_level", &CompileOptions::optimizationLevel)
         .def_readwrite("opt_options", &CompileOptions::optimizationOptions)
-        .def("__hash__", [](const CompileOptions& self) { return std::hash<CompileOptions>{}(self); });
+        .def("__hash__", [](const CompileOptions& self) { return std::hash<CompileOptions>{}(self); })
+        .def(pybind11::self == pybind11::self);
 
 
     pybind11::class_<StageResult>(m, "StageIR")
