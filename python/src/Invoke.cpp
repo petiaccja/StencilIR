@@ -292,9 +292,13 @@ void Argument::Write(const FieldType& type, pybind11::object value, std::byte* a
     const auto bufferInfo = buffer.request(true);
     const auto bufferType = FieldType{ GetTypeFromFormat(bufferInfo.format), int(bufferInfo.ndim) };
     if (!bufferType.EqualTo(type)) {
-        std::stringstream ss;
-        ss << "expected buffer type " << type << ", got " << bufferType;
-        throw std::invalid_argument(ss.str());
+        const auto bufferElementIntType = dynamic_cast<sir::IntegerType*>(bufferType.elementType.get());
+        const auto elementIndexType = dynamic_cast<sir::IntegerType*>(type.elementType.get());
+        if (bufferElementIntType && elementIndexType && bufferElementIntType->size != elementSize * 8) {
+            std::stringstream ss;
+            ss << "expected buffer type " << type << ", got " << bufferType;
+            throw std::invalid_argument(ss.str());
+        }
     }
 
     const auto startingAddress = address;
