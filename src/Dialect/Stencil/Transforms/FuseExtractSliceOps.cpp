@@ -23,21 +23,21 @@ using mlir::MLIRContext;
 auto GetStaticOffsets(mlir::tensor::ExtractSliceOp extractSliceOp)
     -> std::optional<mlir::SmallVector<int64_t, 3>> {
     const auto rank = extractSliceOp->getResultTypes()[0].cast<mlir::ShapedType>().getRank();
-    const auto staticOffsets = extractSliceOp.getStaticOffsets().getAsRange<mlir::IntegerAttr>();
-    const auto staticStrides = extractSliceOp.getStaticStrides().getAsRange<mlir::IntegerAttr>();
+    const auto staticOffsets = extractSliceOp.getStaticOffsets();
+    const auto staticStrides = extractSliceOp.getStaticStrides();
 
     mlir::SmallVector<int64_t, 3> offsets;
     for (auto offset : staticOffsets) {
-        offsets.push_back(offset.getInt());
+        offsets.push_back(offset);
     }
 
     const bool allOffsetsStatic = std::none_of(offsets.begin(), offsets.end(), [](int64_t offset) {
-                                      return offset == mlir::ShapedType::kDynamicStrideOrOffset;
+                                      return offset == mlir::ShapedType::kDynamic;
                                   })
                                   && offsets.size() == size_t(rank);
 
-    const bool allStridesOne = std::all_of(staticStrides.begin(), staticStrides.end(), [](mlir::IntegerAttr stride) {
-                                   return stride.getInt() == 1;
+    const bool allStridesOne = std::all_of(staticStrides.begin(), staticStrides.end(), [](auto stride) {
+                                   return stride == 1;
                                })
                                && std::distance(staticStrides.begin(), staticStrides.end()) == rank;
 
@@ -82,6 +82,7 @@ auto OffsetStencilInputs(stencil::StencilOp stencilOp,
         }
     }
     offsetedStencil.setSymNameAttr(UniqueStencilName(stencilOp, rewriter));
+    offsetedStencil.setVisibility(mlir::SymbolTable::Visibility::Private);
     return offsetedStencil;
 }
 

@@ -6,6 +6,8 @@
 #include <mlir/Dialect/Bufferization/IR/Bufferization.h>
 #include <mlir/Dialect/Bufferization/Transforms/OneShotAnalysis.h>
 #include <mlir/Dialect/MemRef/IR/MemRef.h>
+#include <mlir/Dialect/Utils/StructuredOpsUtils.h>
+#include <mlir/IR/IRMapping.h>
 
 #include <algorithm>
 #include <iostream>
@@ -154,11 +156,70 @@ struct ApplyOpInterface : public BufferizableOpInterface::ExternalModel<ApplyOpI
             return memrefsOrFailure;
         }
         const auto& memrefs = *memrefsOrFailure;
-        const std::span outs{ memrefs.end() - applyOp.getOutputs().size(), memrefs.end() };
         const auto& attrs = applyOp->getAttrs();
 
         rewriter.create<ApplyOp>(applyOp->getLoc(), TypeRange{}, memrefs, attrs);
+        const std::span outs{ memrefs.begin() + applyOp.getInputs().size(), applyOp.getOutputs().size() };
         replaceOpWithBufferizedValues(rewriter, applyOp, mlir::ArrayRef{ outs.data(), outs.size() });
+
+        return success();
+    }
+};
+
+
+struct GenerateOpInterface : public BufferizableOpInterface::ExternalModel<GenerateOpInterface, GenerateOp> {
+    bool bufferizesToMemoryRead(Operation* op,
+                                OpOperand& opOperand,
+                                const AnalysisState& state) const {
+        return false;
+    }
+
+    bool bufferizesToMemoryWrite(Operation* op,
+                                 OpOperand& opOperand,
+                                 const AnalysisState& state) const {
+        return true;
+    }
+
+    SmallVector<OpOperand*> getAliasingOpOperand(Operation* op, OpResult opResult,
+                                                 const AnalysisState& state) const {
+        return { &op->getOpOperand(opResult.getResultNumber()) };
+    }
+
+    SmallVector<OpResult> getAliasingOpResult(Operation* op,
+                                              OpOperand& opOperand,
+                                              const AnalysisState& state) const {
+        if (opOperand.getOperandNumber() < op->getNumResults()) {
+            return { op->getOpResult(opOperand.getOperandNumber()) };
+        }
+        else {
+            return {};
+        }
+    }
+
+    BufferRelation bufferRelation(Operation* op,
+                                  OpResult opResult,
+                                  const AnalysisState& state) const {
+        return BufferRelation::Equivalent;
+    }
+
+    LogicalResult bufferize(Operation* op,
+                            RewriterBase& rewriter,
+                            const BufferizationOptions& options) const {
+        mlir::OpBuilder::InsertionGuard g{ rewriter };
+
+        auto generateOp = mlir::dyn_cast<GenerateOp>(op);
+
+        const auto& memrefsOrFailure = BufferizeValueRange(rewriter, generateOp->getOperands(), options, true);
+        if (failed(memrefsOrFailure)) {
+            return memrefsOrFailure;
+        }
+        const auto& memrefs = *memrefsOrFailure;
+
+        auto newOp = cloneWithoutRegions(rewriter, op, TypeRange{}, memrefs);
+        rewriter.inlineRegionBefore(op->getRegion(0), newOp->getRegion(0), newOp->getRegion(0).begin());
+
+        const std::span outs{ memrefs.begin(), generateOp.getOutputs().size() };
+        replaceOpWithBufferizedValues(rewriter, generateOp, mlir::ArrayRef{ outs.data(), outs.size() });
 
         return success();
     }
@@ -246,12 +307,14 @@ using InvokeOpInterface = TrivialOpInterface<InvokeOp>;
 
 void registerBufferizableOpInterfaceExternalModels(mlir::DialectRegistry& registry) {
     registry.addExtension(+[](MLIRContext* context, StencilDialect* dialect) {
+        GenerateOp::attachInterface<GenerateOpInterface>(*context);
         ApplyOp::attachInterface<ApplyOpInterface>(*context);
 
         StencilOp::attachInterface<StencilOpInterface>(*context);
         InvokeOp::attachInterface<InvokeOpInterface>(*context);
 
         SampleOp::attachInterface<TrivialOpInterface<SampleOp>>(*context);
+        YieldOp::attachInterface<TrivialOpInterface<YieldOp>>(*context);
     });
 }
 

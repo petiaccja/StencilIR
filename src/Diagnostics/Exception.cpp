@@ -6,6 +6,10 @@
 
 namespace sir {
 
+const char* Exception::what() const noexcept { return m_message.c_str(); }
+
+std::string_view Exception::GetMessage() const noexcept { return m_message; }
+
 static std::string FormatDiagVector(const std::vector<mlir::Diagnostic>& diagnostics) {
     std::stringstream ss;
     for (const auto& diag : diagnostics) {

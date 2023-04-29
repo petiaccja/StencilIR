@@ -3,7 +3,7 @@
 //------------------------------------------------------------------------------
 
 // CHECK: stencil.stencil private @chain_add_proc_[[NR_CHAIN:[0-9]+]](%[[A:.*]]: tensor<?xf32>, %[[B:.*]]: tensor<?xf32>, %[[C:.*]]: tensor<?xf32>, %[[D:.*]]: tensor<?xf32>)
-stencil.stencil private @chain_add(%a: tensor<?xf32>, %b: tensor<?xf32>) -> f32 attributes {num_dimensions = 1 : index} {
+stencil.stencil private @chain_add(%a: tensor<?xf32>, %b: tensor<?xf32>) -> f32 attributes {num_dimensions = 1 : i64} {
     // CHECK-NEXT: %[[IDX:.*]] = index
     %idx = index : vector<1xindex>
     // CHECK-NEXT: %[[CS:.*]] = sample %[[C]][%[[IDX]]]
@@ -40,14 +40,14 @@ func.func @chain(%a: tensor<?xf32>, %b: tensor<?xf32>, %c: tensor<?xf32>, %d: te
 //------------------------------------------------------------------------------
 
 // CHECK-NOT: stencil.stencil private @mrv_source
-stencil.stencil private @mrv_source(%a: tensor<?xf32>) -> (f32, f32) attributes {num_dimensions = 1 : index} {
+stencil.stencil private @mrv_source(%a: tensor<?xf32>) -> (f32, f32) attributes {num_dimensions = 1 : i64} {
     %idx = index : vector<1xindex>
     %as = sample %a[%idx] : (tensor<?xf32>, vector<1xindex>) -> f32
     return %as, %as : f32, f32
 }
 
 // CHECK: stencil.stencil private @mrv_target_proc_[[NR_MRV:[0-9]+]](%[[A:.*]]: tensor<?xf32>)
-stencil.stencil private @mrv_target(%a: tensor<?xf32>, %b: tensor<?xf32>) -> f32 attributes {num_dimensions = 1 : index} {
+stencil.stencil private @mrv_target(%a: tensor<?xf32>, %b: tensor<?xf32>) -> f32 attributes {num_dimensions = 1 : i64} {
     // CHECK-NEXT: %[[IDX:.*]] = index
     %idx = index : vector<1xindex>
     // CHECK-NEXT: %[[AS:.*]] = sample %[[A]][%[[IDX]]]
@@ -80,7 +80,7 @@ func.func @mrv(%a: tensor<?xf32>, %out: tensor<?xf32>) -> tensor<?xf32> {
 //------------------------------------------------------------------------------
 
 // CHECK: stencil.stencil private @offseted_stencil
-stencil.stencil private @offseted_stencil(%a: tensor<?xf32>) -> f32 attributes {num_dimensions = 1 : index} {
+stencil.stencil private @offseted_stencil(%a: tensor<?xf32>) -> f32 attributes {num_dimensions = 1 : i64} {
     %idx = index : vector<1xindex>
     %as = sample %a[%idx] : (tensor<?xf32>, vector<1xindex>) -> f32
     return %as : f32

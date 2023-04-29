@@ -1,6 +1,6 @@
 #pragma once
 
-#include "StencilApplyToLoops/StencilApplyToLoops.hpp"
+#include "StencilApplyToLoops/StencilToLoops.hpp"
 #include "StencilPrintToLLVM/StencilPrintToLLVM.hpp"
 #include "StencilToFunc/StencilToFunc.hpp"
 #include "StencilToStandard/StencilToStandard.hpp"
@@ -9,8 +9,8 @@
 namespace sir {
 
 
-inline auto createStencilApplyToLoopsPass() {
-    return std::make_unique<StencilApplyToLoopsPass>();
+inline auto createStencilToLoopsPass() {
+    return std::make_unique<StencilToLoopsPass>();
 }
 
 inline auto createStencilToStandardPass() {

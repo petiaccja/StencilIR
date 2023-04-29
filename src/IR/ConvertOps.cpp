@@ -9,7 +9,7 @@
 #include <Dialect/Stencil/IR/StencilOps.hpp>
 #include <Dialect/Stencil/Transforms/BufferizableOpInterfaceImpl.hpp>
 
-#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
+#include <mlir/Dialect/Arith/IR/Arith.h>
 #include <mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/IR/BuiltinDialect.h>
@@ -85,7 +85,7 @@ mlir::Operation* ConvertStencilOp(Converter& converter, Operation op, mlir::Valu
 
     auto functionType = ConvertType(builder, *attr.signature).dyn_cast<mlir::FunctionType>();
 
-    auto converted = builder.create<stencil::StencilOp>(loc, attr.name, functionType, mlir::APInt(64, attr.numDims));
+    auto converted = builder.create<stencil::StencilOp>(loc, attr.name, functionType, builder.getI64IntegerAttr(attr.numDims));
 
     const auto entryBlock = converted.addEntryBlock();
     converter.MapEntryBlock(op.GetRegions().front(), *entryBlock);
@@ -415,9 +415,9 @@ mlir::Operation* ConvertAllocTensorOp(Converter& converter, Operation op, mlir::
 
     const auto elementType = ConvertType(builder, *attr);
     const auto sizes = operands;
-    std::vector<int64_t> shape(sizes.size(), mlir::ShapedType::kDynamicSize);
+    std::vector<int64_t> shape(sizes.size(), mlir::ShapedType::kDynamic);
     const auto type = mlir::RankedTensorType::get(shape, elementType);
-    return { builder.create<mlir::bufferization::AllocTensorOp>(loc, type, sizes) };
+    return { builder.create<mlir::tensor::EmptyOp>(loc, type, sizes) };
 }
 
 
@@ -465,7 +465,7 @@ mlir::Operation* ConvertIndexOp(Converter& converter, Operation op, mlir::ValueR
                                             ? mlir::dyn_cast<stencil::StencilOp>(currentOp)
                                             : currentOp->getParentOfType<stencil::StencilOp>();
 
-    const int64_t numDims = currentStencil ? currentStencil.getNumDimensions().getSExtValue() : 1;
+    const int64_t numDims = currentStencil ? currentStencil.getNumDimensions() : 1;
     const auto indexType = mlir::VectorType::get({ numDims }, builder.getIndexType());
 
     return builder.create<stencil::IndexOp>(loc, indexType);

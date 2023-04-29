@@ -95,7 +95,7 @@ bool CheckText(std::string_view input, std::string_view pattern) {
             if (const char* locPtr = diag.CheckLoc.getPointer()) {
                 assert(locPtr - pattern.data() < std::ssize(pattern));
                 const auto line = std::count(pattern.data(), locPtr, '\n') + 1;
-                const auto lineStart = std::find(std::reverse_iterator{ locPtr }, std::reverse_iterator{ pattern.data() }, '\n');
+                const auto lineStart = std::find(std::make_reverse_iterator(locPtr), std::make_reverse_iterator(pattern.data()), '\n');
                 const auto column = locPtr - lineStart.base();
                 location = FormatLocation("-", line, column);
             }
@@ -122,7 +122,7 @@ bool CheckDAG(Operation moduleNode, std::string_view pattern) {
 }
 
 
-bool CheckFile(const std::filesystem::path& file, std::vector<std::unique_ptr<Pass>>&& passes) {
+bool CheckFile(mlir::MLIRContext& context, const std::filesystem::path& file, std::vector<std::unique_ptr<Pass>>&& passes) {
     std::ifstream is(file);
     if (!is.is_open()) {
         throw std::runtime_error("failed to open file: " + file.string());
@@ -134,7 +134,6 @@ bool CheckFile(const std::filesystem::path& file, std::vector<std::unique_ptr<Pa
     is.read(source.data(), length);
 
     // Load all dialects
-    mlir::MLIRContext context;
     mlir::registerAllDialects(context);
     context.getOrLoadDialect<stencil::StencilDialect>();
     mlir::DialectRegistry registry;

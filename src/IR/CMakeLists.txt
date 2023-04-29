@@ -20,6 +20,8 @@ target_sources(IR
         ConvertOps.hpp
         ConvertUtils.cpp
         ConvertUtils.hpp
+        Types.cpp
+        Types.hpp
 )
 target_include_directories(IR INTERFACE ${CMAKE_CURRENT_LIST_DIR}/..)
 

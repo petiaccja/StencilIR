@@ -4,7 +4,7 @@
 
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/Sequence.h>
-#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
+#include <mlir/Dialect/Arith/IR/Arith.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/Dialect/LLVMIR/LLVMDialect.h>
 #include <mlir/Dialect/LLVMIR/LLVMTypes.h>
@@ -101,14 +101,14 @@ private:
 
 
 void StencilPrintToLLVMPass::getDependentDialects(DialectRegistry& registry) const {
-    registry.insert<func::FuncDialect, LLVM::LLVMDialect, arith::ArithmeticDialect>();
+    registry.insert<func::FuncDialect, LLVM::LLVMDialect, arith::ArithDialect>();
 }
 
 void StencilPrintToLLVMPass::runOnOperation() {
     ConversionTarget target(getContext());
     target.addLegalDialect<LLVM::LLVMDialect>();
     target.addLegalDialect<func::FuncDialect>();
-    target.addLegalDialect<arith::ArithmeticDialect>();
+    target.addLegalDialect<arith::ArithDialect>();
     target.addIllegalOp<stencil::PrintOp>();
 
     RewritePatternSet patterns(&getContext());

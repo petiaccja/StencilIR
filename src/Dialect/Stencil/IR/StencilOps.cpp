@@ -34,6 +34,29 @@ void StencilDialect::initialize() {
 }
 
 
+void CollectMemoryEffects(mlir::Region& region, SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>& effects) {
+    bool hasReadEffects = false;
+    bool hasWriteEffects = false;
+    region.walk([&](Operation* nestedOp) {
+              if (auto effectInterface = mlir::dyn_cast<MemoryEffectOpInterface>(nestedOp)) {
+                  hasReadEffects = hasReadEffects || effectInterface.hasEffect<MemoryEffects::Read>();
+                  hasWriteEffects = hasWriteEffects || effectInterface.hasEffect<MemoryEffects::Write>();
+                  hasWriteEffects = hasWriteEffects || nestedOp->hasTrait<::mlir::OpTrait::HasRecursiveMemoryEffects>();
+              }
+              else {
+                  hasWriteEffects = true;
+              }
+              return !hasWriteEffects ? WalkResult::advance() : WalkResult::interrupt();
+          })
+        .wasInterrupted();
+    if (hasReadEffects) {
+        effects.emplace_back(MemoryEffects::Read::get());
+    }
+    if (hasWriteEffects) {
+        effects.emplace_back(MemoryEffects::Write::get());
+    }
+}
+
 //------------------------------------------------------------------------------
 // Inliner interface
 //------------------------------------------------------------------------------
@@ -45,11 +68,11 @@ class StencilInlinerInterface : public DialectInlinerInterface {
         return true;
     }
 
-    bool isLegalToInline(Region* dest, Region* src, bool wouldBeCloned, BlockAndValueMapping& valueMapping) const override {
+    bool isLegalToInline(Region* dest, Region* src, bool wouldBeCloned, IRMapping& valueMapping) const override {
         return true;
     }
 
-    bool isLegalToInline(Operation* op, Region* dest, bool wouldBeCloned, BlockAndValueMapping& valueMapping) const override {
+    bool isLegalToInline(Operation* op, Region* dest, bool wouldBeCloned, IRMapping& valueMapping) const override {
         return true;
     }
 
@@ -94,18 +117,85 @@ class StencilInlinerInterface : public DialectInlinerInterface {
 // StencilOp
 //------------------------------------------------------------------------------
 
+StencilOp StencilOp::create(Location location,
+                            StringRef name,
+                            FunctionType type,
+                            IntegerAttr numDimensions,
+                            ArrayRef<NamedAttribute> attrs) {
+    OpBuilder builder(location->getContext());
+    OperationState state(location, getOperationName());
+    StencilOp::build(builder, state, name, type, numDimensions, attrs);
+    return cast<StencilOp>(Operation::create(state));
+}
+
+
+StencilOp StencilOp::create(Location location,
+                            StringRef name,
+                            FunctionType type,
+                            IntegerAttr numDimensions,
+                            Operation::dialect_attr_range attrs) {
+    SmallVector<NamedAttribute, 8> attrRef(attrs);
+    return create(location, name, type, numDimensions, llvm::ArrayRef(attrRef));
+}
+
+
+StencilOp StencilOp::create(Location location,
+                            StringRef name,
+                            FunctionType type,
+                            IntegerAttr numDimensions,
+                            ArrayRef<NamedAttribute> attrs,
+                            ArrayRef<DictionaryAttr> argAttrs) {
+    StencilOp func = create(location, name, type, numDimensions, attrs);
+    func.setAllArgAttrs(argAttrs);
+    return func;
+}
+
+
+void StencilOp::build(OpBuilder& builder,
+                      OperationState& state,
+                      StringRef name,
+                      FunctionType type,
+                      IntegerAttr numDimensions,
+                      ArrayRef<NamedAttribute> attrs,
+                      ArrayRef<DictionaryAttr> argAttrs) {
+    state.addAttribute(SymbolTable::getSymbolAttrName(),
+                       builder.getStringAttr(name));
+    state.addAttribute(getFunctionTypeAttrName(state.name), TypeAttr::get(type));
+    state.addAttribute(getNumDimensionsAttrName(state.name), numDimensions);
+    state.attributes.append(attrs.begin(), attrs.end());
+    state.addRegion();
+
+    if (argAttrs.empty())
+        return;
+    assert(type.getNumInputs() == argAttrs.size());
+    function_interface_impl::addArgAndResultAttrs(
+        builder, state, argAttrs, /*resultAttrs=*/std::nullopt,
+        getArgAttrsAttrName(state.name), getResAttrsAttrName(state.name));
+}
+
+
 ParseResult StencilOp::parse(OpAsmParser& parser, OperationState& result) {
     auto buildFuncType =
         [](Builder& builder, ArrayRef<Type> argTypes, ArrayRef<Type> results,
            function_interface_impl::VariadicFlag,
            std::string&) { return builder.getFunctionType(argTypes, results); };
 
-    return function_interface_impl::parseFunctionOp(
-        parser, result, /*allowVariadic=*/false, buildFuncType);
+    return function_interface_impl::parseFunctionOp(parser,
+                                                    result,
+                                                    /*allowVariadic=*/false,
+                                                    getFunctionTypeAttrName(result.name),
+                                                    buildFuncType,
+                                                    getArgAttrsAttrName(result.name),
+                                                    getResAttrsAttrName(result.name));
 }
 
 void StencilOp::print(OpAsmPrinter& p) {
-    function_interface_impl::printFunctionOp(p, *this, /*isVariadic=*/false);
+    function_interface_impl::printFunctionOp(p,
+                                             *this,
+                                             /*isVariadic=*/false,
+                                             getFunctionTypeAttrName(),
+                                             getArgAttrsAttrName(),
+                                             getResAttrsAttrName());
 }
 
 
@@ -127,7 +217,7 @@ LogicalResult ApplyOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
 
     // Verify that the dimensions match up
     if (getNumResults() > 0) {
-        const auto numStencilDims = fn.getNumDimensions().getSExtValue();
+        const auto numStencilDims = int64_t(fn.getNumDimensions());
         const auto numMyDims = getResultTypes()[0].dyn_cast<mlir::ShapedType>().getRank();
         if (numStencilDims != numMyDims) {
             return emitOpError() << "number of stencil dimensions (" << numStencilDims << ")"
@@ -309,27 +399,166 @@ void ApplyOp::getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffec
     auto callee = SymbolTable::lookupNearestSymbolFrom(*this, stencilAttr.getAttr());
     if (auto stencil = mlir::dyn_cast<StencilOp>(callee)) {
         auto& body = stencil.getRegion();
-        bool hasReadEffects = false;
-        bool hasWriteEffects = false;
-        body.walk([&](Operation* nestedOp) {
-                if (auto effectInterface = mlir::dyn_cast<MemoryEffectOpInterface>(nestedOp)) {
-                    hasReadEffects = hasReadEffects || effectInterface.hasEffect<MemoryEffects::Read>();
-                    hasWriteEffects = hasWriteEffects || effectInterface.hasEffect<MemoryEffects::Write>();
-                    hasWriteEffects = hasWriteEffects || nestedOp->hasTrait<::mlir::OpTrait::HasRecursiveSideEffects>();
-                }
-                else {
-                    hasWriteEffects = true;
-                }
-                return !hasWriteEffects ? WalkResult::advance() : WalkResult::interrupt();
-            })
-            .wasInterrupted();
-        if (hasReadEffects) {
-            effects.emplace_back(MemoryEffects::Read::get());
+        CollectMemoryEffects(body, effects);
+    }
+}
+
+
+//------------------------------------------------------------------------------
+// GenerateOp
+//------------------------------------------------------------------------------
+
+
+void GenerateOp::build(::mlir::OpBuilder& odsBuilder,
+                       ::mlir::OperationState& odsState,
+                       ::mlir::ValueRange outputs) {
+    return build(odsBuilder,
+                 odsState,
+                 InferApplyOpResultTypes(outputs),
+                 outputs,
+                 ::mlir::ValueRange{},
+                 odsBuilder.getI64ArrayAttr({}));
+}
+
+
+void GenerateOp::build(::mlir::OpBuilder& odsBuilder,
+                       ::mlir::OperationState& odsState,
+                       ::mlir::ValueRange outputs,
+                       ::llvm::ArrayRef<int64_t> static_offsets) {
+    return build(odsBuilder,
+                 odsState,
+                 InferApplyOpResultTypes(outputs),
+                 outputs,
+                 ::mlir::ValueRange{},
+                 odsBuilder.getI64ArrayAttr(static_offsets));
+}
+
+
+void GenerateOp::build(::mlir::OpBuilder& odsBuilder,
+                       ::mlir::OperationState& odsState,
+                       ::mlir::ValueRange outputs,
+                       ::mlir::ValueRange offsets) {
+    return build(odsBuilder,
+                 odsState,
+                 InferApplyOpResultTypes(outputs),
+                 outputs,
+                 offsets,
+                 odsBuilder.getI64ArrayAttr({}));
+}
+
+void GenerateOp::build(::mlir::OpBuilder& odsBuilder,
+                       ::mlir::OperationState& odsState,
+                       ::mlir::ValueRange outputs,
+                       ::mlir::ValueRange offsets,
+                       ::llvm::ArrayRef<int64_t> static_offsets) {
+    return build(odsBuilder,
+                 odsState,
+                 InferApplyOpResultTypes(outputs),
+                 outputs,
+                 offsets,
+                 odsBuilder.getI64ArrayAttr(static_offsets));
+}
+
+
+::mlir::LogicalResult GenerateOp::verify() {
+    const auto& outputTypes = getOutputs().getTypes();
+    const auto& resultTypes = getResultTypes();
+
+    // Either all output operands are tensors or memrefs
+    bool isAllTensor = std::all_of(outputTypes.begin(), outputTypes.end(), [](mlir::Type type) {
+        return type.isa<mlir::TensorType>();
+    });
+    bool isAllMemref = std::all_of(outputTypes.begin(), outputTypes.end(), [](mlir::Type type) {
+        return type.isa<mlir::MemRefType>();
+    });
+    if (!isAllTensor && !isAllMemref) {
+        return emitOpError("output operands must be either all tensors or all memrefs, not mixed");
+    }
+
+    if (isAllTensor) {
+        // Same number of output operands and results
+        if (outputTypes.size() != resultTypes.size()) {
+            return emitOpError("must have equal number of output operands as results");
         }
-        if (hasWriteEffects) {
-            effects.emplace_back(MemoryEffects::Write::get());
+
+        // Same types of output operands and results
+        for (size_t i = 0; i < outputTypes.size(); ++i) {
+            if (outputTypes[i].getTypeID() != resultTypes[i].getTypeID()) {
+                return emitOpError("output operand must have the same types as results");
+            }
         }
     }
+    if (isAllMemref) {
+        if (resultTypes.size() != 0) {
+            return emitOpError("ops with memref semantics cannot have results");
+        }
+    }
+
+    // Either static or dynamic offsets
+    if (!getOffsets().empty() && !getStaticOffsets().empty()) {
+        return emitOpError("cannot have both static and dynamic offsets");
+    }
+
+    return success();
+}
+
+
+::mlir::Block* GenerateOp::addEntryBlock() {
+    auto& block = getBody().emplaceBlock();
+
+    const auto& outputs = getOutputs();
+    assert(!outputs.empty());
+    auto outputType = outputs.front().getType().dyn_cast<mlir::ShapedType>();
+    assert(outputType);
+    auto ndims = outputType.getRank();
+
+    auto indexType = mlir::VectorType::get({ ndims }, mlir::IndexType::get(getContext()));
+    block.addArgument(indexType, getLoc());
+    return &block;
+}
+
+
+
+void GenerateOp::getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>& effects) {
+    for (const auto& output : getOutputs()) {
+        effects.emplace_back(MemoryEffects::Write::get(), output, SideEffects::DefaultResource::get());
+    }
+    CollectMemoryEffects(getBody(), effects);
+}
+
+
+//------------------------------------------------------------------------------
+// YieldOp
+//------------------------------------------------------------------------------
+
+::mlir::LogicalResult YieldOp::verify() {
+    auto parentOp = (*this)->getParentOp();
+    assert(parentOp);
+    auto parentGenerateOp = mlir::dyn_cast<GenerateOp>(parentOp);
+    assert(parentGenerateOp);
+
+    const auto& parentResults = parentGenerateOp.getOutputs().getTypes();
+    const auto& argTypes = getOperandTypes();
+    if (parentResults.size() != argTypes.size()) {
+        return emitOpError() << "generate operation expects "
+                             << parentResults.size() << " values but "
+                             << argTypes.size() << " were provided";
+    }
+
+    for (auto [pIt, aIt] = std::tuple(parentResults.begin(), argTypes.begin()); pIt != parentResults.end(); ++pIt, ++aIt) {
+        auto parentType = *pIt;
+        auto argType = *aIt;
+        auto parentShapedType = parentType.dyn_cast<mlir::ShapedType>();
+        if (!parentShapedType) {
+            return emitOpError("invalid parent operation, results must be shaped types");
+        }
+        if (argType != parentShapedType.getElementType()) {
+            return emitOpError() << "expected " << parentShapedType.getElementType()
+                                 << " for value #" << std::distance(parentResults.begin(), pIt)
+                                 << " but got " << argType;
+        }
+    }
+    return success();
 }
 
 
@@ -392,7 +621,7 @@ mlir::LogicalResult IndexOp::verify() {
     }
     auto resultType = getResult().getType().dyn_cast<VectorType>();
     const auto indexDims = resultType.getShape()[0];
-    const auto stencilDims = stencil.getNumDimensions().getSExtValue();
+    const auto stencilDims = int64_t(stencil.getNumDimensions());
     if (stencilDims != indexDims) {
         return emitOpError() << "index op has dimension " << indexDims
                              << " but enclosing stencil has dimension " << stencilDims;
@@ -487,14 +716,14 @@ mlir::LogicalResult SampleOp::verify() {
 // Folding
 //------------------------------------------------------------------------------
 
-OpFoldResult JumpOp::fold([[maybe_unused]] llvm::ArrayRef<::mlir::Attribute> operands) {
+OpFoldResult JumpOp::fold(FoldAdaptor) {
     auto input = getInputIndex();
     auto offset = getOffset();
     auto range = offset.getAsRange<mlir::IntegerAttr>();
     if (std::all_of(range.begin(), range.end(), [](mlir::IntegerAttr attr) { return attr.getInt() == 0; })) {
         return input;
     }
-    return getResult();
+    return nullptr;
 }
 
 
@@ -540,13 +769,13 @@ void JumpOp::getCanonicalizationPatterns(RewritePatternSet& results, MLIRContext
 }
 
 
-OpFoldResult ProjectOp::fold([[maybe_unused]] llvm::ArrayRef<::mlir::Attribute> operands) {
+OpFoldResult ProjectOp::fold(FoldAdaptor) {
     const auto positions = getPositions();
     const auto range = positions.getAsRange<mlir::IntegerAttr>();
     int64_t idx = 0;
     for (const auto& pos : range) {
         if (pos.getInt() != idx++) {
-            return getResult();
+            return nullptr;
         }
     }
     return getSource();

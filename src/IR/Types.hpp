@@ -14,7 +14,7 @@ namespace sir {
 
 class Type {
 public:
-    virtual ~Type() = default;
+    virtual ~Type();
     virtual bool EqualTo(const Type& other) const = 0;
     virtual std::ostream& Print(std::ostream& os) const = 0;
 
@@ -26,26 +26,10 @@ public:
 
 class IntegerType : public Type {
 public:
-    IntegerType(int size, bool isSigned) : size(size), isSigned(isSigned) {
-        if (size != 1 && size != 8 && size != 16 && size != 32 && size != 64) {
-            throw std::invalid_argument("integer type must be 1, 8, 16, 32, or 64-bit");
-        }
-    }
-
-    bool EqualTo(const Type& other) const override {
-        if (auto otherInt = dynamic_cast<const IntegerType*>(&other)) {
-            return size == otherInt->size && isSigned == otherInt->isSigned;
-        }
-        return false;
-    }
-
-    std::ostream& Print(std::ostream& os) const override {
-        return os << (isSigned ? 's' : 'u') << 'i' << size;
-    }
-
-    static auto Get(int size, bool isSigned) {
-        return std::make_shared<IntegerType>(size, isSigned);
-    }
+    IntegerType(int size, bool isSigned);
+    bool EqualTo(const Type& other) const override;
+    std::ostream& Print(std::ostream& os) const override;
+    static std::shared_ptr<IntegerType> Get(int size, bool isSigned);
 
 public:
     const int size;
@@ -55,26 +39,10 @@ public:
 
 class FloatType : public Type {
 public:
-    explicit FloatType(int size) : size(size) {
-        if (size != 16 && size != 32 && size != 64 && size != 128) {
-            throw std::invalid_argument("float type must be 16, 32, 64, or 128-bit");
-        }
-    }
-
-    bool EqualTo(const Type& other) const override {
-        if (auto otherFloat = dynamic_cast<const FloatType*>(&other)) {
-            return size == otherFloat->size;
-        }
-        return false;
-    }
-
-    std::ostream& Print(std::ostream& os) const override {
-        return os << 'f' << size;
-    }
-
-    static auto Get(int size) {
-        return std::make_shared<FloatType>(size);
-    }
+    explicit FloatType(int size);
+    bool EqualTo(const Type& other) const override;
+    std::ostream& Print(std::ostream& os) const override;
+    static std::shared_ptr<FloatType> Get(int size);
 
 public:
     const int size;
@@ -83,41 +51,18 @@ public:
 
 class IndexType : public Type {
 public:
-    bool EqualTo(const Type& other) const override {
-        if (auto otherIndex = dynamic_cast<const IndexType*>(&other)) {
-            return true;
-        }
-        return false;
-    }
-
-    std::ostream& Print(std::ostream& os) const override {
-        return os << "index";
-    }
-
-    static auto Get() {
-        return std::make_shared<IndexType>();
-    }
+    bool EqualTo(const Type& other) const override;
+    std::ostream& Print(std::ostream& os) const override;
+    static std::shared_ptr<IndexType> Get();
 };
 
 
 class NDIndexType : public Type {
 public:
-    explicit NDIndexType(int numDimensions) : numDimensions(numDimensions) {}
-
-    bool EqualTo(const Type& other) const override {
-        if (auto otherNDIndex = dynamic_cast<const NDIndexType*>(&other)) {
-            return numDimensions == otherNDIndex->numDimensions;
-        }
-        return false;
-    }
-
-    std::ostream& Print(std::ostream& os) const override {
-        return os << "index<" << numDimensions << ">";
-    }
-
-    static std::shared_ptr<NDIndexType> Get(int numDimensions) {
-        return std::make_shared<NDIndexType>(numDimensions);
-    }
+    explicit NDIndexType(int numDimensions);
+    bool EqualTo(const Type& other) const override;
+    std::ostream& Print(std::ostream& os) const override;
+    static std::shared_ptr<NDIndexType> Get(int numDimensions);
 
 public:
     const int numDimensions;
@@ -126,29 +71,10 @@ public:
 
 class FieldType : public Type {
 public:
-    FieldType(std::shared_ptr<Type> elementType, int numDimensions)
-        : elementType(elementType),
-          numDimensions(numDimensions) {}
-
-    bool EqualTo(const Type& other) const override {
-        if (auto otherField = dynamic_cast<const FieldType*>(&other)) {
-            return elementType->EqualTo(*otherField->elementType) && numDimensions == otherField->numDimensions;
-        }
-        return false;
-    }
-
-    std::ostream& Print(std::ostream& os) const override {
-        os << "field<" << *elementType;
-        for (int i = 0; i < numDimensions; ++i) {
-            os << "x?";
-        }
-        os << ">";
-        return os;
-    }
-
-    static auto Get(std::shared_ptr<Type> elementType, int numDimensions) {
-        return std::make_shared<FieldType>(elementType, numDimensions);
-    }
+    FieldType(std::shared_ptr<Type> elementType, int numDimensions);
+    bool EqualTo(const Type& other) const override;
+    std::ostream& Print(std::ostream& os) const override;
+    static std::shared_ptr<FieldType> Get(std::shared_ptr<Type> elementType, int numDimensions);
 
 public:
     const std::shared_ptr<Type> elementType;
@@ -159,52 +85,11 @@ public:
 class FunctionType : public Type {
 public:
     FunctionType(std::vector<std::shared_ptr<Type>> parameters,
-                 std::vector<std::shared_ptr<Type>> results)
-        : parameters(std::move(parameters)), results(std::move(results)) {}
-
-    bool EqualTo(const Type& other) const override {
-        if (auto otherFunction = dynamic_cast<const FunctionType*>(&other)) {
-            if (parameters.size() != otherFunction->parameters.size()) {
-                return false;
-            }
-            for (auto [itl, itr] = std::tuple{ parameters.begin(), otherFunction->parameters.begin() };
-                 itl != parameters.end();
-                 ++itl, ++itr) {
-                if (!(*itl)->EqualTo(**itr)) {
-                    return false;
-                }
-            }
-            if (results.size() != otherFunction->results.size()) {
-                return false;
-            }
-            for (auto [itl, itr] = std::tuple{ results.begin(), otherFunction->results.begin() };
-                 itl != results.end();
-                 ++itl, ++itr) {
-                if (!(*itl)->EqualTo(**itr)) {
-                    return false;
-                }
-            }
-            return true;
-        }
-        return false;
-    }
-
-    std::ostream& Print(std::ostream& os) const override {
-        os << "(";
-        for (auto p : parameters) {
-            os << p << (p != parameters.back() ? ", " : "");
-        }
-        os << ") -> ";
-        for (auto p : results) {
-            os << p << (p != results.back() ? ", " : "");
-        }
-        return os;
-    }
-
-    static auto Get(std::vector<std::shared_ptr<Type>> parameters,
-                    std::vector<std::shared_ptr<Type>> results) {
-        return std::make_shared<FunctionType>(std::move(parameters), std::move(results));
-    }
+                 std::vector<std::shared_ptr<Type>> results);
+    bool EqualTo(const Type& other) const override;
+    std::ostream& Print(std::ostream& os) const override;
+    static std::shared_ptr<FunctionType> Get(std::vector<std::shared_ptr<Type>> parameters,
+                                             std::vector<std::shared_ptr<Type>> results);
 
 public:
     std::vector<std::shared_ptr<Type>> parameters;

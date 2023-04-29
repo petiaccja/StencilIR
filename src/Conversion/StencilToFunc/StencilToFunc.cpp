@@ -3,7 +3,7 @@
 #include <Dialect/Stencil/IR/StencilOps.hpp>
 
 #include <llvm/ADT/ArrayRef.h>
-#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
+#include <mlir/Dialect/Arith/IR/Arith.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/Dialect/MemRef/IR/MemRef.h>
 #include <mlir/Dialect/SCF/IR/SCF.h>
@@ -30,13 +30,47 @@ namespace sir {
 using namespace mlir;
 
 
+
+struct ApplyOpLowering : public OpRewritePattern<stencil::ApplyOp> {
+    using OpRewritePattern<stencil::ApplyOp>::OpRewritePattern;
+
+    LogicalResult matchAndRewrite(stencil::ApplyOp op, PatternRewriter& rewriter) const override final {
+        Location loc = op.getLoc();
+
+        auto generateOp = rewriter.create<stencil::GenerateOp>(loc,
+                                                               op->getResultTypes(),
+                                                               op.getOutputs(),
+                                                               op.getOffsets(),
+                                                               op.getStaticOffsets());
+
+        auto resultTypes = op->getResultTypes();
+        mlir::SmallVector<mlir::Type> elementTypes;
+        std::transform(resultTypes.begin(), resultTypes.end(), std::back_inserter(elementTypes), [](mlir::Type result) {
+            auto shaped = result.dyn_cast<mlir::ShapedType>();
+            assert(shaped);
+            return shaped.getElementType();
+        });
+
+        auto& block = *generateOp.addEntryBlock();
+        rewriter.setInsertionPointToEnd(&block);
+        mlir::SmallVector<mlir::Value> args = { block.getArgument(0) };
+        std::copy(op.getInputs().begin(), op.getInputs().end(), std::back_inserter(args));
+        auto callOp = rewriter.create<func::CallOp>(loc, op.getCalleeAttr(), elementTypes, args);
+        rewriter.create<stencil::YieldOp>(loc, callOp->getResults());
+
+        rewriter.replaceOp(op, generateOp.getResults());
+        return success();
+    }
+};
+
+
 struct StencilOpLowering : public OpRewritePattern<stencil::StencilOp> {
     using OpRewritePattern<stencil::StencilOp>::OpRewritePattern;
 
     LogicalResult matchAndRewrite(stencil::StencilOp op, PatternRewriter& rewriter) const override final {
         Location loc = op->getLoc();
 
-        const int64_t numDims = op.getNumDimensions().getSExtValue();
+        const int64_t numDims = op.getNumDimensions();
 
         std::vector<mlir::Type> functionParamTypes;
         const auto indexType = VectorType::get({ numDims }, rewriter.getIndexType());
@@ -66,9 +100,7 @@ struct ReturnOpLowering : public OpRewritePattern<stencil::ReturnOp> {
     using OpRewritePattern<stencil::ReturnOp>::OpRewritePattern;
 
     LogicalResult matchAndRewrite(stencil::ReturnOp op, PatternRewriter& rewriter) const override {
-        Location loc = op->getLoc();
-        rewriter.create<func::ReturnOp>(loc, op->getOperands());
-        rewriter.eraseOp(op);
+        rewriter.replaceOpWithNewOp<func::ReturnOp>(op, op->getOperands());
         return success();
     }
 };
@@ -117,7 +149,7 @@ struct IndexOpLowering : public OpRewritePattern<stencil::IndexOp> {
 
 
 void StencilToFuncPass::getDependentDialects(DialectRegistry& registry) const {
-    registry.insert<arith::ArithmeticDialect,
+    registry.insert<arith::ArithDialect,
                     func::FuncDialect,
                     memref::MemRefDialect,
                     vector::VectorDialect,
@@ -127,18 +159,21 @@ void StencilToFuncPass::getDependentDialects(DialectRegistry& registry) const {
 
 void StencilToFuncPass::runOnOperation() {
     ConversionTarget target(getContext());
-    target.addLegalDialect<arith::ArithmeticDialect>();
+    target.addLegalDialect<arith::ArithDialect>();
     target.addLegalDialect<func::FuncDialect>();
     target.addLegalDialect<memref::MemRefDialect>();
     target.addLegalDialect<scf::SCFDialect>();
     target.addLegalDialect<vector::VectorDialect>();
+    target.addLegalDialect<stencil::StencilDialect>();
 
+    target.addIllegalOp<stencil::ApplyOp>();
     target.addIllegalOp<stencil::StencilOp>();
     target.addIllegalOp<stencil::ReturnOp>();
     target.addIllegalOp<stencil::InvokeOp>();
     target.addIllegalOp<stencil::IndexOp>();
 
     RewritePatternSet patterns(&getContext());
+    patterns.add<ApplyOpLowering>(&getContext());
     patterns.add<StencilOpLowering>(&getContext());
     patterns.add<ReturnOpLowering>(&getContext());
     patterns.add<InvokeOpLowering>(&getContext());

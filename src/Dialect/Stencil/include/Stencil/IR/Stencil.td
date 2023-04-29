@@ -15,7 +15,7 @@ def Stencil_Dialect : Dialect {
   let name = "stencil";
   let cppNamespace = "::stencil";
   let hasConstantMaterializer = 0;
-  let emitAccessorPrefix = kEmitAccessorPrefix_Prefixed;
+  let useFoldAPI = kEmitFoldAdaptorFolder; 
 }
 
 class Stencil_Op<string mnemonic, list<Trait> traits = []> :
@@ -24,20 +24,30 @@ class Stencil_Op<string mnemonic, list<Trait> traits = []> :
 
 def StencilOp : Stencil_Op<"stencil", [
   AffineScope, AutomaticAllocationScope, CallableOpInterface,
-  FunctionOpInterface, IsolatedFromAbove, OpAsmOpInterface, Symbol
+  FunctionOpInterface, IsolatedFromAbove, OpAsmOpInterface
 ]> {
   let arguments = (ins
     SymbolNameAttr:$sym_name,
     TypeAttrOf<FunctionType>:$function_type,
-    IndexAttr:$num_dimensions
+    I64Attr:$num_dimensions,
+    OptionalAttr<DictArrayAttr>:$arg_attrs,
+    OptionalAttr<DictArrayAttr>:$res_attrs
   );
   let regions = (region AnyRegion:$body);
+  let builders = [OpBuilder<(ins
+    "::llvm::StringRef":$name,
+    "::mlir::FunctionType":$type,
+    "::mlir::IntegerAttr":$num_dimensions,
+    CArg<"::llvm::ArrayRef<::mlir::NamedAttribute>", "{}">:$attrs,
+    CArg<"::llvm::ArrayRef<::mlir::DictionaryAttr>", "{}">:$argAttrs)
+  >];
   let extraClassDeclaration = [{
     static StencilOp create(mlir::Location location, mlir::StringRef name, mlir::FunctionType type,
-                         llvm::ArrayRef<mlir::NamedAttribute> attrs = {});
+                         ::mlir::IntegerAttr numDimensions, llvm::ArrayRef<mlir::NamedAttribute> attrs = {});
     static StencilOp create(mlir::Location location, mlir::StringRef name, mlir::FunctionType type,
-                         mlir::Operation::dialect_attr_range attrs);
+                         ::mlir::IntegerAttr numDimensions, mlir::Operation::dialect_attr_range attrs);
     static StencilOp create(mlir::Location location, mlir::StringRef name, mlir::FunctionType type,
+                         ::mlir::IntegerAttr numDimensions, 
                          llvm::ArrayRef<mlir::NamedAttribute> attrs,
                          llvm::ArrayRef<mlir::DictionaryAttr> argAttrs);
 
@@ -48,14 +58,14 @@ def StencilOp : Stencil_Op<"stencil", [
     /// included in the new function. Replaces references to cloned sub-values
     /// with the corresponding value that is copied, and adds those mappings to
     /// the mapper.
-    StencilOp clone(mlir::BlockAndValueMapping &mapper);
+    StencilOp clone(mlir::IRMapping &mapper);
     StencilOp clone();
 
     /// Clone the internal blocks and attributes from this function into dest.
     /// Any cloned blocks are appended to the back of dest. This function
     /// asserts that the attributes of the current function and dest are
     /// compatible.
-    void cloneInto(StencilOp dest, mlir::BlockAndValueMapping &mapper);
+    void cloneInto(StencilOp dest, mlir::IRMapping &mapper);
 
     //===------------------------------------------------------------------===//
     // CallableOpInterface
@@ -143,6 +153,52 @@ def ApplyOp : Stencil_Op<"apply", [
 }
 
 
+def GenerateOp : Stencil_Op<"generate", [
+  MemRefsNormalizable,
+  AttrSizedOperandSegments,
+  DeclareOpInterfaceMethods<MemoryEffectsOpInterface>
+]> {
+  let arguments = (ins Variadic<AnyShaped>:$outputs,
+                   Variadic<Index>:$offsets,
+                   I64ArrayAttr:$static_offsets);
+  let results = (outs Variadic<AnyShaped>:$results);
+  let regions = (region AnyRegion:$body);
+  let builders = [
+    OpBuilder<(ins "::mlir::ValueRange":$outputs)>,
+    OpBuilder<(ins "::mlir::ValueRange":$outputs, "::llvm::ArrayRef<int64_t>":$static_offsets)>,
+    OpBuilder<(ins "::mlir::ValueRange":$outputs, "::mlir::ValueRange":$offsets)>,
+    OpBuilder<(ins "::mlir::ValueRange":$outputs, "::mlir::ValueRange":$offsets, "::llvm::ArrayRef<int64_t>":$static_offsets)>
+  ];
+
+  let hasVerifier = 1;
+  let hasCustomAssemblyFormat = 1;
+  let assemblyFormat = [{
+    ` ` `outs` `(` $outputs `)` `offsets` $offsets `` $static_offsets attr-dict `:` functional-type(operands, $results) $body
+  }];
+  let summary = "TODO";
+  let description = [{
+    TODO
+  }];
+  let extraClassDeclaration = [{
+      ::mlir::Block *addEntryBlock();
+  }];  
+}
+
+
+def YieldOp : Stencil_Op<"yield", [
+  ReturnLike, Terminator, MemRefsNormalizable, Pure, HasParent<"GenerateOp">
+]> {
+  let arguments = (ins Variadic<AnyType>:$arguments);
+  let builders = [OpBuilder<(ins), [{
+    build($_builder, $_state, std::nullopt);
+  }]>];
+  let hasVerifier = 1;
+  let hasCustomAssemblyFormat = 1;
+  let assemblyFormat = "attr-dict ($arguments^ `:` type($arguments))?";
+  let summary = "TODO.";
+}
+
+
 def InvokeOp : Stencil_Op<"invoke", [
   MemRefsNormalizable, CallOpInterface,
   DeclareOpInterfaceMethods<SymbolUserOpInterface>
@@ -174,11 +230,11 @@ def InvokeOp : Stencil_Op<"invoke", [
 
 
 def ReturnOp : Stencil_Op<"return", [
-  ReturnLike, Terminator, MemRefsNormalizable, NoSideEffect, HasParent<"StencilOp">
+  ReturnLike, Terminator, MemRefsNormalizable, Pure, HasParent<"StencilOp">
 ]> {
   let arguments = (ins Variadic<AnyType>:$arguments);
   let builders = [OpBuilder<(ins), [{
-    build($_builder, $_state, llvm::None);
+    build($_builder, $_state, std::nullopt);
   }]>];
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = "attr-dict ($arguments^ `:` type($arguments))?";
@@ -186,7 +242,7 @@ def ReturnOp : Stencil_Op<"return", [
 }
 
 
-def IndexOp : Stencil_Op<"index", [NoSideEffect]> {
+def IndexOp : Stencil_Op<"index", [NoMemoryEffect]> {
   let results = (outs AnyVector:$index);
   let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
@@ -195,7 +251,7 @@ def IndexOp : Stencil_Op<"index", [NoSideEffect]> {
 }
 
 
-def JumpOp : Stencil_Op<"jump", [NoSideEffect]> {
+def JumpOp : Stencil_Op<"jump", [NoMemoryEffect]> {
   let arguments = (ins AnyVector:$input_index, I64ArrayAttr:$offset);
   let results = (outs AnyVector:$offseted_index);
   let hasCustomAssemblyFormat = 1;
@@ -206,7 +262,7 @@ def JumpOp : Stencil_Op<"jump", [NoSideEffect]> {
 }
 
 
-def ProjectOp : Stencil_Op<"project", [NoSideEffect]> {
+def ProjectOp : Stencil_Op<"project", [NoMemoryEffect]> {
   let arguments = (ins AnyVector:$source, I64ArrayAttr:$positions);
   let results = (outs AnyVector:$result);
   let builders = [
@@ -219,7 +275,7 @@ def ProjectOp : Stencil_Op<"project", [NoSideEffect]> {
 }
 
 
-def ExtendOp : Stencil_Op<"extend", [NoSideEffect]> {
+def ExtendOp : Stencil_Op<"extend", [NoMemoryEffect]> {
   let arguments = (ins AnyVector:$source, IndexAttr:$position, Index:$value);
   let results = (outs AnyVector:$result);
   let builders = [
@@ -231,7 +287,7 @@ def ExtendOp : Stencil_Op<"extend", [NoSideEffect]> {
 }
 
 
-def ExchangeOp : Stencil_Op<"exchange", [NoSideEffect]> {
+def ExchangeOp : Stencil_Op<"exchange", [NoMemoryEffect]> {
   let arguments = (ins AnyVector:$source, IndexAttr:$position, Index:$value);
   let results = (outs AnyVector:$result);
   let builders = [
@@ -243,7 +299,7 @@ def ExchangeOp : Stencil_Op<"exchange", [NoSideEffect]> {
 }
 
 
-def ExtractOp : Stencil_Op<"extract", [NoSideEffect]> {
+def ExtractOp : Stencil_Op<"extract", [NoMemoryEffect]> {
   let arguments = (ins AnyVector:$source, IndexAttr:$position);
   let results = (outs Index:$result);
   let builders = [
