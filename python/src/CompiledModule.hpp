@@ -33,7 +33,7 @@ struct CompileOptions {
     eTargetArch targetArch;
     eOptimizationLevel optimizationLevel;
     OptimizationOptions optimizationOptions;
-    bool operator<=>(const CompileOptions& rhs) const noexcept = default;
+    std::strong_ordering operator<=>(const CompileOptions& rhs) const noexcept = default;
 };
 
 

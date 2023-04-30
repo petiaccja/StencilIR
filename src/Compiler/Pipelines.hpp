@@ -11,7 +11,7 @@ struct OptimizationOptions {
     bool fuseApplyOps = false;
     bool eliminateAllocBuffers = false;
     bool enableRuntimeVerification = true;
-    bool operator<=>(const OptimizationOptions& rhs) const noexcept = default;
+    std::strong_ordering operator<=>(const OptimizationOptions& rhs) const noexcept = default;
 };
 
 std::vector<Stage> TargetCPUPipeline(mlir::MLIRContext& context,
