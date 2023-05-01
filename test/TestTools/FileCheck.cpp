@@ -5,6 +5,7 @@
 #include <Diagnostics/Handlers.hpp>
 #include <Dialect/Stencil/IR/StencilOps.hpp>
 #include <Dialect/Stencil/Transforms/BufferizableOpInterfaceImpl.hpp>
+#include <Dialect/Stencil/Transforms/RuntimeVerificationInterfaceImpl.hpp>
 #include <IR/ConvertOps.hpp>
 #include <IR/Operation.hpp>
 
@@ -139,6 +140,7 @@ bool CheckFile(mlir::MLIRContext& context, const std::filesystem::path& file, st
     mlir::DialectRegistry registry;
     mlir::bufferization::func_ext::registerBufferizableOpInterfaceExternalModels(registry);
     stencil::registerBufferizableOpInterfaceExternalModels(registry);
+    stencil::registerRuntimeVerifiableOpInterfaceExternalModels(registry);
     context.appendDialectRegistry(registry);
 
     mlir::ParserConfig config{ &context };

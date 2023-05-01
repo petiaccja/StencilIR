@@ -8,6 +8,7 @@
 #include <Diagnostics/Handlers.hpp>
 #include <Dialect/Stencil/IR/StencilOps.hpp>
 #include <Dialect/Stencil/Transforms/BufferizableOpInterfaceImpl.hpp>
+#include <Dialect/Stencil/Transforms/RuntimeVerificationInterfaceImpl.hpp>
 
 #include <mlir/Dialect/Arith/IR/Arith.h>
 #include <mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h>
@@ -549,6 +550,7 @@ mlir::Operation* ConvertOperation(mlir::MLIRContext& context, Operation op) {
     mlir::DialectRegistry registry;
     mlir::bufferization::func_ext::registerBufferizableOpInterfaceExternalModels(registry);
     stencil::registerBufferizableOpInterfaceExternalModels(registry);
+    stencil::registerRuntimeVerifiableOpInterfaceExternalModels(registry);
     context.appendDialectRegistry(registry);
     context.loadAllAvailableDialects();
 

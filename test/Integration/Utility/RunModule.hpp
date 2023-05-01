@@ -48,6 +48,7 @@ std::vector<sir::StageResult> RunModule(const sir::ops::ModuleOp& mod,
 
     try {
         mlir::ModuleOp compiled = compiler.Run(ir, stageResults);
+        writeStageResults();
         constexpr int optLevel = 3;
         sir::Runner jitRunner{ compiled, optLevel };
         jitRunner.Invoke(function, std::forward<Args>(args)...);
@@ -56,7 +57,6 @@ std::vector<sir::StageResult> RunModule(const sir::ops::ModuleOp& mod,
         writeStageResults();
         throw;
     }
-    writeStageResults();
 
     return stageResults;
 }
