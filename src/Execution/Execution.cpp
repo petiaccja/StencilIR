@@ -13,6 +13,8 @@
 #include <mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h>
 #include <mlir/Target/LLVMIR/Export.h>
 
+#include <regex>
+
 
 namespace sir {
 
@@ -26,21 +28,31 @@ Runner::Runner(mlir::ModuleOp& llvmIr, int optLevel) {
     auto optPipeline = mlir::makeOptimizingTransformer(optLevel, sizeLevel, targetMachine);
 
     // This is needed on Windows so that the MLIR runner utils DLL is actually linked against.
-    [[maybe_unused]] volatile auto forceRunnerUtils = &rtclock;
-    const auto runnerUtilsLibPath = GetModulePath(R"(.*mlir_c_runner_utils.*)");
-    if (!runnerUtilsLibPath) {
-        throw std::runtime_error("Could not find MLIR runner utilities shared library.");
+    std::vector<std::string> sharedLibPaths;
+    {
+        [[maybe_unused]] volatile auto forceRunnerUtils = &rtclock;
+        const auto runnerUtilsLibPath = GetModulePath(R"(.*mlir_c_runner_utils.*)");
+        if (!runnerUtilsLibPath) {
+            throw std::runtime_error("Could not find MLIR runner utilities shared library.");
+        }
+        sharedLibPaths.push_back(runnerUtilsLibPath->string());
+
+        for (auto& file : std::filesystem::directory_iterator(runnerUtilsLibPath->parent_path())) {
+            std::regex re(R"(.*mlir_cuda_runtime.*)");
+            if (std::regex_match(file.path().filename().string(), re)) {
+                sharedLibPaths.push_back(file.path().string());
+                break;
+            }
+        }
     }
-    const auto runnerUtilsLibPathStr = runnerUtilsLibPath->string();
-    std::vector<mlir::StringRef> sharedLibPaths = {
-        runnerUtilsLibPathStr
-    };
+    std::vector<mlir::StringRef> sharedLibPathsRef{ sharedLibPaths.begin(), sharedLibPaths.end() };
+
 
     mlir::ExecutionEngineOptions engineOptions;
     engineOptions.transformer = optPipeline;
     engineOptions.enableGDBNotificationListener = true;
     engineOptions.enablePerfNotificationListener = true;
-    engineOptions.sharedLibPaths = sharedLibPaths;
+    engineOptions.sharedLibPaths = sharedLibPathsRef;
     engineOptions.jitCodeGenOptLevel = optLevel == 0   ? llvm::CodeGenOpt::None
                                        : optLevel == 1 ? llvm::CodeGenOpt::Less
                                        : optLevel == 2 ? llvm::CodeGenOpt::Default

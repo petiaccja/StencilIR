@@ -233,7 +233,7 @@ TEST_CASE("Optimization", "[Program]") {
     }
 
     const auto program = CreateAST();
-    const auto stages = RunModule(program, "main", true, input, output);
+    RunModule(program, "main", true, input, output);
 
     const std::array<float, outputSize> expectedBuffer = {
         0.6f, 1.2f, 1.8f, 2.4f, 3.0f, 3.6f, 4.2f
@@ -246,12 +246,6 @@ TEST_CASE("Optimization", "[Program]") {
         0.0f,
         [](float acc, float v) { return std::max(acc, v); },
         [](float u, float v) { return std::abs(u - v); });
-    std::stringstream ss;
-    for (auto& stage : stages) {
-        ss << "// " << stage.name << std::endl;
-        ss << stage.ir << "\n"
-           << std::endl;
-    }
-    INFO(ss.str());
+
     REQUIRE(maxDifference < 0.001f);
 }

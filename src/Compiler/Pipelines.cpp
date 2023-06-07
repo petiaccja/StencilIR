@@ -5,6 +5,8 @@
 #include <Dialect/Stencil/Transforms/Passes.hpp>
 #include <Transforms/Passes.hpp>
 
+#include <llvm/Support/TargetSelect.h>
+#include <mlir/Conversion/GPUToNVVM/GPUToNVVMPass.h>
 #include <mlir/Conversion/Passes.h>
 #include <mlir/Dialect/Affine/Passes.h>
 #include <mlir/Dialect/Arith/Transforms/Passes.h>
@@ -14,7 +16,9 @@
 #include <mlir/Dialect/Bufferization/Transforms/Passes.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
 #include <mlir/Dialect/Func/Transforms/Passes.h>
+#include <mlir/Dialect/GPU/Transforms/Passes.h>
 #include <mlir/Dialect/MemRef/Transforms/Passes.h>
+#include <mlir/Dialect/SCF/Transforms/Passes.h>
 #include <mlir/Dialect/Tensor/Transforms/Passes.h>
 #include <mlir/Transforms/Passes.h>
 
@@ -22,14 +26,23 @@
 namespace sir {
 
 
-Stage CreateBufferizationStage(mlir::MLIRContext& context) {
+Stage CreateCleanupStage(mlir::MLIRContext& context) {
+    Stage stage{ "canonicalization", context };
+    stage.passes->addPass(mlir::createCSEPass());
+    stage.passes->addPass(mlir::createCanonicalizerPass());
+    stage.passes->addPass(mlir::createTopologicalSortPass());
+    return stage;
+}
+
+
+Stage CreateBufferizationStage(mlir::MLIRContext& context, int defaultMemorySpace) {
     Stage stage{ "bufferization", context };
 
     mlir::bufferization::OneShotBufferizationOptions bufferizationOptions;
     bufferizationOptions.allowUnknownOps = false;
     bufferizationOptions.allowReturnAllocs = false;
     bufferizationOptions.createDeallocs = true;
-    bufferizationOptions.defaultMemorySpace = mlir::IntegerAttr::get(mlir::IntegerType::get(&context, 64), 0);
+    bufferizationOptions.defaultMemorySpace = mlir::IntegerAttr::get(mlir::IntegerType::get(&context, 64), defaultMemorySpace);
     bufferizationOptions.functionBoundaryTypeConversion = mlir::bufferization::LayoutMapOption::FullyDynamicLayoutMap;
     bufferizationOptions.bufferizeFunctionBoundaries = true;
 
@@ -109,58 +122,54 @@ Stage CreateGlobalOptimizationStage(mlir::MLIRContext& context,
 }
 
 
+Stage CreateStencilToStandardStage(mlir::MLIRContext& context, bool runtimeVerification) {
+    Stage stage{ "standard", context };
+    runtimeVerification ? stage.passes->addPass(mlir::createGenerateRuntimeVerificationPass()) : void();
+    stage.passes->addPass(createStencilToLoopsPass());
+    stage.passes->addPass(createStencilToStandardPass());
+    stage.passes->addPass(createStencilPrintToLLVMPass());
+    stage.passes->addPass(mlir::createCSEPass());
+    stage.passes->addPass(mlir::createCanonicalizerPass());
+    return stage;
+}
+
+
+Stage CreateStandardToLLVMStage(mlir::MLIRContext& context, bool verify = true) {
+    Stage stage{ "llvm", context };
+    stage.passes->addPass(mlir::createConvertSCFToCFPass());
+
+    stage.passes->addPass(mlir::memref::createExpandStridedMetadataPass());
+    stage.passes->addPass(mlir::memref::createExpandOpsPass());
+    stage.passes->addPass(mlir::createMemRefToLLVMConversionPass());
+
+    stage.passes->addPass(mlir::createConvertVectorToLLVMPass());
+
+    stage.passes->addPass(mlir::createLowerAffinePass());
+
+    stage.passes->addPass(mlir::arith::createArithExpandOpsPass());
+    stage.passes->addPass(mlir::createConvertMathToLibmPass());
+    stage.passes->addPass(mlir::createConvertMathToLLVMPass());
+    stage.passes->addPass(mlir::createArithToLLVMConversionPass());
+
+    stage.passes->addPass(mlir::cf::createConvertControlFlowToLLVMPass());
+    stage.passes->addPass(mlir::createConvertFuncToLLVMPass());
+
+    stage.passes->addPass(mlir::createCanonicalizerPass());
+    stage.passes->addPass(mlir::createCSEPass());
+    verify ? stage.passes->addPass(mlir::createReconcileUnrealizedCastsPass()) : void();
+    return stage;
+}
+
+
 std::vector<Stage> TargetCPUPipeline(mlir::MLIRContext& context,
                                      const OptimizationOptions& optimizationOptions) {
-    const bool runtimeVerif = optimizationOptions.enableRuntimeVerification;
-
-    // Clean-up
-    Stage canonicalization{ "canonicalization", context };
-    canonicalization.passes->addPass(mlir::createCSEPass());
-    canonicalization.passes->addPass(mlir::createCanonicalizerPass());
-    canonicalization.passes->addPass(mlir::createTopologicalSortPass());
-
-    // High-level optimizer
+    Stage canonicalization = CreateCleanupStage(context);
     Stage globalOpt = CreateGlobalOptimizationStage(context, optimizationOptions);
-
-    // Convert to func
     Stage func{ "func", context };
     func.passes->addPass(createStencilToFuncPass());
-
-    // Bufferize
-    Stage bufferization = CreateBufferizationStage(context);
-
-    // Convert out of stencil dialect
-    Stage standard{ "standard", context };
-    runtimeVerif ? standard.passes->addPass(mlir::createGenerateRuntimeVerificationPass()) : void();
-    standard.passes->addPass(createStencilToLoopsPass());
-    standard.passes->addPass(createStencilToStandardPass());
-    standard.passes->addPass(createStencilPrintToLLVMPass());
-    standard.passes->addPass(mlir::createCSEPass());
-    standard.passes->addPass(mlir::createCanonicalizerPass());
-
-    // Convert all to LLVM IR
-    Stage llvm{ "llvm", context };
-    llvm.passes->addPass(mlir::createConvertSCFToCFPass());
-
-    llvm.passes->addPass(mlir::memref::createExpandStridedMetadataPass());
-    llvm.passes->addPass(mlir::memref::createExpandOpsPass());
-    llvm.passes->addPass(mlir::createMemRefToLLVMConversionPass());
-
-    llvm.passes->addPass(mlir::createConvertVectorToLLVMPass());
-
-    llvm.passes->addPass(mlir::createLowerAffinePass());
-
-    llvm.passes->addPass(mlir::arith::createArithExpandOpsPass());
-    llvm.passes->addPass(mlir::createConvertMathToLibmPass());
-    llvm.passes->addPass(mlir::createConvertMathToLLVMPass());
-    llvm.passes->addPass(mlir::createArithToLLVMConversionPass());
-
-    llvm.passes->addPass(mlir::cf::createConvertControlFlowToLLVMPass());
-    llvm.passes->addPass(mlir::createConvertFuncToLLVMPass());
-
-    llvm.passes->addPass(mlir::createCanonicalizerPass());
-    llvm.passes->addPass(mlir::createCSEPass());
-    llvm.passes->addPass(mlir::createReconcileUnrealizedCastsPass());
+    Stage bufferization = CreateBufferizationStage(context, 0);
+    Stage standard = CreateStencilToStandardStage(context, optimizationOptions.enableRuntimeVerification);
+    Stage llvm = CreateStandardToLLVMStage(context);
 
     std::array stages{ std::move(canonicalization),
                        std::move(globalOpt),
@@ -168,6 +177,61 @@ std::vector<Stage> TargetCPUPipeline(mlir::MLIRContext& context,
                        std::move(bufferization),
                        std::move(standard),
                        std::move(llvm) };
+    return { std::make_move_iterator(stages.begin()), std::make_move_iterator(stages.end()) };
+}
+
+
+Stage CreateStandardToGPUStage(mlir::MLIRContext& context) {
+    Stage stage{ "gpu", context };
+    stage.passes->addNestedPass<mlir::func::FuncOp>(mlir::createParallelLoopTilingPass({ 256 }, true));
+    stage.passes->addNestedPass<mlir::func::FuncOp>(mlir::createGpuMapParallelLoopsPass());
+    stage.passes->addNestedPass<mlir::func::FuncOp>(mlir::createParallelLoopToGpuPass());
+    stage.passes->addPass(mlir::createGpuKernelOutliningPass());
+    stage.passes->addPass(mlir::createSymbolDCEPass());
+    return stage;
+}
+
+
+Stage CreateCUDASerializerStage(mlir::MLIRContext& context, bool verify = true) {
+    LLVMInitializeNVPTXTarget();
+    LLVMInitializeNVPTXTargetInfo();
+    LLVMInitializeNVPTXTargetMC();
+    LLVMInitializeNVPTXAsmPrinter();
+
+    Stage stage{ "cuda_bin", context };
+    stage.passes->addNestedPass<mlir::gpu::GPUModuleOp>(mlir::createLowerGpuOpsToNVVMOpsPass());
+    stage.passes->addPass(mlir::createCanonicalizerPass());
+    stage.passes->addNestedPass<mlir::gpu::GPUModuleOp>(mlir::createGpuSerializeToCubinPass("nvptx64-nvidia-cuda", "sm_35", "+ptx60"));
+    stage.passes->addPass(mlir::createGpuToLLVMConversionPass());
+
+    stage.passes->addPass(mlir::createCanonicalizerPass());
+    stage.passes->addPass(mlir::createCSEPass());
+    verify ? stage.passes->addPass(mlir::createReconcileUnrealizedCastsPass()) : void();
+
+    return stage;
+}
+
+
+std::vector<Stage> TargetCUDAPipeline(mlir::MLIRContext& context,
+                                      const OptimizationOptions& optimizationOptions) {
+    Stage canonicalization = CreateCleanupStage(context);
+    Stage globalOpt = CreateGlobalOptimizationStage(context, optimizationOptions);
+    Stage func{ "func", context };
+    func.passes->addPass(createStencilToFuncPass());
+    Stage bufferization = CreateBufferizationStage(context, 1);
+    Stage standard = CreateStencilToStandardStage(context, false);
+    Stage cuda = CreateStandardToGPUStage(context);
+    Stage llvm = CreateStandardToLLVMStage(context, false);
+    Stage serialize = CreateCUDASerializerStage(context, true);
+
+    std::array stages{ std::move(canonicalization),
+                       std::move(globalOpt),
+                       std::move(func),
+                       std::move(bufferization),
+                       std::move(standard),
+                       std::move(cuda),
+                       std::move(llvm),
+                       std::move(serialize) };
     return { std::make_move_iterator(stages.begin()), std::make_move_iterator(stages.end()) };
 }
 

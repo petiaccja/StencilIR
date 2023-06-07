@@ -37,4 +37,4 @@ target_link_libraries(Compiler
 
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
-target_link_libraries(Compiler ${dialect_libs})
+target_link_libraries(Compiler ${dialect_libs} MLIRSCFToGPU MLIRGPUToGPURuntimeTransforms MLIRGPUToNVVMTransforms)

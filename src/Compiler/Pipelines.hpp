@@ -17,6 +17,10 @@ struct OptimizationOptions {
 std::vector<Stage> TargetCPUPipeline(mlir::MLIRContext& context,
                                      const OptimizationOptions& macroOptimizationOptions = {});
 
+
+std::vector<Stage> TargetCUDAPipeline(mlir::MLIRContext& context,
+                                      const OptimizationOptions& macroOptimizationOptions = {});
+
 } // namespace sir
 
 

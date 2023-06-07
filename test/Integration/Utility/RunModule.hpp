@@ -14,29 +14,17 @@
 #include <fstream>
 
 
-template <class... Args>
-std::vector<sir::StageResult> RunModule(const sir::ops::ModuleOp& mod,
-                                        std::string_view function,
-                                        bool optimize,
-                                        Args&&... args) {
-    mlir::MLIRContext context;
-    mlir::ModuleOp ir = mlir::dyn_cast<mlir::ModuleOp>(ConvertOperation(context, mod));
-
+inline void SnapshotIR(mlir::ModuleOp ir) {
     mlir::PassManager snapshotPm(ir->getContext());
     const auto snapshotFile = std::filesystem::temp_directory_path() / "0_0_original.mlir";
     snapshotPm.addPass(mlir::createLocationSnapshotPass({}, snapshotFile.string()));
     if (failed(snapshotPm.run(ir))) {
         throw sir::Exception("failed to snapshot IR locations");
     }
+}
 
-    const auto optimizationOptions = !optimize ? sir::OptimizationOptions{} : sir::OptimizationOptions{
-        .inlineFunctions = true,
-        .fuseExtractSliceOps = true,
-        .fuseApplyOps = true,
-        .eliminateAllocBuffers = true,
-    };
 
-    sir::Compiler compiler{ TargetCPUPipeline(context, optimizationOptions) };
+inline mlir::ModuleOp CompileWithStageResults(sir::Compiler& compiler, mlir::ModuleOp ir) {
     std::vector<sir::StageResult> stageResults;
     auto writeStageResults = [&]() {
         for (auto& stage : stageResults) {
@@ -49,14 +37,39 @@ std::vector<sir::StageResult> RunModule(const sir::ops::ModuleOp& mod,
     try {
         mlir::ModuleOp compiled = compiler.Run(ir, stageResults);
         writeStageResults();
-        constexpr int optLevel = 3;
-        sir::Runner jitRunner{ compiled, optLevel };
-        jitRunner.Invoke(function, std::forward<Args>(args)...);
+        return compiled;
     }
     catch (...) {
         writeStageResults();
         throw;
     }
+}
+
+
+template <class... Args>
+std::vector<sir::StageResult> RunModule(const sir::ops::ModuleOp& mod,
+                                        std::string_view function,
+                                        bool optimize,
+                                        Args&&... args) {
+    mlir::MLIRContext context;
+    mlir::ModuleOp ir = mlir::dyn_cast<mlir::ModuleOp>(ConvertOperation(context, mod));
+
+    SnapshotIR(ir);
+
+    const auto optimizationOptions = !optimize ? sir::OptimizationOptions{} : sir::OptimizationOptions{
+        .inlineFunctions = true,
+        .fuseExtractSliceOps = true,
+        .fuseApplyOps = true,
+        .eliminateAllocBuffers = true,
+    };
+
+    sir::Compiler compiler{ TargetCPUPipeline(context, optimizationOptions) };
+    std::vector<sir::StageResult> stageResults;
+
+    auto compiled = CompileWithStageResults(compiler, ir);
+    constexpr int optLevel = 3;
+    sir::Runner jitRunner{ compiled, optLevel };
+    jitRunner.Invoke(function, std::forward<Args>(args)...);
 
     return stageResults;
 }

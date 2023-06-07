@@ -12,6 +12,14 @@ target_sources(TestIntegration
         Test_ObjectFile.cpp
 )
 
+if (${STENCILIR_ENABLE_CUDA})
+    target_sources(TestIntegration
+        PRIVATE
+            Test_CUDA.cpp
+    )
+    target_link_libraries(TestIntegration CUDA::cudart)
+endif()
+
 target_link_libraries(TestIntegration IR Compiler Execution)
 
 find_package(Catch2)

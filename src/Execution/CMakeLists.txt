@@ -42,6 +42,8 @@ target_link_libraries(Execution
     MLIRExecutionEngineUtils
 )
 
-target_link_libraries(Execution
-    mlir_c_runner_utils
-)
+target_link_libraries(Execution mlir_c_runner_utils)
+
+if ($STENCILIR_ENABLE_CUDA)
+    target_link_libraries(Execution mlir_cuda_runtime)
+endif()
