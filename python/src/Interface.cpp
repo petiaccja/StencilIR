@@ -296,10 +296,10 @@ PYBIND11_MODULE(stencilir, m) {
     //----------------------------------
     // Execution
     //----------------------------------
-    pybind11::enum_<eTargetArch>(m, "TargetArch")
-        .value("X86", eTargetArch::X86)
-        .value("NVPTX", eTargetArch::NVPTX)
-        .value("AMDGPU", eTargetArch::AMDGPU)
+    pybind11::enum_<eAccelerator>(m, "Accelerator")
+        .value("NONE", eAccelerator::NONE)
+        .value("CUDA", eAccelerator::CUDA)
+        .value("AMDGPU", eAccelerator::AMDGPU)
         .export_values();
 
     pybind11::enum_<eOptimizationLevel>(m, "OptimizationLevel")
@@ -325,11 +325,11 @@ PYBIND11_MODULE(stencilir, m) {
         .def(pybind11::self == pybind11::self);
 
     pybind11::class_<CompileOptions>(m, "CompileOptions")
-        .def(pybind11::init<eTargetArch, eOptimizationLevel, OptimizationOptions>(),
-             pybind11::arg("target_arch"),
+        .def(pybind11::init<eAccelerator, eOptimizationLevel, OptimizationOptions>(),
+             pybind11::arg("accelerator"),
              pybind11::arg("opt_level"),
              pybind11::arg("opt_options") = OptimizationOptions{})
-        .def_readwrite("target_arch", &CompileOptions::targetArch)
+        .def_readwrite("accelerator", &CompileOptions::accelerator)
         .def_readwrite("opt_level", &CompileOptions::optimizationLevel)
         .def_readwrite("opt_options", &CompileOptions::optimizationOptions)
         .def("__hash__", [](const CompileOptions& self) { return std::hash<CompileOptions>{}(self); })

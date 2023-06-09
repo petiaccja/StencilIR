@@ -48,6 +48,10 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 link_libraries(Threads::Threads)
 
+if (${STENCILIR_ENABLE_CUDA})
+	add_compile_definitions("STENCILIR_ENABLE_CUDA=1")
+endif()
+
 # LLVM dependency
 find_package(MLIR CONFIG QUIET)
 if(NOT MLIR_FOUND)

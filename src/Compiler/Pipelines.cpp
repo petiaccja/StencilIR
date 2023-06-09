@@ -193,6 +193,7 @@ Stage CreateStandardToGPUStage(mlir::MLIRContext& context) {
 
 
 Stage CreateCUDASerializerStage(mlir::MLIRContext& context, bool verify = true) {
+#ifdef STENCILIR_ENABLE_CUDA
     LLVMInitializeNVPTXTarget();
     LLVMInitializeNVPTXTargetInfo();
     LLVMInitializeNVPTXTargetMC();
@@ -209,6 +210,9 @@ Stage CreateCUDASerializerStage(mlir::MLIRContext& context, bool verify = true) 
     verify ? stage.passes->addPass(mlir::createReconcileUnrealizedCastsPass()) : void();
 
     return stage;
+#else
+    throw std::runtime_error("to use CUDA, Stencil IR must be compiled with STENCILIR_ENABLE_CUDA=ON");
+#endif
 }
 
 

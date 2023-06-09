@@ -8,7 +8,7 @@ def test_returns_void():
     function = module.add(ops.FuncOp("main", sir.FunctionType([], []), True, None))
     function.add(ops.ReturnOp([], None))
 
-    compile_options = sir.CompileOptions(sir.TargetArch.X86, sir.OptimizationLevel.O0)
+    compile_options = sir.CompileOptions(sir.Accelerator.NONE, sir.OptimizationLevel.O0)
     compiled_module = sir.CompiledModule(module, compile_options)
 
     result = compiled_module.invoke("main")
@@ -21,7 +21,7 @@ def test_returns_single():
     value = function.add(ops.ConstantOp(1.0, sir.FloatType(64), None)).get_result()
     function.add(ops.ReturnOp([value], None))
 
-    compile_options = sir.CompileOptions(sir.TargetArch.X86, sir.OptimizationLevel.O0)
+    compile_options = sir.CompileOptions(sir.Accelerator.NONE, sir.OptimizationLevel.O0)
     compiled_module = sir.CompiledModule(module, compile_options)
 
     result = compiled_module.invoke("main")
@@ -36,7 +36,7 @@ def test_returns_multiple():
     v2 = function.add(ops.ConstantOp(2.0, sir.FloatType(64), None)).get_result()
     function.add(ops.ReturnOp([v1, v2], None))
 
-    compile_options = sir.CompileOptions(sir.TargetArch.X86, sir.OptimizationLevel.O0)
+    compile_options = sir.CompileOptions(sir.Accelerator.NONE, sir.OptimizationLevel.O0)
     compiled_module = sir.CompiledModule(module, compile_options)
 
     result = compiled_module.invoke("main")
@@ -51,7 +51,7 @@ def test_scalar_passthrough():
     value = function.get_region_arg(0)
     function.add(ops.ReturnOp([value], None))
 
-    compile_options = sir.CompileOptions(sir.TargetArch.X86, sir.OptimizationLevel.O0)
+    compile_options = sir.CompileOptions(sir.Accelerator.NONE, sir.OptimizationLevel.O0)
     compiled_module = sir.CompiledModule(module, compile_options)
 
     value = 3.14
@@ -67,7 +67,7 @@ def test_field_passthrough():
     value = function.get_region_arg(0)
     function.add(ops.ReturnOp([value], None))
 
-    compile_options = sir.CompileOptions(sir.TargetArch.X86, sir.OptimizationLevel.O0)
+    compile_options = sir.CompileOptions(sir.Accelerator.NONE, sir.OptimizationLevel.O0)
     compiled_module = sir.CompiledModule(module, compile_options)
 
     value = np.ones((3, 4), dtype=np.float64)
@@ -86,7 +86,7 @@ def test_mixed_passthrough():
     scalar_v = function.get_region_arg(1)
     function.add(ops.ReturnOp([field_v, scalar_v], None))
 
-    compile_options = sir.CompileOptions(sir.TargetArch.X86, sir.OptimizationLevel.O3)
+    compile_options = sir.CompileOptions(sir.Accelerator.NONE, sir.OptimizationLevel.O3)
     compiled_module = sir.CompiledModule(module, compile_options)
 
     v1, v2 = np.ones((3, 4), dtype=np.float64), 12.0

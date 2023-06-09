@@ -73,9 +73,10 @@ std::vector<StageResult> CompiledModule::GetStageResults() const {
 
 void CompiledModule::Compile(bool recordStages) {
     auto pipeline = [&] {
-        switch (m_options.targetArch) {
-            case eTargetArch::X86: return TargetCPUPipeline(m_context, m_options.optimizationOptions);
-            default: throw std::invalid_argument("target architecture not supported yet.");
+        switch (m_options.accelerator) {
+            case eAccelerator::NONE: return TargetCPUPipeline(m_context, m_options.optimizationOptions);
+            case eAccelerator::CUDA: return TargetCUDAPipeline(m_context, m_options.optimizationOptions);
+            default: throw std::invalid_argument("accelerator not currently implemeneted");
         }
     }();
     const int optLevel = static_cast<int>(m_options.optimizationLevel);

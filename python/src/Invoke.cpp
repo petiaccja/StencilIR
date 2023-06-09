@@ -9,7 +9,7 @@ namespace sir {
 // Utilities
 //------------------------------------------------------------------------------
 
-TypePtr GetTypeFromFormat(std::string_view format) {
+TypePtr GetTypeFromFormatString(std::string_view format) {
     using namespace std::string_literals;
 
     const auto pybindType = [&]() -> TypePtr {
@@ -96,6 +96,26 @@ TypePtr GetTypeFromFormat(std::string_view format) {
 }
 
 
+TypePtr GetTypeFromDTypeString(std::string_view format) {
+    using namespace std::string_literals;
+
+    if (format.size() < 3) {
+        throw std::invalid_argument("unsupported dtype format string: "s + format.data());
+    }
+
+    const auto kind = format[1];
+    const auto itemsize = std::atoi(format.substr(2).data());
+
+    switch (kind) {
+        case 'b': return IntegerType::Get(1, true);
+        case 'i': return IntegerType::Get(itemsize * 8, true);
+        case 'u': return IntegerType::Get(itemsize * 8, false);
+        case 'f': return FloatType::Get(itemsize * 8);
+        default: throw std::invalid_argument("unsupported dtype format kind: "s + kind);
+    }
+}
+
+
 static llvm::Type* ConvertType(const Type& type, llvm::LLVMContext& context) {
     if (auto integerType = dynamic_cast<const IntegerType*>(&type)) {
         if (!integerType->isSigned) {
@@ -136,6 +156,47 @@ static llvm::Type* ConvertType(const Type& type, llvm::LLVMContext& context) {
         throw std::invalid_argument(ss.str());
     }
 }
+
+
+pybind11::buffer_info GetBufferInfo(pybind11::object obj, bool writable) {
+    std::stringstream msg;
+    msg << "expected a " << (writable ? "writable" : "readable") << " buffer";
+
+    // Try with the buffer protocol.
+    try {
+        auto buffer = obj.cast<pybind11::buffer>();
+        return buffer.request(writable);
+    }
+    catch (pybind11::type_error&) {
+        // Empty
+    }
+    catch (pybind11::buffer_error& ex) {
+        throw std::invalid_argument(msg.str());
+    }
+
+    // Try getting pointer, size and strides from cupy array
+    try {
+        const auto ptr = reinterpret_cast<void*>(obj.attr("data").attr("ptr").cast<ptrdiff_t>());
+        std::vector<ptrdiff_t> shape;
+        std::vector<ptrdiff_t> strides;
+        for (auto s : obj.attr("shape").cast<pybind11::tuple>()) {
+            shape.push_back(s.cast<ptrdiff_t>());
+        }
+        for (auto s : obj.attr("strides").cast<pybind11::tuple>()) {
+            strides.push_back(s.cast<ptrdiff_t>());
+        }
+
+        const auto dtype = GetTypeFromDTypeString(obj.attr("dtype").attr("str").cast<std::string>());
+        return VisitType(*dtype, [&](auto* typed) {
+            using T = std::decay_t<decltype(*typed)>;
+            return pybind11::buffer_info(reinterpret_cast<T*>(ptr), shape, strides, !writable);
+        });
+    }
+    catch (...) {
+        throw std::invalid_argument(msg.str());
+    }
+}
+
 
 //------------------------------------------------------------------------------
 // Argument
@@ -288,9 +349,8 @@ void Argument::Write(const FieldType& type, pybind11::object value, std::byte* a
     const auto llvmType = ConvertType(*type.elementType, m_runner->GetContext());
     const auto elementSize = m_runner->GetDataLayout().getTypeAllocSize(llvmType);
 
-    const auto buffer = value.cast<pybind11::buffer>();
-    const auto bufferInfo = buffer.request(true);
-    const auto bufferType = FieldType{ GetTypeFromFormat(bufferInfo.format), int(bufferInfo.ndim) };
+    const auto bufferInfo = GetBufferInfo(value, true);
+    const auto bufferType = FieldType{ GetTypeFromFormatString(bufferInfo.format), int(bufferInfo.ndim) };
     if (!bufferType.EqualTo(type)) {
         const auto bufferElementIntType = dynamic_cast<sir::IntegerType*>(bufferType.elementType.get());
         const auto elementIndexType = dynamic_cast<sir::IntegerType*>(type.elementType.get());

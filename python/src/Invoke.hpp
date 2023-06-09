@@ -16,7 +16,7 @@
 
 
 namespace sir {
-TypePtr GetTypeFromFormat(std::string_view format);
+TypePtr GetTypeFromFormatString(std::string_view format);
 
 
 class Argument {

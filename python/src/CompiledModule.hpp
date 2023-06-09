@@ -16,9 +16,9 @@
 namespace sir {
 
 
-enum class eTargetArch {
-    X86,
-    NVPTX,
+enum class eAccelerator {
+    NONE,
+    CUDA,
     AMDGPU,
 };
 
@@ -30,7 +30,7 @@ enum class eOptimizationLevel {
 };
 
 struct CompileOptions {
-    eTargetArch targetArch;
+    eAccelerator accelerator;
     eOptimizationLevel optimizationLevel;
     OptimizationOptions optimizationOptions;
     std::strong_ordering operator<=>(const CompileOptions& rhs) const noexcept = default;
@@ -74,7 +74,7 @@ struct std::hash<sir::CompileOptions> {
     auto operator()(const sir::CompileOptions& obj) const noexcept {
         auto v = std::hash<sir::OptimizationOptions>{}(obj.optimizationOptions);
         constexpr auto c = static_cast<decltype(v)>(8934546291568956629LL);
-        v = (v * c) + std::hash<sir::eTargetArch>{}(obj.targetArch);
+        v = (v * c) + std::hash<sir::eAccelerator>{}(obj.accelerator);
         v = (v * c) + std::hash<sir::eOptimizationLevel>{}(obj.optimizationLevel);
         return v;
     }

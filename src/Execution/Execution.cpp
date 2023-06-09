@@ -16,6 +16,15 @@
 #include <regex>
 
 
+
+// Force linkage against MLIR runner DLLs by pulling a function from them.
+[[maybe_unused]] volatile auto forceRunnerUtils = &rtclock;
+#ifdef STENCILIR_ENABLE_CUDA
+extern "C" void mgpuMemHostRegister(void* ptr, uint64_t sizeBytes);
+[[maybe_unused]] volatile auto forceGpuRuntime = mgpuMemHostRegister;
+#endif
+
+
 namespace sir {
 
 Runner::Runner(mlir::ModuleOp& llvmIr, int optLevel) {
@@ -27,22 +36,17 @@ Runner::Runner(mlir::ModuleOp& llvmIr, int optLevel) {
     constexpr auto targetMachine = nullptr;
     auto optPipeline = mlir::makeOptimizingTransformer(optLevel, sizeLevel, targetMachine);
 
-    // This is needed on Windows so that the MLIR runner utils DLL is actually linked against.
     std::vector<std::string> sharedLibPaths;
     {
-        [[maybe_unused]] volatile auto forceRunnerUtils = &rtclock;
         const auto runnerUtilsLibPath = GetModulePath(R"(.*mlir_c_runner_utils.*)");
         if (!runnerUtilsLibPath) {
             throw std::runtime_error("Could not find MLIR runner utilities shared library.");
         }
         sharedLibPaths.push_back(runnerUtilsLibPath->string());
 
-        for (auto& file : std::filesystem::directory_iterator(runnerUtilsLibPath->parent_path())) {
-            std::regex re(R"(.*mlir_cuda_runtime.*)");
-            if (std::regex_match(file.path().filename().string(), re)) {
-                sharedLibPaths.push_back(file.path().string());
-                break;
-            }
+        const auto cudaRuntimeLibPath = GetModulePath(R"(.*mlir_cuda_runtime.*)");
+        if (cudaRuntimeLibPath) {
+            sharedLibPaths.push_back(cudaRuntimeLibPath->string());
         }
     }
     std::vector<mlir::StringRef> sharedLibPathsRef{ sharedLibPaths.begin(), sharedLibPaths.end() };

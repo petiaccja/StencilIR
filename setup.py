@@ -36,6 +36,10 @@ class CMakeBuild(build_ext):
 
         cmake_build_type = os.environ["CMAKE_BUILD_TYPE"]
 
+        enable_cuda = "OFF"
+        if "STENCILIR_ENABLE_CUDA" in os.environ:
+            enable_cuda = "ON" if os.environ["STENCILIR_ENABLE_CUDA"] else "OFF"
+
         process = psutil.Process(os.getpid())
         memory_maps = process.memory_maps()
         python_dlls = [pathlib.Path(map.path) for map in memory_maps if re.search("python[0-9]+\.dll", map.path.lower())]
@@ -49,7 +53,8 @@ class CMakeBuild(build_ext):
             '-S', ext.cmake_source_dir,
             '-B', str(build_temp),
             f'-DCMAKE_BUILD_TYPE={cmake_build_type}',
-            f'-DEXTRA_RUNTIME_DEPENDENCY_DIRS={";".join(extra_runtime_dependency_dirs)}'
+            f'-DEXTRA_RUNTIME_DEPENDENCY_DIRS={";".join(extra_runtime_dependency_dirs)}',
+            f'-DSTENCILIR_ENABLE_CUDA:BOOL={enable_cuda}'
         ]
 
         build_command = [
