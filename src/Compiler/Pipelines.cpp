@@ -202,6 +202,7 @@ Stage CreateCUDASerializerStage(mlir::MLIRContext& context, bool verify = true) 
     Stage stage{ "cuda_bin", context };
     stage.passes->addNestedPass<mlir::gpu::GPUModuleOp>(mlir::createLowerGpuOpsToNVVMOpsPass());
     stage.passes->addPass(mlir::createCanonicalizerPass());
+    stage.passes->addNestedPass<mlir::gpu::GPUModuleOp>(createUseCudaLibdevicePass());
     stage.passes->addNestedPass<mlir::gpu::GPUModuleOp>(mlir::createGpuSerializeToCubinPass("nvptx64-nvidia-cuda", "sm_35", "+ptx60"));
     stage.passes->addPass(mlir::createGpuToLLVMConversionPass());
 

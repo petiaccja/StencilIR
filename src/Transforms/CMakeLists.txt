@@ -19,6 +19,8 @@ target_sources(Transforms
         EliminateSlicing.hpp
         Utility.cpp
         Utility.hpp
+        UseCudaLibdevice.cpp
+        UseCudaLibdevice.hpp
 )
 
 target_include_directories(Transforms INTERFACE ${CMAKE_CURRENT_LIST_DIR}/..)

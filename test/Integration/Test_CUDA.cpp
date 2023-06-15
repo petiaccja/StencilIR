@@ -21,15 +21,19 @@ auto CreateModule() {
 
     auto mod = ops::ModuleOp{};
 
+    auto math_fun = mod.Create<ops::FuncOp>("sqrtf", FunctionType::Get({ scalarType }, { scalarType }));
+
     auto helper_fun = mod.Create<ops::FuncOp>("helper_fun",
                                               FunctionType::Get({ scalarType, scalarType },
                                                                 { scalarType }),
                                               false);
-    auto result = helper_fun.Create<ops::ArithmeticOp>(helper_fun.GetRegionArg(0),
-                                                       helper_fun.GetRegionArg(1),
-                                                       ops::eArithmeticFunction::ADD)
-                      .GetResult();
+    auto sum = helper_fun.Create<ops::ArithmeticOp>(helper_fun.GetRegionArg(0),
+                                                    helper_fun.GetRegionArg(1),
+                                                    ops::eArithmeticFunction::ADD)
+                   .GetResult();
+    auto result = helper_fun.Create<ops::CallOp>(math_fun, std::vector{ sum }).GetResults()[0];
     helper_fun.Create<ops::ReturnOp>(std::vector{ result });
+
 
     auto kernel_fun = mod.Create<ops::StencilOp>("kernel_fun",
                                                  FunctionType::Get({ fieldType,

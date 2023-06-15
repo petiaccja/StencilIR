@@ -4,6 +4,7 @@
 #include "EliminateSlicing.hpp"
 #include "EliminateUnusedAllocTensors.hpp"
 #include "ReduceDimOps.hpp"
+#include "UseCudaLibdevice.hpp"
 
 
 namespace sir {
@@ -18,6 +19,10 @@ inline auto createEliminateUnusedAllocTensorsPass() {
 
 inline auto createEliminateSlicingPass() {
     return std::make_unique<EliminateSlicingPass>();
+}
+
+inline auto createUseCudaLibdevicePass() {
+    return std::make_unique<UseCudaLibdevicePass>();
 }
 
 
